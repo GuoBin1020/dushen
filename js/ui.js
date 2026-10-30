@@ -11,7 +11,7 @@ const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
   const n=V.players.length,slot=(pid-V.me+n)%n,o=tableOrient();
-  const p=kind==='center'?centerXY(o):kind==='bet'?betXY(slot,n,o):seatXY(slot,n,o);
+  const p=kind==='center'?centerXY(o):kind==='bet'?BETPT[pid]||betXY(slot,n,o):seatXY(slot,n,o);
   const tr=tbl.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
   return {x:tr.left-wr.left+tbl.clientLeft+tbl.clientWidth*p.x/100,y:tr.top-wr.top+tbl.clientTop+tbl.clientHeight*p.y/100};
 }
@@ -380,7 +380,7 @@ function seatTag(p){
   const who=p.kind==='ai'?'电脑':p.kind==='remote'?(p.connected?'玩家':isD(V)?'托管中':'掉线'):(NET.role==='solo'?'':'房主');
   return [who,pos].filter(Boolean).join(' · ');
 }
-/* tapping a bet chip, or the seat it belongs to, lifts that chip above the cards for a moment */
+/* tapping a bet chip, or (德州) the seat it belongs to, lifts that chip above the cards for a moment; a 炸金花 seat opens its panel instead */
 let PEEK=null,peekTimer=null;
 function peekBet(pid){
   PEEK={pid,until:Date.now()+2500};
@@ -396,7 +396,7 @@ function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset
 /* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
 const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
-  if(isD(V))return ddRenderTable();
+  if(isD(V)){BETPT={};return ddRenderTable()}
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
   const n=V.players.length,o=tableOrient();
   tableFrame(o,isZ(V)?'zjh':'holdem');
@@ -407,12 +407,14 @@ function renderTable(){
     const mine=i===V.me,cards=p.inHand?p.cards.map(c=>cardHTML(c)).join(''):'';
     const done=V.phase!=='playing'&&V.phase!=='runout';
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.folded?'folded':'',p.out||(!p.inHand&&V.phase==='playing')?'out':'',p.won>0&&done?'win':''].join(' ');
-    const status=p.out?'已离桌':p.busted&&!p.inHand?'筹码输光':!p.inHand&&V.phase==='playing'?'下一手入座':p.lastAction||(p.shown&&p.handName?p.handName:'');
-    const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName?' · '+p.handName:''}</div>`:`<div class="pact">${esc(status)}</div>`;
-    if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}</div>`;
-    html+=`<div class="${cls}" data-pid="${i}" style="${seatStyle(s)}">
+    const hn=handLabel(p);
+    const status=p.folded&&hn?(p.lostCmp?'比牌输了 · 已弃牌':'已弃牌'):p.out?'已离桌':p.busted&&!p.inHand?'筹码输光':!p.inHand&&V.phase==='playing'?'下一手入座':p.lastAction||(p.shown&&p.handName?p.handName:'');
+    const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName&&!hn?' · '+p.handName:''}</div>`:`<div class="pact">${esc(status)}</div>`;
+    if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}${hn}</div>`;
+    /* seats on the right keep their cards on the inner side of the avatar, so they stay on screen */
+    html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${s.x>80?' rside':''}" data-pid="${i}" style="${seatStyle(s)}">
       ${avatarHTML(p)}<div class="cards">${mine?'':cards}</div>
-      <div class="plate">${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
+      <div class="plate">${mine?'':hn}${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>
@@ -428,9 +430,67 @@ function renderTable(){
   $('#table').innerHTML=html;
   $('#table').classList.toggle('zjh',isZ(V));$('#table').classList.remove('ddz');
   $('#table').dataset.n=String(n);
+  placeBets();renderSeatPop();
 }
+/* where each player's bet chip goes, in % of the table: on the line from the seat to the middle, just clear of the seat as
+   drawn (js/table-layout.js betClear). Flying chips aim at the same points (seatPoint). */
+let BETPT={};
+function placeBets(){
+  BETPT={};const tb=$('#table');if(!tb||!V)return;
+  const tr=tb.getBoundingClientRect(),W=tb.clientWidth,H=tb.clientHeight;if(!W||!H)return;
+  const ox=tr.left+tb.clientLeft,oy=tr.top+tb.clientTop,c=centerXY(tableOrient()),C={x:W*c.x/100,y:H*c.y/100};
+  const any=tb.querySelector('.bet'),dflt=any?any.getBoundingClientRect():{width:60,height:26};
+  V.players.forEach((p,i)=>{
+    const seat=tb.querySelector(`.seat[data-pid="${i}"]`);if(!seat)return;
+    const rs=[seat,...seat.children].filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),sr=rs[0];
+    const S={x:sr.left+sr.width/2-ox,y:sr.top+sr.height/2-oy};
+    const box={l:S.x+ox-Math.min(...rs.map(r=>r.left)),r:Math.max(...rs.map(r=>r.right))-ox-S.x,t:S.y+oy-Math.min(...rs.map(r=>r.top)),b:Math.max(...rs.map(r=>r.bottom))-oy-S.y};
+    const el=tb.querySelector(`.bet[data-pid="${i}"]`),br=el?el.getBoundingClientRect():dflt,q=betClear(S,C,box,br.width,br.height,4);
+    const pt=BETPT[i]={x:q.x/W*100,y:q.y/H*100};
+    if(el){el.style.left=pt.x.toFixed(2)+'%';el.style.top=pt.y.toFixed(2)+'%'}
+  });
+}
+/* at the end of a hand, the hand name beside each shown hand (the winner's marked); with 「亮出所有人的底牌」 also the hands
+   nobody showed down (a folded one's plate then says 「已弃牌」). One short line, so it stays within the seat. */
+function handLabel(p){
+  if(V.phase!=='handover'||!p.inHand||!p.cards.length||p.cards[0]==null)return '';
+  const nm=p.shown&&!p.folded&&p.handName?p.handName:p.revealName;if(!nm)return '';
+  const win=p.won>0&&!p.folded;
+  return `<span class="hname${p.id===V.me?' mine':''}${win?' win':''}">${win?'赢 ':''}${esc(nm)}${p.folded&&p.id===V.me?' · 已弃牌':''}</span>`;
+}
+/* 炸金花: tapping a seat opens a small panel beside it with the player's name, chips and status, and what I can do with
+   them right now (seatPopActions: only 比牌 so far). It follows the table on every render; a tap outside or Esc closes it. */
+let SEATPOP=null;
+function seatPopActions(p){
+  const acts=[];if(!isZ(V)||!myTurn()||p.id===V.me||!alive(p))return acts;
+  const m=me(),cost=zCost(V,m),a=coachOn()&&LOCAL.mode==='live'?getAdvice():null,rec=a&&a.rec.type==='compare'&&a.rec.target===p.id?' is-rec':'';
+  if(V.round>=2&&m.stack>=cost)acts.push(`<button type="button" class="btn b-red${rec}" data-act="zcmp" data-t="${p.id}">和 TA 比牌（付 ${fmt(cost)}）</button>`);
+  return acts;
+}
+function seatStatus(p){return p.out||!p.inHand?'离座':p.folded?(p.lostCmp?'弃牌（比牌输了）':'弃牌'):isZ(V)?(p.seen?'看牌':'闷牌'):p.allIn?'全下':'在局中'}
+function closeSeatPop(){SEATPOP=null;const el=$('#seat-pop');if(el)el.hidden=true}
+function renderSeatPop(){
+  let el=$('#seat-pop');
+  const seat=SEATPOP&&document.querySelector(`#table .seat[data-pid="${SEATPOP.pid}"]`),p=SEATPOP&&V&&V.players[SEATPOP.pid];
+  if(!seat||!p||!isZ(V)||V.handNo!==SEATPOP.hand){SEATPOP=null;if(el)el.hidden=true;return}
+  if(!el){el=document.createElement('div');el.id='seat-pop';el.className='seat-pop';el.setAttribute('role','dialog');$('#game-view').appendChild(el)}
+  const acts=seatPopActions(p);
+  el.setAttribute('aria-label',p.name);
+  el.innerHTML=`<div class="sp-name">${esc(p.name)}</div><div class="sp-info"><span>筹码 <b class="num">${fmt(p.stack)}</b></span><span class="sp-st">${seatStatus(p)}</span></div>${acts.length?`<div class="sp-acts">${acts.join('')}</div>`:''}`;
+  el.hidden=false;
+  /* beside a seat on the left or right edge (toward the middle), else below a seat in the upper half and above one in the
+     lower half; kept on screen */
+  const rs=[seat,...seat.children].filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),r={left:Math.min(...rs.map(q=>q.left)),right:Math.max(...rs.map(q=>q.right)),top:Math.min(...rs.map(q=>q.top)),bottom:Math.max(...rs.map(q=>q.bottom))};
+  r.width=r.right-r.left;r.height=r.bottom-r.top;
+  const g=$('#game-view').getBoundingClientRect(),w=el.offsetWidth,h=el.offsetHeight,cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const side=cx<innerWidth*0.3?1:cx>innerWidth*0.7?-1:0,up=cy>innerHeight/2;
+  const x0=side>0?r.right+6:side<0?r.left-w-6:cx-w/2,y0=side?cy-h/2:up?r.top-h-6:r.bottom+6;
+  const x=Math.max(8,Math.min(innerWidth-w-8,x0)),y=Math.max(8,Math.min(innerHeight-h-8,y0));
+  el.style.left=(x-g.left)+'px';el.style.top=(y-g.top)+'px';
+}
+function toggleSeatPop(pid){if(SEATPOP&&SEATPOP.pid===pid)closeSeatPop();else{SEATPOP={pid,hand:V.handNo};renderSeatPop()}}
 /* the action area: a hint label (coach advice or a tip, may be empty), one fixed-height row of buttons or one line of
-   text, and an optional pop-up panel above the row. ACTPOP names the open panel ('raise', 'cmp'); it closes when the turn ends. */
+   text, and an optional pop-up panel above the row. ACTPOP names the open panel ('raise'); it closes when the turn ends. */
 let ACTPOP=null;
 const actHTML=(hint,bar,pop,kind)=>`<div class="act-hint">${hint||''}</div><div class="act-bar">${bar}</div>${pop?`<div class="act-pop" data-pop="${kind||''}"${ACTPOP&&ACTPOP===kind?'':' hidden'}>${pop}</div>`:''}`;
 const actWait=(txt,btns)=>actHTML('',`<span class="act-wait">${txt}</span>${btns||''}`);
@@ -908,7 +968,9 @@ document.addEventListener('click',async e=>{
   if(ACTPOP&&!e.target.closest('#actions .act-pop,[data-act="raise-open"],[data-act="zpop"]'))closeActPop();
   const pr=e.target.closest('[data-preset]');if(pr){const r=$('#raise-amt');if(r){r.value=pr.dataset.preset;syncRaise()}return}
   if(chatPopOpen()&&!e.target.closest('#chat-slot,#chat-bubble'))setChatPop(false);
-  const bt=e.target.closest('#table .bet[data-pid],#table .seat[data-pid]');if(bt){peekBet(+bt.dataset.pid);return}
+  if(SEATPOP&&!e.target.closest('#seat-pop,#table .seat[data-pid]'))closeSeatPop();
+  const bt=e.target.closest('#table .bet[data-pid],#table .seat[data-pid]');
+  if(bt){const pid=+bt.dataset.pid;if(V&&isZ(V)&&bt.classList.contains('seat'))toggleSeatPop(pid);else peekBet(pid);return}
   const vp=e.target.closest('[data-vplay]');
   if(vp){const id=vp.dataset.vplay;if(VMSG.curId===id){stopVoice();nextVoice()}else playVoice(id,true);return}
   const qb=e.target.closest('[data-quick]');if(qb){sendChat(QUICK[+qb.dataset.quick]);if(qb.closest('#chat-slot'))setChatPop(false);return}
@@ -942,7 +1004,7 @@ document.addEventListener('click',async e=>{
   else if(a==='allin'){const m=me();if(isZ(V))humanAct('allin');else humanAct('raise',m.bet+m.stack)}
   else if(a==='zlook')humanAct('look');
   else if(a==='zraise')humanAct('raise',+b.dataset.v);
-  else if(a==='zcmp')humanAct('compare',+b.dataset.t);
+  else if(a==='zcmp'){closeSeatPop();humanAct('compare',+b.dataset.t)}
   else if(a==='ddbid')humanAct('bid',+b.dataset.v);
   else if(a==='dddbl')humanAct('double',+b.dataset.v);
   else if(a==='ddplay'){const st=ddPickState();if(st.cls){const r=st.readings[+b.dataset.as||0]||st.cls,ids=[...DSEL];DSEL=new Set();humanAct('play',{cards:ids,as:{type:r.type,main:r.main,len:r.len}})}}
@@ -992,7 +1054,7 @@ document.addEventListener('input',e=>{
   const ans=e.target.dataset&&e.target.dataset.ans;if(ans){const s=NET.lanSlots.find(x=>x.id===ans);if(s)s.ans=e.target.value}
 });
 document.addEventListener('change',e=>{if(e.target.name==='f-net')syncJoinNet()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&REC.click){recStop(true);return}if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();peekBet(+b.dataset.pid)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&REC.click){recStop(true);return}if(e.key==='Escape'&&SEATPOP){closeSeatPop();return}if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();peekBet(+b.dataset.pid)}});
 /* push-to-talk: hold to record, release to send, release outside the button to cancel */
 function pttOutside(x,y){const b=$('#ptt');if(!b)return false;const r=b.getBoundingClientRect();return x<r.left-20||x>r.right+20||y<r.top-30||y>r.bottom+20}
 function pttMove(x,y){const out=pttOutside(x,y);if(out!==REC.outside){REC.outside=out;if(REC.rec)updRecBtn((Date.now()-REC.t0)/1000)}}

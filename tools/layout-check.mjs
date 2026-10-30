@@ -3,7 +3,7 @@
    自己在项目目录起一个本地服务器（默认端口 8767，被占用就换一个空闲端口），用无头 Chrome 打开牌局，
    在几种人数、游戏和屏幕尺寸下检查：页面不滚动、标题栏和页脚隐藏、座位互不重叠、座位不压住公共牌 / 底牌 / 出的牌 / 按钮面板，
    斗地主 20 张手牌一行放下，下注筹码不压住按钮区，手机上按钮至少 40px 高，转屏后重新检查，控制台没有报错。
-   按钮区另有场景：按钮一排的位置在各种状态下不动、德州加注和炸金花比牌的弹出面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
+   按钮区另有场景：按钮一排的位置在各种状态下不动、德州加注的弹出面板和炸金花点头像比牌的面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,7 +30,8 @@ function serve(port){
   });
 }
 
-const SIZES=[[393,873,true],[360,780,true],[873,393,true],[768,1024,true],[1280,800,false]];
+/* the five original sizes, then 6.7-inch phones both ways up */
+const SIZES=[[393,873,true],[360,780,true],[873,393,true],[768,1024,true],[1280,800,false],[430,932,true],[412,915,true],[932,430,true],[915,412,true]];
 const LONG='一二三四五六七八九十甲乙';
 let SCEN=[
   {name:'holdem-2',game:'holdem',n:2},{name:'holdem-6',game:'holdem',n:6},{name:'holdem-9',game:'holdem',n:9},
@@ -84,14 +85,42 @@ const RAISE_POP=`(async()=>{${PG}
   const bet0=V.players[V.me].bet,ok=Q('#actions .act-pop [data-act="raise"]');if(!ok)return [...f,'面板里没有确定按钮'];
   ok.click();const bet1=V.players[V.me].bet;if(!(bet1>bet0))f.push('确定后下注没有变大：'+bet0+' → '+bet1);
   return f})()`;
+/* 炸金花 compare: no 比牌 button in the row; tapping an opponent's avatar opens a small panel by the seat with name, chips and
+   status, and a 「和 TA 比牌」 button that compares when that is allowed; a folded player's panel only shows information */
 const ZJH_POP=`(async()=>{${PG}
   S.round=Math.max(2,S.round);sync();clearTimeout(timer);await sleep(80);
-  const b=Q('#actions .act-bar [data-act="zpop"][data-pop="cmp"]');if(!b)return ['没有比牌按钮'];
-  b.click();await sleep(80);if(!popOk('比牌面板'))return f;
-  const list=[...document.querySelectorAll('#actions .act-pop [data-act="zcmp"]')].filter(vis);if(!list.length)return [...f,'比牌面板里没有对手'];
-  const r=Q('#actions .act-bar [data-act="zpop"][data-pop="raise"]');
-  const st0=V.players[V.me].stack;list[0].click();await sleep(300);
-  if(!(V.players[V.me].stack<st0))f.push('点了比牌没有比牌：筹码 '+st0+' → '+V.players[V.me].stack);
+  if(Q('#actions [data-act="zpop"][data-pop="cmp"]'))f.push('按钮行里还有比牌按钮');
+  if(Q('#actions [data-act="zcmp"]'))f.push('按钮区里还有比牌按钮');
+  const tap=pid=>{const a=Q('#table .seat[data-pid="'+pid+'"] .ava');if(!a)return null;const r=a.getBoundingClientRect(),t=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(t)t.click();return t};
+  const pop=()=>Q('#seat-pop'),gap=(a,b)=>Math.max(0,a.x-(b.x+b.w),b.x-(a.x+a.w))+Math.max(0,a.y-(b.y+b.h),b.y-(a.y+a.h));
+  const panel=(tag,q,cmp)=>{const p=pop();if(!vis(p)){f.push(tag+'：点头像没有弹出面板');return null}
+    const r=R(p),sr=R(Q('#table .seat[data-pid="'+q.id+'"]'));
+    if(r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5)f.push(tag+'：面板超出屏幕');
+    if(gap(r,sr)>24)f.push(tag+'：面板离座位 '+gap(r,sr).toFixed(0)+'px');
+    const t=p.textContent;if(!t.includes(q.name))f.push(tag+'：面板里没有名字');if(!t.includes(fmt(q.stack)))f.push(tag+'：面板里没有筹码');
+    const want=q.folded?'弃牌':q.seen?'看牌':'闷牌';if(!t.includes(want))f.push(tag+'：面板里没有状态「'+want+'」');
+    const b=p.querySelector('[data-act="zcmp"]');
+    if(cmp){if(!b||!vis(b))f.push(tag+'：能比牌却没有比牌按钮');else{if(+b.dataset.t!==q.id)f.push(tag+'：比牌按钮的对象不对');if(!/和 TA 比牌（付 /.test(b.textContent))f.push(tag+'：按钮文字是「'+b.textContent+'」');
+      if(innerWidth<1000&&b.getBoundingClientRect().height<39.5)f.push(tag+'：比牌按钮不到 40px')}}
+    else if(b)f.push(tag+'：不能比牌却有比牌按钮');
+    return p};
+  const opps=V.players.filter(q=>q.id!==V.me&&alive(q));if(opps.length<2)return ['对手不够'];
+  const a=opps[0],c=opps[opps.length-1];
+  tap(a.id);await sleep(80);if(!panel('对手',a,true))return f;
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep(60);if(vis(pop()))f.push('按 Esc 没有关闭面板');
+  tap(a.id);await sleep(80);Q('#table').click();await sleep(60);if(vis(pop()))f.push('点面板外面没有关闭');
+  S.players[c.id].folded=true;sync();clearTimeout(timer);await sleep(60);
+  tap(c.id);await sleep(80);panel('弃牌的对手',V.players[c.id],false);Q('#table').click();await sleep(60);
+  tap(a.id);await sleep(80);const p=panel('比牌',a,true);const b=p&&p.querySelector('[data-act="zcmp"]');
+  if(b){const st0=V.players[V.me].stack;b.click();await sleep(300);
+    if(!(V.players[V.me].stack<st0))f.push('点了比牌没有比牌：筹码 '+st0+' → '+V.players[V.me].stack);
+    if(vis(pop()))f.push('比牌后面板没有关闭')}
+  return f})()`;
+/* 德州 seats keep their old tap: no panel, the bet chip lifts */
+const HM_SEAT_TAP=`(async()=>{${PG}
+  const s=[...document.querySelectorAll('#table .seat:not(.me)')][0],a=s&&s.querySelector('.ava');if(!a)return ['没有对手座位'];
+  const r=a.getBoundingClientRect(),t=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(t)t.click();await sleep(80);
+  if(vis(Q('#seat-pop')))f.push('德州点座位弹出了面板');
   return f})()`;
 const DDZ_BAR=`(async()=>{${PG}
   const seen=[];
@@ -114,7 +143,7 @@ SCEN.push(
   {name:'bar-stable',game:'holdem',n:6,extra:BAR_STABLE},
   {name:'raise-pop',game:'holdem',n:6,extra:RAISE_POP,sizes:[...PH,[360,780,true],[1280,800,false]]},
   {name:'raise-pop-9',game:'holdem',n:9,extra:RAISE_POP,sizes:[...PH,[1280,800,false]]},
-  {name:'zjh-pop',game:'zjh',n:6,extra:ZJH_POP,sizes:[...PH,[1280,800,false]]},
+  {name:'zjh-pop',game:'zjh',n:6,extra:ZJH_POP,sizes:[...PH,[412,915,true],[915,412,true],[1280,800,false]]},
   {name:'ddz-bar',game:'ddz',n:3,extra:DDZ_BAR},
   {name:'guest-wait',game:'holdem',n:6,extra:GUEST_WAIT,sizes:PH},
   {name:'coach-rec',game:'holdem',n:6,extra:COACH_REC,sizes:PH},
@@ -216,6 +245,89 @@ SCEN.push(
   {name:'sheets',game:'holdem',n:6,extra:SHEET_CLICK},
   {name:'sheets-ddz',game:'ddz',n:3,extra:SHEET_CLICK,sizes:[...PH,[1280,800,false]]},
   {name:'ddz-top',game:'ddz',n:3,lord20:true,extra:DDZ_TOP}
+);
+/* board-cards: no bet chip touches any seat (plate and cards included) and each lies on its seat's line to the middle; the middle (德州 board and pot, 炸金花 pot) sits lower than it used to (OLD_TOP: the board's top before, per size)
+   and clear of every seat, bet and the buttons; opponents' cards are at least 1.3x their old width on phones (OLD_CW) and
+   clear of the other seats, their cards, the middle and the buttons */
+const BOARD_CARDS=`(async()=>{${PG}
+  const OLD_TOP={'393x873':265.1,'360x780':236.8,'873x393':109.2,'768x1024':300.8,'1280x800':251.8,'430x932':282.8,'412x915':278.1,'932x430':120.9,'915x412':115.2};
+  const OLD_CW={'393x873':18.86,'360x780':17.27,'873x393':21.22,'768x1024':32,'1280x800':34,'430x932':20.63,'412x915':19.77,'932x430':23.22,'915x412':22.23};
+  const key=innerWidth+'x'+innerHeight,all=s=>[...document.querySelectorAll(s)].filter(vis);
+  const seats=all('#table .seat'),bets=all('#table .bet').map(R),bar=[...all('#actions .act-bar'),...all('#actions .act-hint')].map(R);
+  const mid=[...all('#table .board'),...all('#table .center .pot')].map(R);
+  const bd=Q('#table .board');
+  if(bd&&OLD_TOP[key]){const top=R(bd).y,want=OLD_TOP[key]+innerHeight*0.04;if(top<want-0.5)f.push('公共牌上沿 '+top.toFixed(1)+'px，没有比原来 '+OLD_TOP[key]+' 低屏幕高度的 4%（'+want.toFixed(1)+'）')}
+  mid.forEach((m,i)=>{seats.forEach((s,j)=>{if(hit(m,R(s)))f.push('桌面中间 '+i+' 压住座位 '+j)});bets.forEach((b,j)=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住下注 '+j)});bar.forEach(b=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住按钮区')})});
+  /* bet chips never touch any seat, plate or seat cards, their own included */
+  bets.forEach((b,i)=>seats.forEach((s,j)=>{const pl=s.querySelector('.plate'),cs=s.querySelector('.cards');
+    if(hit(b,R(s)))f.push('下注 '+i+' 压住座位 '+j);else if(pl&&hit(b,R(pl)))f.push('下注 '+i+' 压住座位 '+j+' 的名牌');
+    if(cs&&vis(cs)&&hit(b,R(cs)))f.push('下注 '+i+' 压住座位 '+j+' 的牌')}));
+  /* each chip lies on the line from its seat's centre to the middle of the table, nearer the middle than the seat */
+  const cen=R(Q('#table .center')),C={x:cen.x+cen.w/2,y:cen.y+cen.h/2};
+  all('#table .bet[data-pid]').forEach(el=>{const s=R(Q('#table .seat[data-pid="'+el.dataset.pid+'"]')),r=R(el),P={x:s.x+s.w/2,y:s.y+s.h/2},B={x:r.x+r.w/2,y:r.y+r.h/2};
+    const dx=C.x-P.x,dy=C.y-P.y,L=Math.hypot(dx,dy)||1,off=Math.abs((B.x-P.x)*dy-(B.y-P.y)*dx)/L;
+    if(off>6)f.push('下注 '+el.dataset.pid+' 离座位到桌心的连线 '+off.toFixed(1)+'px');
+    if(!(Math.hypot(C.x-B.x,C.y-B.y)<Math.hypot(C.x-P.x,C.y-P.y)))f.push('下注 '+el.dataset.pid+' 没有比座位更靠近桌心')});
+  const phone=Math.min(innerWidth,innerHeight)<500,c0=Q('#table .seat:not(.me) .cards .card');
+  if(phone&&c0&&OLD_CW[key]){const w=parseFloat(getComputedStyle(c0).width);if(w<OLD_CW[key]*1.3-0.05)f.push('对手的牌宽 '+w.toFixed(1)+'px，不到原来 '+OLD_CW[key]+' 的 1.3 倍')}
+  const cards=seats.map(s=>{const c=s.querySelector('.cards');return c&&vis(c)?R(c):null});
+  cards.forEach((c,i)=>{if(!c||seats[i].classList.contains('me'))return;
+    if(c.x<-0.5||c.y<-0.5||c.x+c.w>innerWidth+0.5||c.y+c.h>innerHeight+0.5)f.push('座位 '+i+' 的牌超出屏幕');
+    seats.forEach((s,j)=>{if(j!==i&&hit(c,R(s)))f.push('座位 '+i+' 的牌压住座位 '+j)});
+    cards.forEach((d,j)=>{if(d&&j>i&&hit(c,d))f.push('座位 '+i+' 和 '+j+' 的牌重叠')});
+    mid.forEach((m,j)=>{if(hit(c,m))f.push('座位 '+i+' 的牌压住桌面中间 '+j)});bar.forEach(b=>{if(hit(c,b))f.push('座位 '+i+' 的牌压住按钮区')})});
+  return f})()`;
+/* showdown: every hand shown at the end of a 德州 / 炸金花 hand has its hand name beside it, the winner's marked; with
+   「亮出所有人的底牌」 on, a player who folded also shows cards and a name marked 「已弃牌」; with it off, they show nothing */
+const SHOWDOWN=all=>`(async()=>{${PG}
+  const FP=2;S.cfg.showAll=${all};S.toAct=FP;act(S.players[FP],'fold');clearTimeout(timer);
+  if(isZ(S))zShowdown('');else{while(S.board.length<5)S.board.push(S.deck.pop());S.street='river';showdown()}
+  clearTimeout(timer);await sleep(150);
+  if(V.phase!=='handover')return ['没有进入本手结束：'+V.phase];
+  const gap=(a,b)=>Math.max(0,a.x-(b.x+b.w),b.x-(a.x+a.w))+Math.max(0,a.y-(b.y+b.h),b.y-(a.y+a.h));
+  const off=r=>r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5;
+  const seats=[...document.querySelectorAll('#table .seat')],bar=[...document.querySelectorAll('#actions .act-bar')].filter(vis).map(R);
+  const label=(tag,el,near,p)=>{
+    if(!vis(el)){f.push(tag+'：没有牌型标签');return}
+    const r=R(el);if(off(r))f.push(tag+'：牌型标签超出屏幕');if(gap(r,near)>8)f.push(tag+'：牌型标签离牌 '+gap(r,near).toFixed(0)+'px');
+    seats.forEach(s=>{if(+s.dataset.pid!==p.id&&hit(r,R(s)))f.push(tag+'：牌型标签压住座位 '+s.dataset.pid)});
+    bar.forEach(b=>{if(hit(r,b))f.push(tag+'：牌型标签压住按钮区')});
+    if(p.won>0&&!el.classList.contains('win'))f.push(tag+'：赢家的标签没有标出');
+    if(!(p.won>0)&&el.classList.contains('win'))f.push(tag+'：输家的标签标成了赢家');
+    return el.textContent};
+  for(const s of seats){const p=V.players[+s.dataset.pid];if(p.id===V.me)continue;
+    const faces=[...s.querySelectorAll('.cards .card:not(.back)')].filter(vis),hn=s.querySelector('.hname'),tag='座位 '+p.id;
+    if(p.id===FP){
+      if(${all}){if(!faces.length)f.push(tag+'：弃牌的人没有亮出底牌');else{const t=label(tag,hn,R(s.querySelector('.cards')),p)||'';if(!vis(s.querySelector('.pact'))||!s.querySelector('.pact').textContent.includes('已弃牌'))f.push(tag+'：座位上没有标明「已弃牌」');if(t.trim().length<2)f.push(tag+'：弃牌的人没有牌型：'+t)}}
+      else{if(faces.length)f.push(tag+'：没勾选却亮出了弃牌的人的底牌');if(hn&&vis(hn))f.push(tag+'：没勾选却给弃牌的人标了牌型')}
+      continue}
+    if(!faces.length)continue;
+    const t=label(tag,hn,R(s.querySelector('.cards')),p);if(t!=null&&p.handName&&!t.includes(p.handName))f.push(tag+'：标签「'+t+'」不是 '+p.handName);
+  }
+  const mh=Q('#table .my-hand');if(!mh)f.push('没有我的手牌');else{const m=V.players[V.me],t=label('我',Q('#table .hname.mine'),R(mh),m);if(t!=null&&!t.includes(m.handName))f.push('我：标签「'+t+'」不是 '+m.handName)}
+  if(!document.querySelector('#table .hname.win'))f.push('没有标出赢家');
+  return f})()`;
+/* toasts during a game sit near the top, under the corner buttons, clear of my hand and the buttons */
+const TOAST_TOP=`(async()=>{${PG}
+  toast('横屏体验更好：把手机横过来，或者点上方的「横屏全屏」。',6000);await sleep(60);
+  const t=Q('#toast');if(!vis(t))return ['toast 没有出现'];const r=R(t);
+  if(r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5)f.push('toast 超出屏幕');
+  [...document.querySelectorAll('#dd-hand .card,#table .my-hand .card')].filter(vis).forEach((c,i)=>{if(hit(R(c),r))f.push('toast 压住手牌 '+i)});
+  [...document.querySelectorAll('#actions .act-bar button,.corner > *')].filter(vis).forEach(b=>{if(hit(R(b),r))f.push('toast 压住「'+(b.textContent.trim()||b.getAttribute('aria-label')||'按钮')+'」')});
+  t.hidden=true;return f})()`;
+const PH4=[[393,873,true],[873,393,true],[412,915,true],[915,412,true]];
+SCEN.push(
+  {name:'board-cards',game:'holdem',n:6,extra:BOARD_CARDS},
+  {name:'board-cards-9',game:'holdem',n:9,extra:BOARD_CARDS},
+  {name:'board-cards-zjh',game:'zjh',n:6,extra:BOARD_CARDS},
+  {name:'showdown-all',game:'holdem',n:6,extra:SHOWDOWN(true),sizes:[...PH4,[1280,800,false]]},
+  {name:'showdown-none',game:'holdem',n:6,extra:SHOWDOWN(false),sizes:PH4},
+  {name:'showdown-9-all',game:'holdem',n:9,extra:SHOWDOWN(true),sizes:PH4},
+  {name:'showdown-zjh-all',game:'zjh',n:6,extra:SHOWDOWN(true),sizes:[...PH4,[1280,800,false]]},
+  {name:'showdown-zjh-none',game:'zjh',n:6,extra:SHOWDOWN(false),sizes:PH4},
+  {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
+  {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
+  {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4}
 );
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
 if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);

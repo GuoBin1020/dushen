@@ -1,6 +1,6 @@
 /* 赌神智慧树 offline cache: always try the network first so a new upload shows up right away,
    and fall back to the last cached copy when offline. Only same-origin files are cached. */
-const CACHE = 'dushen-v25';
+const CACHE = 'dushen-v26';
 const SHELL = [
   './', './index.html', './css/app.css',
   './js/vendor/peerjs.min.js', './js/vendor/nacl.min.js', './js/common.js', './js/assets.js', './js/games/holdem.js', './js/games/zjh.js', './js/games/doudizhu.js', './js/games/doudizhu-coach.js', './js/engine.js',

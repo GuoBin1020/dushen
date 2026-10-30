@@ -73,7 +73,7 @@ function startHand(){
       else{p.out=true;log(`${p.name} 输光离桌`,'board-l')}
     }else p.busted=true;
   }
-  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false}));
+  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
   /* 斗地主 deals a dropped player in too: the bot plays their turns until they are back */
   const live=P().filter(p=>!p.out&&p.stack>0&&(present(p)||isD(S)));
   if(!live.some(p=>!isBot(p))){S.phase='busted';S.msg='真人玩家的筹码都输光了，补码后继续';sync();return}
@@ -123,6 +123,9 @@ function distributePots(al,u,pick){
 }
 function endHand(){
   commitHand();
+  /* 「亮出所有人的底牌」: name the hands nobody showed down; 德州 folded hands use the board dealt when they folded */
+  if(S.cfg.showAll&&!isD(S))P().forEach(p=>{if(p.inHand&&p.cards.length&&!(p.shown&&!p.folded&&p.handName))
+    p.revealName=isZ(S)?(S.cfg.z235&&z235(p.cards)?'235':zName(zEval(p.cards))):handName(evalCards([...p.cards,...S.board.slice(0,p.folded?p.foldAt||0:5)]))});
   S.phase='handover';sync();
   P().filter(p=>isBot(p)&&p.won-p.total>=S.cfg.bb*15).forEach(p=>{if(Math.random()<0.3)botChat(p,['运气不错','谢谢老板','这把舒服','承让承让'])});
   if(S.cfg.auto){const hn=S.handNo;clearTimeout(timer);timer=setTimeout(()=>{if(S&&S.phase==='handover'&&S.handNo===hn)startHand()},NET.role==='solo'?2400:3600)}
@@ -157,7 +160,7 @@ function viewFor(seat){
         :(p.id===seat||(p.shown&&!p.folded)||reveal||showAll);
       return {id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,bet:p.bet,total:p.total,folded:p.folded,allIn:p.allIn,inHand:p.inHand,out:p.out,busted:p.busted,connected:p.connected,
         st:p.st,vs:flowVs(S.flow,p.id,seat),gender:p.gender,
-        lastAction:p.lastAction,won:p.won,shown:p.shown,handName:p.handName,rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
+        lastAction:p.lastAction,won:p.won,shown:p.shown,handName:p.handName,revealName:showAll?p.revealName||'':'',rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
     })
   };
 }

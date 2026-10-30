@@ -409,7 +409,7 @@ function act(p,type,to){
   trackRange(p,type);
   const wasOpen=S.currentBet===0;
   let text='';
-  if(type==='fold'){p.folded=true;text='弃牌'}
+  if(type==='fold'){p.folded=true;p.foldAt=S.board.length;text='弃牌'}
   else if(type==='check'){text='过牌'}
   else if(type==='call'){put(p,toCall);text=p.allIn?`跟注 ${fmt(toCall)}（全下）`:`跟注 ${fmt(toCall)}`}
   else{

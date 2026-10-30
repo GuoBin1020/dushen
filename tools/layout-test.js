@@ -12,7 +12,7 @@ const f1=v=>Math.round(v*10)/10;
 
 for(const o of ['land','port']){
   const c=run(`centerXY('${o}')`);
-  ok(c&&c.x===50&&c.y===(o==='land'?36:34),`centerXY ${o} ${JSON.stringify(c)}`);
+  ok(c&&c.x===50&&c.y===(o==='land'?42:60),`centerXY ${o} ${JSON.stringify(c)}`);
   const me=run(`seatXY(0,6,'${o}')`);
   ok(Math.abs(me.x-(o==='land'?8:12))<=3&&Math.abs(me.y-(o==='land'?84:74))<=3,`自己的座位 ${o} ${JSON.stringify(me)}`);
   const mp=run(`playXY(0,3,'${o}')`);
@@ -54,6 +54,15 @@ for(const o of ['land','port']){
 /* 斗地主：两个对手在左右两侧 */
 ok(run(`seatXY(1,3,'land')`).x<30,'斗地主左边的对手');
 ok(run(`seatXY(2,3,'land')`).x>70,'斗地主右边的对手');
+/* 下注筹码：在座位到桌心的连线上，刚好离开座位（座位范围 + 半个筹码 + 间距） */
+{
+  const q=run(`betClear({x:0,y:0},{x:100,y:0},{l:20,r:30,t:10,b:10},20,10,4)`);
+  ok(Math.abs(q.x-44)<1e-9&&q.y===0&&Math.abs(q.t-0.44)<1e-9,`betClear 水平 ${JSON.stringify(q)}`);
+  const d=run(`betClear({x:0,y:0},{x:0,y:-200},{l:20,r:20,t:40,b:50},30,20,4)`);
+  ok(d.x===0&&Math.abs(d.y+54)<1e-9,`betClear 向上 ${JSON.stringify(d)}`);
+  const g=run(`betClear({x:0,y:0},{x:100,y:100},{l:10,r:10,t:10,b:60},20,20,0)`);
+  ok(Math.abs(g.x-20)<1e-9&&Math.abs(g.y-20)<1e-9,`betClear 斜向先从右边离开 ${JSON.stringify(g)}`);
+}
 /* 唯一读取窗口尺寸的函数 */
 ok(run('tableOrient()')==='land','873x393 是横屏');
 run('window.innerWidth=393;window.innerHeight=873');ok(run('tableOrient()')==='port','393x873 是竖屏');

@@ -10,7 +10,9 @@ const SEAT_PATH={
   port:[[9,52],[10,41],[12,27],[22,16.5],[50,13],[78,16.5],[88,27],[90,41],[91,52]]
 };
 const ME_XY={land:{x:8,y:84},port:{x:12,y:75}};
-const CENTER_XY={land:{x:50,y:36},port:{x:50,y:34}};
+/* the middle (德州 board and pot, 炸金花 pot) sits lower than the old 36 / 34, further from the far seats; upright it is below the
+   side seats too, so their bet chips (on the line to the middle) run down past the board instead of into it */
+const CENTER_XY={land:{x:50,y:42},port:{x:50,y:60}};
 /* lengths are measured with y squashed by 0.6, the same way seat spacing is judged, so the far edge and the sides share the seats fairly */
 const SQ=0.6;
 function pathAt(o,t){
@@ -37,17 +39,29 @@ const centerXY=o=>({...CENTER_XY[o||tableOrient()]});
    in one row below the card counter strip */
 const BOTTOM_XY={land:{x:50,y:29},port:{x:50,y:19}};
 const bottomXY=o=>({...BOTTOM_XY[o||tableOrient()]});
-/* bet chips: 35% of the way from the seat to the middle of the table */
+/* bet chips: 35% of the way from the seat to the middle of the table (the starting guess; betClear puts them just clear of the seat) */
 function betXY(slot,n,o){const s=seatXY(slot,n,o),c=centerXY(o);return {x:s.x+(c.x-s.x)*0.35,y:s.y+(c.y-s.y)*0.35}}
+/* a bet chip on the line from the seat's centre s toward the middle c, as close to the seat as it can be without touching it:
+   box is how far the drawn seat (scale included, with its cards) reaches left / right / up / down from its centre, w and h
+   the chip's size and m the gap, all in px. The chip leaves the seat where the line crosses the seat's edge grown by half
+   the chip plus the gap; t is how far along the line that is (1 = the middle). */
+function betClear(s,c,box,w,h,m){
+  const dx=c.x-s.x,dy=c.y-s.y;
+  const tx=dx?((dx>0?box.r:box.l)+w/2+m)/Math.abs(dx):Infinity,ty=dy?((dy>0?box.b:box.t)+h/2+m)/Math.abs(dy):Infinity;
+  const t=Math.min(tx,ty);
+  return t===Infinity?{x:s.x,y:s.y,t:0}:{x:s.x+dx*t,y:s.y+dy*t,t};
+}
+/* 斗地主's side plays start no higher than this (the old middle plus a gap), so moving the 德州 middle leaves them alone */
+const DD_MID={land:44,port:46};
 /* 斗地主 plays lie on the felt in front of the seat: mine above the button row; a side seat's run out toward the middle
    (al: which end the row is anchored by), a far seat's drop toward me */
 function playXY(slot,n,o){
   o=o||tableOrient();
   if(!slot)return {x:50,y:o==='land'?49:56,al:'c'};
-  const s=seatXY(slot,n,o),c=centerXY(o),al=s.x<35?'l':s.x>65?'r':'c';
+  const s=seatXY(slot,n,o),al=s.x<35?'l':s.x>65?'r':'c';
   if(al==='c')return {x:s.x,y:s.y+12,al};
   /* below the middle (board / bottom cards and pot), which stands taller when upright; sideways 斗地主's two (n=3) start
      their big cards under the seat itself, so a long run stays clear of my own play in the middle */
   const dx=o==='land'?(n===3?-3:11):12;
-  return {x:s.x+(al==='l'?dx:-dx),y:Math.max(s.y+4,c.y+(o==='land'?8:12)),al};
+  return {x:s.x+(al==='l'?dx:-dx),y:Math.max(s.y+4,DD_MID[o]),al};
 }

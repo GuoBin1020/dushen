@@ -435,6 +435,9 @@ body.in-game #game-view{position:fixed;inset:0;overflow:hidden;background:radial
   --hand-h:calc(var(--mw)*1.46 + 14px);--act-top:46%;--hand-l:calc(8% + var(--seat-w)/2 + 10px);--hand-r:64px}
 body.in-game #game-view[data-orient="port"]{--tilt:16deg;--seat-w:clamp(64px,18vw,120px);--av:clamp(28px,8.2vw,52px);--cw:clamp(16px,4.8vw,32px);--bw:clamp(30px,9.4vw,60px);
   --pw:clamp(26px,7.7vw,50px);--dbw:clamp(26px,7.7vw,50px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
+/* 德州 / 炸金花: the other players' cards are a third bigger than before, so they read on a phone */
+body.in-game #game-view:not([data-game="ddz"]){--cw:clamp(18px,7.3vh,40px)}
+body.in-game #game-view[data-orient="port"]:not([data-game="ddz"]){--cw:clamp(16px,6.5vw,40px)}
 body.in-game #game-view[data-game="ddz"]{--hand-h:calc(var(--hw)*1.78 + 10px)}
 body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]){--act-top:50%}
 body.in-game .game,body.in-game .game>div:first-child{display:contents}
@@ -470,11 +473,21 @@ body.in-game .dbtn{width:18px;height:18px;font-size:10px;line-height:18px;top:-7
 /* my own cards (德州 / 炸金花): big at the bottom, not tilted */
 .my-hand{position:absolute;left:50%;bottom:max(6px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;z-index:3;--cw:var(--mw)}
 .my-hand .card{box-shadow:-2px 2px 8px rgba(0,0,0,.5)}
-.my-hand .card:first-child{transform:rotate(-5deg)}
+.my-hand .card:first-of-type{transform:rotate(-5deg)}
 .my-hand .card+.card{margin-left:calc(var(--mw)*-.22)}
-.my-hand .card:last-child:not(:first-child){transform:rotate(5deg)}
+.my-hand .card:last-of-type:not(:first-of-type){transform:rotate(5deg)}
 .table.zjh .my-hand .card+.card{margin-left:calc(var(--mw)*-.3)}
-.table.zjh .my-hand .card:nth-child(2):not(:last-child){transform:translateY(-4px)}
+.table.zjh .my-hand .card:nth-of-type(2):not(:last-of-type){transform:translateY(-4px)}
+/* the hand name at the end of a hand: a tag on the top edge of a seat's plate, over the foot of its cards; beside my own hand;
+   the winner's in green. Seats on the right edge put their cards on the inner side of the avatar. */
+.seat.rside .cards{order:-1}
+.seat .plate{position:relative}
+.hname{position:absolute;z-index:2;white-space:nowrap;pointer-events:none;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.22);
+  color:var(--text);font-weight:800;line-height:1.35;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.hname.win{background:linear-gradient(#9be895,#38a036);color:#0d3a0d;border-color:#d8ffd2}
+.seat .hname{left:50%;bottom:calc(100% - 4px);transform:translateX(-50%);font-size:calc(11px / var(--s,1));line-height:1.3;padding:0 6px}
+.my-hand .hname{left:calc(100% + 4px);bottom:12px;font-size:13px;padding:2px 9px}
+.seat.folded.reveal{opacity:.8}
 /* 斗地主 hand: one row at the bottom, clear of my seat when sideways */
 body.in-game .dd-hand{position:absolute;left:var(--hand-l);right:var(--hand-r);bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:4}
 /* the action area on the felt above my hand: one fixed-height row of pill buttons (or one line of text), a small hint label
@@ -504,6 +517,19 @@ body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;w
 .btn.b-green{background:linear-gradient(#9be895,#38a036);color:#0d3a0d}
 .btn.b-red{background:linear-gradient(#ffa394,#d8432f);color:#4a0d06}
 .act-bar .btn.is-rec,.act-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
+/* 炸金花: the panel by a tapped seat (js/ui.js renderSeatPop places it) */
+.seat-pop{position:absolute;z-index:9;width:max-content;min-width:150px;max-width:min(260px,calc(100vw - 16px));display:grid;gap:6px;padding:9px 12px;border-radius:14px;
+  background:rgba(6,14,10,.92);border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 28px rgba(0,0,0,.6);color:var(--text)}
+.seat-pop[hidden]{display:none}
+.seat-pop .sp-name{font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat-pop .sp-info{display:flex;gap:10px;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.seat-pop .sp-info b{color:var(--text)}
+.seat-pop .sp-st{color:var(--brass);font-weight:700}
+.seat-pop .sp-acts{display:grid;gap:6px}
+.seat-pop .btn{height:40px;padding:0 14px;border:none;border-radius:20px;font-size:13.5px;font-weight:800;white-space:nowrap;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55)}
+.seat-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
+/* in a game, notices drop from the top, under the corner buttons, instead of covering my hand */
+body.in-game .toast{top:calc(max(6px,env(safe-area-inset-top,0px)) + 40px);bottom:auto}
 /* the pop-up panel: above the row, clear of my seat when upright */
 .act-pop{position:fixed;z-index:7;left:50%;transform:translateX(-50%);width:min(460px,calc(100% - 16px));
   bottom:calc(var(--hand-h) + 4px + env(safe-area-inset-bottom,0px) + var(--bar-h) + 8px);
