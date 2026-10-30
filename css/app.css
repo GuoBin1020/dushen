@@ -118,7 +118,7 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .bet{cursor:pointer;transition:transform .15s,box-shadow .15s}
 .bet.peek{z-index:20;transform:translate(-50%,-50%) scale(1.3);background:var(--panel);box-shadow:0 0 0 2px var(--brass),0 6px 18px var(--shade);font-weight:700}
 .seat{cursor:pointer}
-.chip{width:13px;height:13px;border-radius:50%;background:var(--brass);border:2px dashed var(--brass-ink)}
+.chip{width:16px;height:16px;flex:none;background:center/contain no-repeat}
 
 .card{width:var(--cw);aspect-ratio:167/243;background:var(--face) center/100% 100% no-repeat;border-radius:calc(var(--cw)*.06);box-shadow:0 2px 4px var(--shade);flex:none;position:relative}
 /* the back image is a little wider than the faces: crop it into the same box rather than squash it */
@@ -255,7 +255,7 @@ input.code{font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercas
 .exploit{border:1px dashed var(--brass);border-radius:10px;padding:8px 10px;margin-top:10px}
 .exploit .t{font-size:11px;color:var(--brass);letter-spacing:.06em}
 #fx{position:absolute;inset:0;pointer-events:none;z-index:5}
-.fly-chip{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--brass);border:2px dashed var(--brass-ink);transform:translate(-50%,-50%);transition:left .38s cubic-bezier(.3,.7,.4,1),top .38s cubic-bezier(.3,.7,.4,1);box-shadow:0 1px 3px var(--shade)}
+.fly-chip{position:absolute;width:14px;height:14px;background:center/contain no-repeat;transform:translate(-50%,-50%);transition:left .38s cubic-bezier(.3,.7,.4,1),top .38s cubic-bezier(.3,.7,.4,1);box-shadow:0 1px 3px var(--shade)}
 .bubble{position:absolute;transform:translate(-50%,-100%);background:var(--card);color:var(--card-ink);font-size:12.5px;font-weight:500;padding:6px 10px;border-radius:12px;max-width:180px;width:max-content;line-height:1.35;box-shadow:0 4px 14px var(--shade);animation:bub 3.8s ease forwards;z-index:6}
 .bubble::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--card);border-bottom:0}
 @keyframes bub{0%{opacity:0;transform:translate(-50%,-80%) scale(.6)}8%{opacity:1;transform:translate(-50%,-100%) scale(1.06)}12%{transform:translate(-50%,-100%) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,-115%)}}

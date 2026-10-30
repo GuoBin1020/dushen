@@ -45,7 +45,7 @@ function spinWheel(){
   WHEEL_BUSY=true;
   const go=document.getElementById('wheel-go'),res=document.getElementById('wheel-res');
   go.disabled=true;res.textContent='转呀转……';
-  try{actx();SFX.deal(6)}catch(e){}
+  try{actx();SFX.deal(6,false)}catch(e){}
   g.style.transition=`transform ${ms}ms cubic-bezier(.12,.68,.18,1)`;
   g.style.transform=`rotate(${WHEEL_ROT}deg)`;
   setTimeout(()=>{

@@ -269,7 +269,7 @@ function zRenderActions(el,m){
      <button class="btn b-red${mark('compare')}" data-act="zpop" data-pop="cmp" aria-haspopup="true"${canCmp?'':` disabled title="${V.round<2?'第 2 轮起才能比牌':'筹码不够比牌'}"`}>比牌</button>`;
   const pop=ACTPOP==='raise'?`<div class="pop-t">加注到单注（闷牌付 1 倍单注，看牌后付 2 倍）：</div><div class="pop-row">${lv.map(v=>`<button class="btn b-red${mark('raise',v)}" data-act="zraise" data-v="${v}">${fmt(v)}（付 ${fmt((m.seen?2:1)*v)}）</button>`).join('')}</div>`
     :ACTPOP==='cmp'?`<div class="pop-t">比牌（付 ${fmt(cost)}）：牌小或一样大的发起方出局。</div><div class="pop-row">${opps.map(q=>`<button class="btn b-red${mark('compare',q.id)}" data-act="zcmp" data-t="${q.id}">和 ${esc(q.name)} 比</button>`).join('')}</div>`:'';
-  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>`:coachOn()?'练习模式：先自己决定，行动后右侧会显示分析。':'';
+  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
   el.innerHTML=actHTML(hint,bar,pop,ACTPOP);
 }
 function zRulesHTML(){

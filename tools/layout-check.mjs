@@ -145,6 +145,17 @@ SCEN.push(
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},
   {name:'fx-points-ddz',game:'ddz',n:3,extra:FX_POINTS,sizes:PH}
 );
+/* chip-art: bet chips and flying chips show the chip image, not a CSS circle */
+const CHIP_ART=`(async()=>{${PG}
+  const okUrl=el=>{const b=getComputedStyle(el).backgroundImage;return /chips\\/|blob:/.test(b)};
+  const c=Q('#table .bet .chip');if(!c)return ['没有 .bet .chip'];
+  if(!okUrl(c))f.push('.bet .chip 没有筹码图：'+getComputedStyle(c).backgroundImage);
+  const fx=Q('#fx');fx.innerHTML='';flyChips({x:50,y:50},{x:100,y:100},2);
+  const fc=fx.querySelector('.fly-chip');if(!fc)f.push('没有 .fly-chip');else if(!okUrl(fc))f.push('.fly-chip 没有筹码图：'+getComputedStyle(fc).backgroundImage);
+  fx.innerHTML='';
+  const a=[...document.querySelectorAll('#table .seat .ava')].map(e=>e.textContent);if(a.some(x=>x==='一'))f.push('头像是「一」');
+  return f})()`;
+SCEN.push({name:'chip-art',game:'holdem',n:6,extra:CHIP_ART,sizes:[...PH,[1280,800,false]]});
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
 if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);
 /* in the page: start a solo game, wait for my turn, freeze the bots, then stage the scenario */
@@ -236,7 +247,7 @@ async function run(sc,[w,h,mobile],then){
     if(!Array.isArray(x))last.fails.push('检查脚本失败');else last.fails.push(...x);
     const errs=[...pg.errs,...((await pg.ev('window.__errs'))||[])];if(errs.length)last.fails.push(...errs.map(e=>'控制台报错: '+e));
     if(SHOTS)await pg.shot(path.join(SHOTS,tag.replace(/\s+/g,'_')+'_after.jpg'));}
-  if(then){await then(pg);await measure(tag+' rotated')}
+  if(then){if(await then(pg)!=='skip')await measure(tag+' rotated')}
   try{await pg.send('Page.close')}catch(e){}
   pg.close();
   return res;
@@ -255,6 +266,25 @@ try{
     const last=r[r.length-1];
     if(!kept||kept.set==null)last.fails.push('没有加注滑块，无法检查');
     else if(kept.now!==kept.set)last.fails.push(`高度小变化后加注滑块被重置：${kept.set} → ${kept.now}`);
+    out.results.push(...r);
+  }
+  /* home-confirm: a solo game asks before leaving; dismissing the dialog stays, accepting goes home */
+  if(!process.env.LC_ONLY||process.env.LC_ONLY==='home-confirm'){
+    const fl=[];
+    const r=await run({name:'home-confirm',game:'holdem',n:6},[1280,800,false],async pg=>{
+      const click=()=>pg.ev(`(()=>{const b=document.querySelector('#menu [data-act="menu-home"]');if(!b)return 'nobtn';b.click();return 'ok'})()`);
+      const inGame=()=>pg.ev(`!document.getElementById('game-view').hidden`);
+      pg.dialogAnswer(false);const n0=pg.dialogs.length;
+      if(await click()!=='ok')fl.push('菜单里没有 回到主页');
+      await sleep(200);
+      if(pg.dialogs.length!==n0+1)fl.push('点 回到主页 没有弹出确认框');
+      if(!(await inGame()))fl.push('取消确认后离开了牌局');
+      pg.dialogAnswer(true);await click();await sleep(300);
+      if(await inGame())fl.push('确认后仍在牌局');
+      if(await pg.ev(`document.getElementById('setup-view').hidden`))fl.push('确认后没有回到主页');
+      return 'skip';
+    });
+    r[r.length-1].fails.push(...fl);
     out.results.push(...r);
   }
   /* rotate: start upright, then turn the phone sideways */

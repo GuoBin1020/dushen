@@ -51,7 +51,7 @@ const SFX={
   chips(n=3,at=0){if(sample(n<=3?'chipLay':'chipStack',at))return;for(let i=0;i<n;i++){noise(.05,{at:at+i*.045,freq:4200+Math.random()*1500,q:8,vol:.35});tone(2600+Math.random()*600,.05,{at:at+i*.045,vol:.05,type:'triangle'})}},
   check(){tone(150,.09,{vol:.35});tone(125,.09,{at:.12,vol:.3})},
   fold(){if(sample('shove'))return;noise(.22,{freq:1800,sweep:500,type:'lowpass',vol:.22})},
-  deal(n=4){if(SND.buf.slide&&SND.buf.slide.length){sample('shuffle');for(let i=0;i<n;i++)sample('slide',i*.09);return}for(let i=0;i<n;i++)noise(.06,{at:i*.09,freq:2500,q:2,vol:.25})},
+  deal(n=4,shuffle=true){if(SND.buf.slide&&SND.buf.slide.length){if(shuffle)sample('shuffle');for(let i=0;i<n;i++)sample('slide',i*.09);return}for(let i=0;i<n;i++)noise(.06,{at:i*.09,freq:2500,q:2,vol:.25})},
   flip(){if(sample('place'))return;noise(.07,{freq:2000,q:1.5,vol:.3});tone(700,.05,{at:.02,vol:.04})},
   ding(){tone(880,.25,{vol:.12});tone(1320,.3,{at:.08,vol:.08})},
   allin(){tone(180,.6,{type:'sawtooth',vol:.08,slide:900});tone(60,.7,{at:.55,vol:.5,slide:38});noise(.5,{at:.55,freq:900,type:'lowpass',vol:.3});SFX.chips(8,.6);sample('collide',.6)},

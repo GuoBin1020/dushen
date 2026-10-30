@@ -41,6 +41,8 @@ const $=s=>document.querySelector(s);
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const sgn=n=>(n>0?'+':n<0?'−':'')+fmt(Math.abs(n));
 const pct=x=>(x*100).toFixed(1)+'%';
+/* the letter on a seat avatar: the first character that is not a dash-like mark or space (falls back to the first character) */
+const avatarChar=n=>{const cs=[...String(n||'')];return cs.find(c=>!/[\s一ー－—‐\-_]/.test(c))||cs[0]||'?'};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rand=a=>a[Math.floor(Math.random()*a.length)];
 

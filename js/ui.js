@@ -15,10 +15,10 @@ function seatPoint(pid,kind){
   const tr=tbl.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
   return {x:tr.left-wr.left+tbl.clientLeft+tbl.clientWidth*p.x/100,y:tr.top-wr.top+tbl.clientTop+tbl.clientHeight*p.y/100};
 }
-function flyChips(a,b,n=3,wait=0){
+function flyChips(a,b,n=3,wait=0,seat=0){
   const fx=$('#fx');if(!a||!b||!fx)return;
   for(let i=0;i<n;i++){
-    const c=document.createElement('i');c.className='fly-chip';
+    const c=document.createElement('i');c.className='fly-chip';c.style.backgroundImage=`url('${chipURL(seat)}')`;
     c.style.left=(a.x+Math.random()*10-5)+'px';c.style.top=(a.y+Math.random()*10-5)+'px';fx.appendChild(c);
     setTimeout(()=>{c.style.left=(b.x+Math.random()*8-4)+'px';c.style.top=(b.y+Math.random()*8-4)+'px'},30+wait+i*50);
     setTimeout(()=>c.remove(),wait+i*50+560);
@@ -58,16 +58,16 @@ function fxDiff(prev,v){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
     if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
-    else if(ev.type==='compare'){SFX.clash();say('比牌',g);flyChips(from,to,3);compareFx(ev)}
-    else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6)}
-    else if(ev.type==='raise'){SFX.chips(4);say(ev.open?'下注':'加注',g);flyChips(from,to,4)}
-    else if(ev.type==='call'){SFX.chips(3);say('跟注',g);flyChips(from,to,3)}
+    else if(ev.type==='compare'){SFX.clash();say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
+    else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6,0,ev.pid)}
+    else if(ev.type==='raise'){SFX.chips(4);say(ev.open?'下注':'加注',g);flyChips(from,to,4,0,ev.pid)}
+    else if(ev.type==='call'){SFX.chips(3);say('跟注',g);flyChips(from,to,3,0,ev.pid)}
     else if(ev.type==='check'){SFX.check();say('过牌',g)}
     else if(ev.type==='fold'){SFX.fold();say('弃牌',g)}
   }
   if(same&&v.phase==='handover'&&prev.phase!=='handover'){
     const ws=v.players.filter(p=>p.won>0);
-    ws.forEach((w,i)=>flyChips(seatPoint(w.id,'center'),seatPoint(w.id,'seat'),6,250+i*120));
+    ws.forEach((w,i)=>flyChips(seatPoint(w.id,'center'),seatPoint(w.id,'seat'),6,250+i*120,w.id));
     setTimeout(()=>ws.some(w=>w.id===v.me)?SFX.win():SFX.pot(),300);
   }
   if(v.phase==='playing'&&v.toAct===v.me&&!(same&&prev.phase==='playing'&&prev.toAct===v.me))setTimeout(()=>SFX.ding(),ev&&ev.allIn?950:300);
@@ -341,7 +341,7 @@ function renderCorners(){
     <div class="kv"><span class="k">我的盈亏</span><span class="v num ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
    </div>
    <div class="menu-row"><span class="k">声音</span><span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span></div>
-   <div class="menu-acts">${NET.role!=='guest'?'<button type="button" class="btn danger" data-act="settle">结束并结算</button>':''}<button type="button" class="btn" data-act="home">回到主页</button></div>`;
+   <div class="menu-acts">${NET.role!=='guest'?'<button type="button" class="btn danger" data-act="settle">结束并结算</button>':''}<button type="button" class="btn" data-act="menu-home">${NET.role==='guest'?'离开房间':'回到主页'}</button></div>`;
 }
 /* fullscreen: Android and desktop browsers allow it for pages; iPhone only via the home-screen app */
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
@@ -387,7 +387,7 @@ function peekBet(pid){
   clearTimeout(peekTimer);peekTimer=setTimeout(()=>{PEEK=null;document.querySelectorAll('.bet.peek').forEach(b=>b.classList.remove('peek'))},2500);
 }
 /* the round avatar on a seat: the name's first character */
-const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc([...String(p.name||'?')][0]||'?')}</div>`;
+const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc(avatarChar(p.name))}</div>`;
 /* which game and which way up, for the CSS that sizes the full-screen table */
 let FRAME={o:'',w:0,h:0};
 function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset.game=g;FRAME={o,w:innerWidth,h:innerHeight}}
@@ -416,7 +416,7 @@ function renderTable(){
         <div class="pstack">${fmt(p.stack)}</div>
         ${act}
       </div></div>`;
-    if(p.bet>0)html+=`<div class="bet${PEEK&&PEEK.pid===i&&Date.now()<PEEK.until?' peek':''}" data-pid="${i}" role="button" tabindex="0" aria-label="${esc(p.name)} 下注 ${fmt(p.bet)}，点击放大查看" style="left:${b.x.toFixed(2)}%;top:${b.y.toFixed(2)}%"><i class="chip"></i>${fmt(p.bet)}</div>`;
+    if(p.bet>0)html+=`<div class="bet${PEEK&&PEEK.pid===i&&Date.now()<PEEK.until?' peek':''}" data-pid="${i}" role="button" tabindex="0" aria-label="${esc(p.name)} 下注 ${fmt(p.bet)}，点击放大查看" style="left:${b.x.toFixed(2)}%;top:${b.y.toFixed(2)}%"><i class="chip" ${chipStyle(i)}></i>${fmt(p.bet)}</div>`;
   });
   const slots=[0,1,2,3,4].map(k=>V.board[k]!=null?cardHTML(V.board[k]):'<div class="slot"></div>').join('');
   const ended=V.phase==='handover';
@@ -476,7 +476,7 @@ function renderActions(){
   const pop=slide?`<label for="raise-amt" class="pop-t raise-t">${verb}金额（总注额，最小 ${fmt(minTo)}，最多 ${fmt(maxTo)}）</label>
      <div class="pop-row pop-slide"><input type="range" id="raise-amt" min="${minTo}" max="${maxTo}" step="${V.cfg.sb}" value="${def}" aria-label="${verb}金额"><button class="btn b-red" data-act="allin">全下 ${fmt(maxTo)}</button><button class="btn b-green${mark('raise')}" data-act="raise" id="raise-btn">${verb} ${fmt(def)}</button></div>
      <div class="pop-row">${presets}</div>`:'';
-  const hint=live?`教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}`:coachOn()?'练习模式：先自己决定，行动后右侧会显示分析。':'';
+  const hint=live?`教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
   el.innerHTML=actHTML(hint,bar,pop,'raise');
 }
 function meter(e,po){return `<div class="meter"><i style="width:${Math.min(100,e*100)}%"></i>${po>0?`<b style="left:${Math.min(99,po*100)}%"></b>`:''}</div><div class="legend"><span class="l1">你的胜率</span>${po>0?'<span class="l2">跟注所需胜率</span>':''}</div>`}
@@ -962,7 +962,9 @@ document.addEventListener('click',async e=>{
   else if(a==='ddcounter'){DCOUNT=!DCOUNT;try{localStorage.setItem('dushen-counter',DCOUNT?'1':'0')}catch(x){}renderMeta()}
   else if(a==='wheel')openWheel();
   else if(a==='lan-new')lanNewSlot();
-  else if(a==='leave'||a==='home'){leaveAll();resetT();showBanner('');show('setup')}
+  /* menu exit: host and solo have unsettled results, so ask first; a guest just leaves */
+  else if(a==='menu-home'&&NET.role!=='guest'&&!confirm('还没有结算，确定直接回到主页吗？本局记录不会保存。')){}
+  else if(a==='leave'||a==='home'||a==='menu-home'){leaveAll();resetT();showBanner('');show('setup')}
 });
 /* 斗地主 hand: a tap picks or unpicks a card; pressing and sliding across cards sets each one like the first */
 let DDRAG=null;

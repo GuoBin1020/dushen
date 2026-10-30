@@ -22,6 +22,10 @@ const SFX_FILES={
   handle:sfxList('chips-handle',3)
 };
 /* inline style carrying a card image; a url() inside a custom property resolves against the stylesheet, so make it absolute first */
-const faceStyle=f=>{let u=assetURL(f);if(typeof document!=='undefined'&&document.baseURI&&!/^(data:|blob:|[a-z]+:)/i.test(u))u=new URL(u,document.baseURI).href;return `style="--face:url('${u}')"`};
+const absURL=f=>{let u=assetURL(f);if(typeof document!=='undefined'&&document.baseURI&&!/^(data:|blob:|[a-z]+:)/i.test(u))u=new URL(u,document.baseURI).href;return u};
+const faceStyle=f=>`style="--face:url('${absURL(f)}')"`;
+/* chip art for bet chips and flying chips, one colour per index */
+const chipURL=i=>absURL(chipFile(i));
+const chipStyle=i=>`style="background-image:url('${chipURL(i)}')"`;
 /* A bundled single-file build puts every asset into window.ASSET_DATA as a data URI. */
 const assetURL=path=>{const d=typeof window!=='undefined'&&window.ASSET_DATA;return d&&d[path]?d[path]:'assets/'+path};

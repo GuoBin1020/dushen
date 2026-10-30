@@ -91,6 +91,13 @@ function spyNoise(t){t.run('globalThis.__n=0;{const o=noise;noise=function(){__n
     ok(!calls.includes('deal'),'ddz 出牌不走 deal(shuffle)');
   }
 
+  /* deal(n,false) skips the shuffle (wheel); the default still shuffles */
+  t=mk();t.run('actx()');t.run('SND.buf={slide:[{__sample:true}],shuffle:[{__sample:true}]}');
+  t.run('SFX.deal(6,false)');eq(t.cnt.sampleStarts,6,'deal(6,false) 只有 6 次 slide，没有 shuffle');
+  t=mk();t.run('actx()');t.run('SND.buf={slide:[{__sample:true}],shuffle:[{__sample:true}]}');
+  t.run('SFX.deal(6)');eq(t.cnt.sampleStarts,7,'deal(6) 仍带 shuffle');
+  ok(/SFX\.deal\(6,\s*false\)/.test(fs.readFileSync(path.join(ROOT,'js/wheel.js'),'utf8')),'转盘调用 deal(6,false)');
+
   console.log(`sfx: ${passed} passed, ${failed} failed`);
   process.exit(failed?1:0);
 })();

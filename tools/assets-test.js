@@ -49,5 +49,16 @@ eq(run("assetURL('cards/AS.webp')"),'assets/cards/AS.webp');
  has('ddCardHTML(0)','aria-label="黑桃3"');has('ddCardHTML(53)','aria-label="大王"');
  has('ddCardHTML(0)','<span class="vh">');has('ddCardHTML(0,{pick:1})','data-dd="0"');
  has('ddCardHTML(4*10+1)','class="card red');}
+/* seat avatar letter skips dash-like characters and spaces */
+eq(run("avatarChar('一二')"),'二','avatarChar 跳过「一」');
+eq(run("avatarChar('ー-_ 小')"),'小','avatarChar 跳过 ー - _ 空格');
+eq(run("avatarChar('— 阿')"),'阿','avatarChar 跳过破折号');
+eq(run("avatarChar('一')"),'一','avatarChar 全是符号时取第一个');
+eq(run("avatarChar('')"),'?','avatarChar 空名');
+eq(run("avatarChar('张三')"),'张','avatarChar 普通名字');
+/* chip art: absolute-able URL per colour, goes through ASSET_DATA when bundled */
+ok(/chips\/red\.png/.test(run('chipURL(0)')),'chipURL(0) 是 red.png');
+ok(/chips\/blue\.png/.test(run('chipURL(1)')),'chipURL(1) 是 blue.png');
+ok(/url\('[^']*chips\/green\.png'\)/.test(run('chipStyle(2)')),'chipStyle 含 url');
 console.log(`assets: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);

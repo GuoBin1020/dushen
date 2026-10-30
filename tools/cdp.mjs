@@ -20,9 +20,10 @@ export async function openPage(port,{w=390,h=844,mobile=false,url='about:blank',
   const t=await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`,{method:'PUT'})).json();
   const ws=new WebSocket(t.webSocketDebuggerUrl);
   await new Promise((res,rej)=>{ws.onopen=res;ws.onerror=rej});
-  let id=0;const pend={},errs=[];
+  let id=0;const pend={},errs=[],dialogs=[];let dlgAccept=false;
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
+    if(m.method==='Page.javascriptDialogOpening'){dialogs.push(m.params.message);send('Page.handleJavaScriptDialog',{accept:dlgAccept}).catch(()=>{})}
     if(m.id&&pend[m.id]){pend[m.id](m);delete pend[m.id]}
     if(m.method==='Runtime.exceptionThrown')errs.push((m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text||'').slice(0,200));
   };
@@ -50,5 +51,5 @@ export async function openPage(port,{w=390,h=844,mobile=false,url='about:blank',
     const img=await send('Page.captureScreenshot',p);
     fs.writeFileSync(file,Buffer.from(img.data,'base64'));
   };
-  return {send,ev,shot,errs,close:()=>{try{ws.close()}catch(e){}}};
+  return {send,ev,shot,errs,dialogs,dialogAnswer:v=>{dlgAccept=!!v},close:()=>{try{ws.close()}catch(e){}}};
 }
