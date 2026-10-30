@@ -293,7 +293,7 @@ function positionChatPop(){
 
 /* ---------- rendering ---------- */
 function cardTxt(c){return RL[c>>2]+SU[c&3]}
-function cardHTML(c){if(c==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}" ${faceStyle(cardImgFor(c))} aria-label="${SUIT_NAME[c&3]}${RL[c>>2]}"><span class="vh">${cardTxt(c)}</span></div>`}
+function cardHTML(c){if(c==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}" ${faceStyle(cardImgFor(c))} aria-label="${SUIT_NAME[c&3]}${RL[c>>2]}"><span class="vh">${cardTxt(c)}</span><i class="ci" aria-hidden="true">${RL[c>>2]}<b>${SU[c&3]}</b></i></div>`}
 function show(v){
   ['setup','lobby','game','settle'].forEach(x=>{$('#'+x+'-view').hidden=x!==v});window.scrollTo(0,0);
   /* the table fills the window: no page header, banner, footer or side rail; panels open in the sheet */
