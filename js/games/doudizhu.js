@@ -661,8 +661,8 @@ function ddRenderTable(){
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)} · ${ddRole(V,i)}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const left=p.cards.length,warn=left>0&&left<=2&&d&&d.stage==='play';
     const cards=i===V.me||!p.inHand?'':`<div class="dd-count${warn?' warn':''}">${ddCardHTML(null)}<b>${left}</b></div>`;
-    html+=`<div class="${cls}${s.x<50?' lh':''}${s.y<40?' uh':''}" data-pid="${i}" style="${seatStyle(s)}">
-      ${avatarHTML(p)}<div class="cards">${cards}</div>
+    html+=`<div class="${cls}${seatCls(s,i===V.me,i)}" data-pid="${i}" style="${seatStyle(s)}">
+      <div class="stop">${avatarHTML(p)}<div class="cards">${cards}</div></div>
       <div class="plate">${ddRole(V,i)==='地主'?'<span class="dd-lord" title="地主">地主</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>

@@ -3,7 +3,8 @@
    自己在项目目录起一个本地服务器（默认端口 8767，被占用就换一个空闲端口），用无头 Chrome 打开牌局，
    在几种人数、游戏和屏幕尺寸下检查：页面不滚动、标题栏和页脚隐藏、座位互不重叠、座位不压住公共牌 / 底牌 / 出的牌 / 按钮面板，
    斗地主 20 张手牌一行放下，下注筹码不压住按钮区，手机上按钮至少 40px 高，转屏后重新检查，控制台没有报错。
-   按钮区另有场景：出牌限时的倒计时圈（贴着轮到的人的头像、不压住别的东西、秒数减少、最后 5 秒变红）、托管面板和「取消托管」「下一局加入」按钮（能点、点了恢复）、按钮一排的位置在各种状态下不动、德州加注的弹出面板和炸金花点头像比牌的面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
+   座位按左右半边对齐；炸金花比牌的 PK 动画；开牌的牌型标签不压住任何人的名字和筹码。
+   按钮区另有场景：出牌限时的倒计时圈（和头像一样大、在头像朝桌心的一侧、不压住别的东西、秒数减少、最后 5 秒变红）、托管面板和「取消托管」「下一局加入」按钮（能点、点了恢复）、按钮一排的位置在各种状态下不动、德州加注的弹出面板和炸金花点头像比牌的面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -94,7 +95,9 @@ const ZJH_POP=`(async()=>{${PG}
   const tap=pid=>{const a=Q('#table .seat[data-pid="'+pid+'"] .ava');if(!a)return null;const r=a.getBoundingClientRect(),t=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(t)t.click();return t};
   const pop=()=>Q('#seat-pop'),gap=(a,b)=>Math.max(0,a.x-(b.x+b.w),b.x-(a.x+a.w))+Math.max(0,a.y-(b.y+b.h),b.y-(a.y+a.h));
   const panel=(tag,q,cmp)=>{const p=pop();if(!vis(p)){f.push(tag+'：点头像没有弹出面板');return null}
-    const r=R(p),sr=R(Q('#table .seat[data-pid="'+q.id+'"]'));
+    /* the seat as drawn: its box and what sticks out of it (a crowded row's cards) */
+    const se=Q('#table .seat[data-pid="'+q.id+'"]'),ps=[se,...se.querySelectorAll('.stop > *,.plate')].filter(vis).map(R);
+    const r=R(p),x0=Math.min(...ps.map(o=>o.x)),y0=Math.min(...ps.map(o=>o.y)),sr={x:x0,y:y0,w:Math.max(...ps.map(o=>o.x+o.w))-x0,h:Math.max(...ps.map(o=>o.y+o.h))-y0};
     if(r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5)f.push(tag+'：面板超出屏幕');
     if(gap(r,sr)>24)f.push(tag+'：面板离座位 '+gap(r,sr).toFixed(0)+'px');
     const t=p.textContent;if(!t.includes(q.name))f.push(tag+'：面板里没有名字');if(!t.includes(fmt(q.stack)))f.push(tag+'：面板里没有筹码');
@@ -216,6 +219,8 @@ const DDZ_TOP=`(async()=>{${PG}
   d.shown[0]={cards:pc(0,4),cls:{type:'single'}};d.shown[1]={cards:pc(1,6),cls:{type:'single'}};d.shown[2]={cards:pc(2,5),cls:{type:'single'}};
   sync();clearTimeout(timer);await sleep(150);
   const all=s=>[...document.querySelectorAll(s)].filter(vis);
+  /* the coach's hint is as long as it ever gets (a long run plus a warning), so the check does not depend on the hand dealt */
+  const hint=Q('#actions .act-hint');if(hint)hint.innerHTML='<span class="dd-warn">注意：下家只剩 1 张牌！</span>教练建议：<b>飞机带翅膀（3 3 3 4 4 4 5 5 5 6 6 6 7 8 9 10）</b> · 你先出，可以出任意牌型 · 先点选要出的牌';
   const land=innerWidth>=innerHeight,seats=all('#table .seat').map(R),corner=all('.corner > *').map(R);
   const bar=[...all('#actions .act-bar button'),...all('#actions .act-hint')].map(R),handC=all('#dd-hand .card').map(R);
   const plays=all('#table .dd-play').map(R),bottom=all('#table .dd-bottom').map(R),center=all('#table .dd-center').map(R);
@@ -279,11 +284,13 @@ const BOARD_CARDS=`(async()=>{${PG}
   return f})()`;
 /* showdown: every hand shown at the end of a 德州 / 炸金花 hand has its hand name beside it, the winner's marked; with
    「亮出所有人的底牌」 on, a player who folded also shows cards and a name marked 「已弃牌」; with it off, they show nothing */
-const SHOWDOWN=all=>`(async()=>{${PG}
+const SHOWDOWN=(all,long)=>`(async()=>{${PG}
   const FP=2;S.cfg.showAll=${all};S.toAct=FP;act(S.players[FP],'fold');clearTimeout(timer);
   if(isZ(S))zShowdown('');else{while(S.board.length<5)S.board.push(S.deck.pop());S.street='river';showdown()}
   clearTimeout(timer);await sleep(150);
   if(V.phase!=='handover')return ['没有进入本手结束：'+V.phase];
+  /* long: the widest name on every shown hand, so the check does not depend on the cards dealt */
+  if(${!!long}){V.players.forEach(p=>{if(p.handName)p.handName='同花顺';if(p.revealName)p.revealName='同花顺'});renderTable();await sleep(60)}
   const gap=(a,b)=>Math.max(0,a.x-(b.x+b.w),b.x-(a.x+a.w))+Math.max(0,a.y-(b.y+b.h),b.y-(a.y+a.h));
   const off=r=>r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5;
   const seats=[...document.querySelectorAll('#table .seat')],bar=[...document.querySelectorAll('#actions .act-bar')].filter(vis).map(R);
@@ -291,6 +298,8 @@ const SHOWDOWN=all=>`(async()=>{${PG}
     if(!vis(el)){f.push(tag+'：没有牌型标签');return}
     const r=R(el);if(off(r))f.push(tag+'：牌型标签超出屏幕');if(gap(r,near)>8)f.push(tag+'：牌型标签离牌 '+gap(r,near).toFixed(0)+'px');
     seats.forEach(s=>{if(+s.dataset.pid!==p.id&&hit(r,R(s)))f.push(tag+'：牌型标签压住座位 '+s.dataset.pid)});
+    /* never on anybody's name or chips line, its own seat's included */
+    document.querySelectorAll('#table .pname,#table .pstack').forEach(e=>{if(vis(e)&&hit(r,R(e)))f.push(tag+'：牌型标签压住座位 '+e.closest('.seat').dataset.pid+' 的'+(e.classList.contains('pname')?'名字':'筹码'))});
     bar.forEach(b=>{if(hit(r,b))f.push(tag+'：牌型标签压住按钮区')});
     if(p.won>0&&!el.classList.contains('win'))f.push(tag+'：赢家的标签没有标出');
     if(!(p.won>0)&&el.classList.contains('win'))f.push(tag+'：输家的标签标成了赢家');
@@ -320,16 +329,20 @@ const TOAST_TOP=`(async()=>{${PG}
 const TURN_RING=`(async()=>{${PG}
   S.cfg.turnSec=15;proceed();await sleep(120);clearTimeout(timer);
   const ring=()=>Q('#table .seat.active .tring');
+  /* about as big as the avatar, right beside it on the side toward the middle, not over it (its initial stays readable) */
+  const tb=R(Q('#table')),c0=centerXY(),C={x:tb.x+tb.w*c0.x/100,y:tb.y+tb.h*c0.y/100},mid=r=>({x:r.x+r.w/2,y:r.y+r.h/2});
+  const gap=(a,b)=>Math.max(0,a.x-(b.x+b.w),b.x-(a.x+a.w))+Math.max(0,a.y-(b.y+b.h),b.y-(a.y+a.h));
   const place=(tag,pid)=>{const r=ring();if(!vis(r)){f.push(tag+'：没有倒计时');return}
     const rr=R(r),seat=Q('#table .seat[data-pid="'+pid+'"]'),av=R(seat.querySelector('.ava'));
     if(!r.closest('.seat[data-pid="'+pid+'"]'))f.push(tag+'：倒计时不在轮到的人的座位上');
-    if(Math.hypot(rr.x+rr.w/2-(av.x+av.w/2),rr.y+rr.h/2-(av.y+av.h/2))>av.w)f.push(tag+'：倒计时离头像太远');
+    if(rr.w<av.w*0.9-0.5)f.push(tag+'：倒计时 '+rr.w.toFixed(0)+'px，比头像 '+av.w.toFixed(0)+'px 小');
+    if(hit(rr,av))f.push(tag+'：倒计时压住头像');
+    if(gap(rr,av)>6)f.push(tag+'：倒计时离头像 '+gap(rr,av).toFixed(0)+'px');
+    const dr=Math.hypot(mid(rr).x-C.x,mid(rr).y-C.y),da=Math.hypot(mid(av).x-C.x,mid(av).y-C.y);if(!(dr<da))f.push(tag+'：倒计时不在头像朝桌心的一侧');
+    const b=r.querySelector('b'),k=seat.offsetWidth?seat.getBoundingClientRect().width/seat.offsetWidth:1,px=parseFloat(getComputedStyle(b).fontSize)*k;if(px<11.95)f.push(tag+'：秒数只有 '+px.toFixed(1)+'px');
     if(rr.x<-0.5||rr.y<-0.5||rr.x+rr.w>innerWidth+0.5||rr.y+rr.h>innerHeight+0.5)f.push(tag+'：倒计时超出屏幕');
-    /* a ring drawn over the avatar itself (the far row) covers nothing the avatar does not already cover */
-    const inAva=rr.x>=av.x-1&&rr.y>=av.y-1&&rr.x+rr.w<=av.x+av.w+1&&rr.y+rr.h<=av.y+av.h+1;
-    if(!inAva)[...document.querySelectorAll('#table .seat')].forEach(s=>{const e=s!==seat&&[s,...s.children].find(e=>vis(e)&&hit(R(e),rr));if(e)f.push(tag+'：倒计时压住座位 '+s.dataset.pid+(${process.env.LC_DEBUG?1:0}?' '+e.className+JSON.stringify([R(e),rr]):''))});
-    ['#table .board','#table .center .pot','#table .dd-bottom','#table .dd-play','#actions .act-bar button','#actions .act-hint','#table .my-hand .card','#dd-hand .card','.corner > *','#dd-strip'].forEach(q=>!inAva&&document.querySelectorAll(q).forEach(e=>{if(vis(e)&&hit(R(e),rr))f.push(tag+'：倒计时压住 '+q+(${process.env.LC_DEBUG?1:0}?JSON.stringify([R(e),rr,av]):''))}));
-    if(rr.w<18)f.push(tag+'：倒计时只有 '+rr.w.toFixed(0)+'px')};
+    [...document.querySelectorAll('#table .seat')].forEach(s=>{const e=[s,...s.querySelectorAll('.ava,.cards,.plate,.card')].find(e=>vis(e)&&(s!==seat||e!==s)&&hit(R(e),rr));if(e)f.push(tag+'：倒计时压住座位 '+s.dataset.pid+' 的 '+(e===s?'座位':e.className.split(' ')[0])+(${process.env.LC_DEBUG?1:0}?JSON.stringify([R(e),rr]):''))});
+    ['#table .board','#table .center .pot','#table .bet','#table .dd-bottom','#table .dd-play','#actions .act-bar button','#actions .act-hint','#table .my-hand .card','#dd-hand .card','.corner > *','#dd-strip'].forEach(q=>document.querySelectorAll(q).forEach(e=>{if(vis(e)&&hit(R(e),rr))f.push(tag+'：倒计时压住 '+q+(${process.env.LC_DEBUG?1:0}?JSON.stringify([R(e),rr,av]):''))}))};
   const r0=ring();if(!r0)return ['轮到我时没有倒计时'];
   const s0=+r0.textContent;if(s0!==15)f.push('开始时显示 '+s0+' 秒，不是 15');
   place('我',V.me);
@@ -368,6 +381,45 @@ const TRUST=`(async()=>{${PG}
   else{if(!tagHas('暂时离桌'))f.push('座位上没有标「暂时离桌」');if(innerWidth<1000&&R(j).h<39.5)f.push('下一局加入不到 40px');
     if(tap(j)){await sleep(80);clearTimeout(timer);if(S.players[0].away)f.push('点了下一局加入还在离桌')}}
   return f})()`;
+/* seat alignment: seats on the left half of the table line their avatar, cards and plate text up on the left edge of the
+   seat, the right half on the right edge; the far middle and my own seat stay centred */
+const ALIGN=`(async()=>{${PG}
+  const tb=R(Q('#table')),cx=tb.x+tb.w/2;
+  [...document.querySelectorAll('#table .seat')].forEach(s=>{const r=R(s),m=r.x+r.w/2,id=s.dataset.pid;
+    const side=s.classList.contains('me')||Math.abs(m-cx)<tb.w*0.06?'c':m<cx?'l':'r',want={l:'left',r:'right',c:'center'}[side];
+    const parts=[...s.querySelectorAll('.stop > .ava,.stop > .tring,.stop > .cards')].filter(vis).map(R),lo=Math.min(...parts.map(p=>p.x)),hi=Math.max(...parts.map(p=>p.x+p.w));
+    ['.pname','.pstack'].forEach(q=>{const e=s.querySelector(q),ta=e&&getComputedStyle(e).textAlign;if(ta!==want)f.push('座位 '+id+' 的 '+q+' 是 '+ta+'，应该 '+want)});
+    if(side==='l'&&Math.abs(lo-r.x)>1.5)f.push('座位 '+id+' 的头像和牌没有靠左：'+(lo-r.x).toFixed(1)+'px');
+    if(side==='r'&&Math.abs(hi-r.x-r.w)>1.5)f.push('座位 '+id+' 的头像和牌没有靠右：'+(r.x+r.w-hi).toFixed(1)+'px');
+    if(side==='c'&&Math.abs((lo+hi)/2-m)>1.5)f.push('座位 '+id+' 的头像和牌没有居中：'+((lo+hi)/2-m).toFixed(1)+'px')});
+  return f})()`;
+/* 炸金花 比牌 PK: both avatars fly to the middle and face each other across a 「PK」, the loser dims, they fly home and a short
+   line says who is out; no second banner. Reduced motion: only the line. Then a real compare through the engine plays it. */
+const ZJH_PK=`(async()=>{${PG}
+  const fx=Q('#fx'),off=r=>r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5;
+  const opp=V.players.filter(p=>p.id!==V.me&&alive(p)),a=opp[opp.length>2?2:0],m=V.players[V.me];
+  const ev={type:'compare',pid:m.id,target:a.id,loser:a.id,seq:9999};
+  const mid=()=>{const c=R(Q('#table .center'));return {x:c.x+c.w/2,y:c.y+c.h/2}};
+  const flown=(tag)=>{const av=[...fx.querySelectorAll('.pk-ava')];if(av.length!==2){f.push(tag+'：飞出的头像 '+av.length+' 个');return null}
+    const rs=av.map(R),C=mid();
+    rs.forEach((r,i)=>{if(off(r))f.push(tag+'：头像 '+i+' 超出屏幕');const d=Math.hypot(r.x+r.w/2-C.x,r.y+r.h/2-C.y);if(d>r.w*1.6)f.push(tag+'：头像 '+i+' 没有飞到桌子中间（离桌心 '+d.toFixed(0)+'px）');if(r.w<40)f.push(tag+'：头像只有 '+r.w.toFixed(0)+'px')});
+    if(hit(rs[0],rs[1]))f.push(tag+'：两个头像重叠');if(Math.abs(rs[0].y-rs[1].y)>1)f.push(tag+'：两个头像没有面对面');
+    const mk=fx.querySelector('.pk-mark');if(!vis(mk)||!/PK/.test(mk.textContent))f.push(tag+'：没有 PK 字样');
+    else{const k=R(mk),x=k.x+k.w/2,l=rs[0].x<rs[1].x?rs[0]:rs[1],r=rs[0].x<rs[1].x?rs[1]:rs[0];if(!(x>l.x+l.w/2&&x<r.x+r.w/2))f.push(tag+'：PK 不在两个头像中间')}
+    return av};
+  fx.innerHTML='';compareFx(ev);await sleep(800);
+  if(fx.querySelector('.allin-banner'))f.push('比牌还有大横幅');
+  const av=flown('比牌');
+  if(av){await sleep(900);const lose=av.filter(e=>e.classList.contains('lose'));if(lose.length!==1||lose[0].textContent!==avatarChar(a.name))f.push('输的一方没有变暗');
+    await sleep(1000);if(fx.querySelector('.pk-ava'))f.push('头像没有退回');
+    const ln=fx.querySelector('.pk-line');if(!vis(ln)||!ln.textContent.includes(a.name+' 出局'))f.push('没有提示谁出局');
+    else{const r=R(ln);if(off(r))f.push('出局提示超出屏幕');[...document.querySelectorAll('#actions .act-bar button')].filter(vis).forEach(b=>{if(hit(R(b),r))f.push('出局提示压住按钮')})}}
+  fx.innerHTML='';Object.defineProperty(stillMQ,'matches',{value:true,configurable:true});
+  try{compareFx(ev);await sleep(100);if(fx.querySelector('.pk-ava,.pk-mark'))f.push('减少动效时还有动画');if(!vis(fx.querySelector('.pk-line')))f.push('减少动效时没有出局提示')}
+  finally{delete stillMQ.matches;fx.innerHTML=''}
+  S.round=Math.max(2,S.round);S.toAct=V.me;zAct(S.players[V.me],'compare',a.id);clearTimeout(timer);await sleep(800);
+  flown('真的比牌');if(fx.querySelector('.allin-banner'))f.push('真的比牌还有大横幅');
+  return f})()`;
 const PH4=[[393,873,true],[873,393,true],[412,915,true],[915,412,true]];
 SCEN.push(
   {name:'board-cards',game:'holdem',n:6,extra:BOARD_CARDS},
@@ -376,6 +428,8 @@ SCEN.push(
   {name:'showdown-all',game:'holdem',n:6,extra:SHOWDOWN(true),sizes:[...PH4,[1280,800,false]]},
   {name:'showdown-none',game:'holdem',n:6,extra:SHOWDOWN(false),sizes:PH4},
   {name:'showdown-9-all',game:'holdem',n:9,extra:SHOWDOWN(true),sizes:PH4},
+  {name:'showdown-long',game:'holdem',n:6,extra:SHOWDOWN(true,true)},{name:'showdown-9-long',game:'holdem',n:9,extra:SHOWDOWN(true,true)},
+  {name:'showdown-zjh-long',game:'zjh',n:6,extra:SHOWDOWN(true,true)},
   {name:'showdown-zjh-all',game:'zjh',n:6,extra:SHOWDOWN(true),sizes:[...PH4,[1280,800,false]]},
   {name:'showdown-zjh-none',game:'zjh',n:6,extra:SHOWDOWN(false),sizes:PH4},
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
@@ -383,6 +437,8 @@ SCEN.push(
   {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
+  {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},
+  {name:'zjh-pk',game:'zjh',n:6,extra:ZJH_PK,sizes:[...PH4,[1280,800,false]]},{name:'zjh-pk-9',game:'zjh',n:9,extra:ZJH_PK,sizes:PH4},
   {name:'trust',game:'holdem',n:6,extra:TRUST},{name:'trust-zjh',game:'zjh',n:6,extra:TRUST},{name:'trust-ddz',game:'ddz',n:3,lord20:true,extra:TRUST}
 );
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
@@ -391,7 +447,8 @@ if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);
 const setup=sc=>`(async()=>{
   NET.role='solo';show('game');
   startGame({game:'${sc.game}',players:${sc.n},stack:2000,sb:10,bb:20,ante:20,base:20,aiFill:true,rebuy:true,speed:'fast',ff:false,coach:true},[{name:'我',kind:'local',gender:'m'}]);
-  for(let i=0;i<80&&!myTurn();i++)await new Promise(r=>setTimeout(r,100));
+  /* a hand can end before my turn comes (everyone folds to my blind): deal the next one and keep waiting */
+  for(let i=0;i<300&&!myTurn();i++){if(S.phase==='handover')startHand();await new Promise(r=>setTimeout(r,50))}
   clearTimeout(timer);
   ${sc.long?`S.players.forEach((p,i)=>{p.name='${LONG}'.slice(0,11)+'甲乙丙丁戊己庚辛壬'[i]});sync();`:''}
   ${sc.lord20?`ddLandlord({landlord:0,robs:0});clearTimeout(timer);

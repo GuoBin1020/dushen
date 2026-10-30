@@ -42,10 +42,30 @@ function allInFx(pid){
   const t=$('#table');t.classList.remove('shake');void t.offsetWidth;t.classList.add('shake');
   SFX.allin();
 }
+/* 炸金花 比牌: both avatars fly from their seats to face each other mid-table, 「PK」 clashes between them, after about 1.5 s
+   the loser dims and both fly home, then a short line says who is out. Reduced motion: only the line. Driven by V.ev, so
+   guests see the same. */
 function compareFx(ev){
   const fx=$('#fx'),a=V.players[ev.pid],b=V.players[ev.target],l=V.players[ev.loser];if(!fx||!a||!b||!l)return;
-  const el=document.createElement('div');el.className='allin-banner';el.innerHTML=`<b style="font-size:clamp(34px,7vw,64px)">比牌</b><span>${esc(a.name)} vs ${esc(b.name)} · ${esc(l.name)} 出局</span>`;
-  fx.appendChild(el);setTimeout(()=>el.remove(),1700);
+  fx.querySelectorAll('.pk-ava,.pk-mark,.pk-line').forEach(e=>e.remove());
+  const line=()=>{const t=document.createElement('div');t.className='pk-line';const m=seatPoint(a.id,'center');if(m)t.style.top=m.y+'px';t.innerHTML=`${esc(a.name)} 和 ${esc(b.name)} 比牌 · <b>${esc(l.name)} 出局</b>`;fx.appendChild(t);setTimeout(()=>t.remove(),1800)};
+  const pa=seatPoint(a.id,'seat'),pb=seatPoint(b.id,'seat'),c=seatPoint(a.id,'center');
+  if(stillMQ.matches||!pa||!pb||!c){SFX.clash();return line()}
+  /* the avatars meet a little above the middle (the pot), facing each other across the 「PK」 */
+  const av=document.querySelector(`#table .seat[data-pid="${a.id}"] .ava`),sz=Math.max(46,Math.min(72,(av?av.getBoundingClientRect().width:40)*1.5));
+  const y=c.y-sz*0.2,dx=sz*0.95,left=pa.x<=pb.x?a:b;
+  const fly=(p,from)=>{const e=document.createElement('div');e.className='pk-ava';e.textContent=avatarChar(p.name);
+    Object.assign(e.style,{left:from.x+'px',top:from.y+'px',width:sz+'px',height:sz+'px',fontSize:sz*0.42+'px'});fx.appendChild(e);
+    const to={x:c.x+(p===left?-dx:dx),y};
+    setTimeout(()=>{e.classList.add('go');e.style.left=to.x+'px';e.style.top=to.y+'px'},30);
+    setTimeout(()=>{if(p===l)e.classList.add('lose')},1500);
+    setTimeout(()=>{e.classList.remove('go');e.classList.add('back');e.style.left=from.x+'px';e.style.top=from.y+'px'},1900);
+    setTimeout(()=>e.remove(),2450);return e};
+  fly(a,pa);fly(b,pb);
+  const m=document.createElement('div');m.className='pk-mark';m.innerHTML='<i></i><b>PK</b>';
+  Object.assign(m.style,{left:c.x+'px',top:y+'px',fontSize:sz*0.62+'px'});
+  setTimeout(()=>{fx.appendChild(m);SFX.clash()},430);setTimeout(()=>m.remove(),1900);
+  setTimeout(line,2000);
 }
 /* compare the previous view with the new one and play what happened in between */
 function fxDiff(prev,v){
@@ -58,7 +78,7 @@ function fxDiff(prev,v){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
     if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
-    else if(ev.type==='compare'){SFX.clash();say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
+    else if(ev.type==='compare'){say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
     else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6,0,ev.pid)}
     else if(ev.type==='raise'){SFX.chips(4);say(ev.open?'下注':'加注',g);flyChips(from,to,4,0,ev.pid)}
     else if(ev.type==='call'){SFX.chips(3);say('跟注',g);flyChips(from,to,3,0,ev.pid)}
@@ -388,8 +408,14 @@ function peekBet(pid){
   const el=document.querySelector(`.bet[data-pid="${pid}"]`);if(el)el.classList.add('peek');
   clearTimeout(peekTimer);peekTimer=setTimeout(()=>{PEEK=null;document.querySelectorAll('.bet.peek').forEach(b=>b.classList.remove('peek'))},2500);
 }
-/* the round avatar on a seat: the name's first character; whoever is to act gets the turn clock beside it */
-const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc(avatarChar(p.name))}${turnRing(p.id)}</div>`;
+/* the round avatar on a seat (the name's first character), then the turn clock of whoever is to act: its own cell beside the
+   avatar on the side toward the middle of the table (CSS), so it covers neither the initial nor the cards */
+const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc(avatarChar(p.name))}</div>${turnRing(p.id)}`;
+/* seat alignment: a seat on the left half of the table lines its cards and plate text up on the left, one on the right half
+   on the right; the far middle and my own seat stay centred. rside: on the right edge the cards go on the inner side of the
+   avatar, so they stay on screen. uh: the upper part of the table, where upright the turn clock goes under the avatar;
+   tr: the clock is showing. */
+const seatCls=(s,mine,pid)=>(mine||Math.abs(s.x-50)<6?'':s.x<50?' al-l':' al-r')+(s.x>80?' rside':'')+(s.y<40?' uh':'')+(turnRing(pid)?' tr':'');
 /* ---------- 出牌限时: a ring that drains, seconds in the middle, red for the last 5 s ----------
    A snapshot says how much time was left when the host made it; this device counts down from when it got it. */
 let TURN={at:0,left:0,total:0};
@@ -432,9 +458,9 @@ function renderTable(){
     const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName&&!hn?' · '+p.handName:''}</div>`:`<div class="pact${tg?' tg':''}">${esc(tg?['托管中',status].filter(Boolean).join(' · '):status)}</div>`;
     if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}${hn}${trustVeil()}</div>`;
     /* seats on the right keep their cards on the inner side of the avatar, so they stay on screen */
-    html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${s.x>80?' rside':''}${s.x<50?' lh':''}${s.y<40?' uh':''}" data-pid="${i}" style="${seatStyle(s)}">
-      ${avatarHTML(p)}<div class="cards">${mine?'':cards}</div>
-      <div class="plate">${mine?'':hn}${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
+    html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${seatCls(s,mine,i)}" data-pid="${i}" style="${seatStyle(s)}">
+      <div class="stop">${avatarHTML(p)}<div class="cards">${mine||!cards?'':cards+hn}</div></div>
+      <div class="plate">${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>
@@ -455,6 +481,8 @@ function renderTable(){
 /* where each player's bet chip goes, in % of the table: on the line from the seat to the middle, just clear of the seat as
    drawn (js/table-layout.js betClear). Flying chips aim at the same points (seatPoint). */
 let BETPT={};
+/* everything drawn for a seat: the box, its top row's avatar, clock and cards (which may stick out of the row) and the plate */
+const seatParts=seat=>[seat,...seat.querySelectorAll(':scope > .stop > *,:scope > .plate')];
 function placeBets(){
   BETPT={};const tb=$('#table');if(!tb||!V)return;
   const tr=tb.getBoundingClientRect(),W=tb.clientWidth,H=tb.clientHeight;if(!W||!H)return;
@@ -462,7 +490,7 @@ function placeBets(){
   const any=tb.querySelector('.bet'),dflt=any?any.getBoundingClientRect():{width:60,height:26};
   V.players.forEach((p,i)=>{
     const seat=tb.querySelector(`.seat[data-pid="${i}"]`);if(!seat)return;
-    const rs=[seat,...seat.children].filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),sr=rs[0];
+    const rs=seatParts(seat).filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),sr=rs[0];
     const S={x:sr.left+sr.width/2-ox,y:sr.top+sr.height/2-oy};
     const box={l:S.x+ox-Math.min(...rs.map(r=>r.left)),r:Math.max(...rs.map(r=>r.right))-ox-S.x,t:S.y+oy-Math.min(...rs.map(r=>r.top)),b:Math.max(...rs.map(r=>r.bottom))-oy-S.y};
     const el=tb.querySelector(`.bet[data-pid="${i}"]`),br=el?el.getBoundingClientRect():dflt,q=betClear(S,C,box,br.width,br.height,4);
@@ -471,12 +499,12 @@ function placeBets(){
   });
 }
 /* at the end of a hand, the hand name beside each shown hand (the winner's marked); with 「亮出所有人的底牌」 also the hands
-   nobody showed down (a folded one's plate then says 「已弃牌」). One short line, so it stays within the seat. */
+   nobody showed down (a folded one's plate then says 「已弃牌」). It lies over the foot of the seat's cards, never on the plate. */
 function handLabel(p){
   if(V.phase!=='handover'||!p.inHand||!p.cards.length||p.cards[0]==null)return '';
   const nm=p.shown&&!p.folded&&p.handName?p.handName:p.revealName;if(!nm)return '';
   const win=p.won>0&&!p.folded;
-  return `<span class="hname${p.id===V.me?' mine':''}${win?' win':''}">${win?'赢 ':''}${esc(nm)}${p.folded&&p.id===V.me?' · 已弃牌':''}</span>`;
+  return `<span class="hname${p.id===V.me?' mine':''}${win?' win':''}">${win?'<i class="hw">赢 </i>':''}${esc(nm)}${p.folded&&p.id===V.me?' · 已弃牌':''}</span>`;
 }
 /* 炸金花: tapping a seat opens a small panel beside it with the player's name, chips and status, and what I can do with
    them right now (seatPopActions: only 比牌 so far). It follows the table on every render; a tap outside or Esc closes it. */
@@ -500,7 +528,7 @@ function renderSeatPop(){
   el.hidden=false;
   /* beside a seat on the left or right edge (toward the middle), else below a seat in the upper half and above one in the
      lower half; kept on screen */
-  const rs=[seat,...seat.children].filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),r={left:Math.min(...rs.map(q=>q.left)),right:Math.max(...rs.map(q=>q.right)),top:Math.min(...rs.map(q=>q.top)),bottom:Math.max(...rs.map(q=>q.bottom))};
+  const rs=seatParts(seat).filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect()),r={left:Math.min(...rs.map(q=>q.left)),right:Math.max(...rs.map(q=>q.right)),top:Math.min(...rs.map(q=>q.top)),bottom:Math.max(...rs.map(q=>q.bottom))};
   r.width=r.right-r.left;r.height=r.bottom-r.top;
   const g=$('#game-view').getBoundingClientRect(),w=el.offsetWidth,h=el.offsetHeight,cx=r.left+r.width/2,cy=r.top+r.height/2;
   const side=cx<innerWidth*0.3?1:cx>innerWidth*0.7?-1:0,up=cy>innerHeight/2;
