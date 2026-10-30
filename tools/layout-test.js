@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+/* 牌桌布局测试：node tools/layout-test.js。用 vm 加载 js/table-layout.js，检查每种人数、横竖屏下的座位、下注、出牌和桌面中心的位置。 */
+'use strict';
+const fs=require('fs'),path=require('path'),vm=require('vm');
+const ROOT=path.join(__dirname,'..');
+const ctx=vm.createContext({console,Math,JSON,Object,Array,Number,String,Boolean,window:{innerWidth:873,innerHeight:393}});
+vm.runInContext(fs.readFileSync(path.join(ROOT,'js/table-layout.js'),'utf8'),ctx,{filename:'js/table-layout.js'});
+const run=s=>vm.runInContext(s,ctx);
+let passed=0,failed=0;
+const ok=(c,msg)=>{if(c)passed++;else{failed++;console.log('FAIL',msg||'')}};
+const f1=v=>Math.round(v*10)/10;
+
+for(const o of ['land','port']){
+  const c=run(`centerXY('${o}')`);
+  ok(c&&c.x===50&&c.y===(o==='land'?36:34),`centerXY ${o} ${JSON.stringify(c)}`);
+  const me=run(`seatXY(0,6,'${o}')`);
+  ok(Math.abs(me.x-(o==='land'?8:12))<=3&&Math.abs(me.y-(o==='land'?84:74))<=3,`自己的座位 ${o} ${JSON.stringify(me)}`);
+  const mp=run(`playXY(0,3,'${o}')`);
+  ok(mp.al==='c'&&Math.abs(mp.x-50)<=2&&Math.abs(mp.y-(o==='land'?52:56))<=3,`自己出牌的位置 ${o} ${JSON.stringify(mp)}`);
+  for(let n=2;n<=9;n++){
+    const seats=[];for(let k=0;k<n;k++)seats.push(run(`seatXY(${k},${n},'${o}')`));
+    const tag=`${o} n=${n}`;
+    seats.forEach((s,k)=>{
+      ok(s.x>=3&&s.x<=97&&s.y>=3&&s.y<=97,`${tag} slot ${k} 出界 ${f1(s.x)},${f1(s.y)}`);
+      ok(s.s>=0.8&&s.s<=1,`${tag} slot ${k} 缩放 ${s.s}`);
+      if(k>0){
+        ok(s.y<seats[0].y,`${tag} slot ${k} 比自己还靠下`);
+        ok(Math.hypot(s.x-c.x,s.y-c.y)>=18,`${tag} slot ${k} 离桌面中心太近 ${f1(Math.hypot(s.x-c.x,s.y-c.y))}`);
+      }
+      const b=run(`betXY(${k},${n},'${o}')`);
+      ok(Math.abs(b.x-(s.x+(c.x-s.x)*0.35))<0.01&&Math.abs(b.y-(s.y+(c.y-s.y)*0.35))<0.01,`${tag} slot ${k} 下注位置`);
+      const p=run(`playXY(${k},${n},'${o}')`);
+      ok(['l','c','r'].includes(p.al),`${tag} slot ${k} 出牌对齐 ${p.al}`);
+      seats.forEach((q,j)=>{const d=Math.hypot(p.x-q.x,p.y-q.y);ok(d>=10,`${tag} slot ${k} 出的牌压在 slot ${j} 上 ${f1(d)}`)});
+    });
+    const min=o==='port'?14:16;
+    for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){
+      const d=Math.hypot(seats[a].x-seats[b].x,(seats[a].y-seats[b].y)*0.6);
+      ok(d>=min,`${tag} slot ${a} 和 ${b} 太近 ${f1(d)}`);
+    }
+  }
+}
+/* 斗地主：两个对手在左右两侧 */
+ok(run(`seatXY(1,3,'land')`).x<30,'斗地主左边的对手');
+ok(run(`seatXY(2,3,'land')`).x>70,'斗地主右边的对手');
+/* 唯一读取窗口尺寸的函数 */
+ok(run('tableOrient()')==='land','873x393 是横屏');
+run('window.innerWidth=393;window.innerHeight=873');ok(run('tableOrient()')==='port','393x873 是竖屏');
+run('window.innerWidth=500;window.innerHeight=500');ok(run('tableOrient()')==='land','正方形算横屏');
+
+console.log(`layout: ${passed} passed, ${failed} failed`);
+process.exit(failed?1:0);

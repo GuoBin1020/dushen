@@ -631,15 +631,14 @@ function ddCardHTML(id,o={}){
 const ddCardsHTML=(ids,lz=-1,cls=null)=>{const st=new Map(((cls&&cls.as)||[]).map(a=>[a.id,a.rank]));return ids.map(id=>ddCardHTML(id,{lz,stand:st.has(id)?st.get(id):null})).join('')};
 const ddStageText=d=>d.stage==='bid'?(d.ask&&d.ask.kind==='rob'?'抢地主':'叫地主'):d.stage==='double'?'加倍':d.stage==='play'?'出牌中':'本局结束';
 const ddRole=(v,pid)=>!v.dd||v.dd.landlord<0?'':pid===v.dd.landlord?'地主':'农民';
-/* where each seat's last play sits: the two opponents' under their seats, toward the middle; mine above my seat.
-   Phones held sideways have a flat table, so the opponents' plays drop lower to clear their name plates. */
-function ddPlaySpot(slot){const land=isLandPhone();return slot===0?{x:50,y:land?64:69,al:'c'}:slot===1?{x:land?17:13,y:land?63:52,al:'l'}:{x:land?83:87,y:land?63:52,al:'r'}}
+/* where each seat's last play lies on the felt: the two opponents' in front of them, toward the middle; mine above the buttons */
+function ddPlaySpot(slot){return playXY(slot,V?V.players.length:3,tableOrient())}
 function ddRenderTable(){
-  const d=V.dd,n=V.players.length,narrow=isNarrow(),over=V.phase!=='playing';
+  const d=V.dd,n=V.players.length,o=tableOrient(),over=V.phase!=='playing';
+  tableFrame(o,'ddz');
   let html='';
   V.players.forEach((p,i)=>{
-    const slot=(i-V.me+n)%n,ang=(90+slot*360/n)*Math.PI/180;
-    const x=50+48*Math.cos(ang),y=50+(narrow?47:46)*Math.sin(ang);
+    const slot=(i-V.me+n)%n,s=seatXY(slot,n,o);
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
     /* a dropped player's turns are played by the bot until they reconnect */
     const tg=p.kind==='remote'&&!p.connected&&p.inHand;
@@ -647,15 +646,15 @@ function ddRenderTable(){
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)} · ${ddRole(V,i)}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const left=p.cards.length,warn=left>0&&left<=2&&d&&d.stage==='play';
     const cards=i===V.me||!p.inHand?'':`<div class="dd-count${warn?' warn':''}">${ddCardHTML(null)}<b>${left}</b></div>`;
-    html+=`<div class="${cls}" data-pid="${i}" style="left:${x}%;top:${y}%">
-      <div class="cards">${cards}</div>
+    html+=`<div class="${cls}" data-pid="${i}" style="${seatStyle(s)}">
+      ${avatarHTML(p)}<div class="cards">${cards}</div>
       <div class="plate">${ddRole(V,i)==='地主'?'<span class="dd-lord" title="地主">地主</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>${act}
       </div></div>`;
     /* last play, or at the end what the others still held */
-    const sp=ddPlaySpot(slot),shown=d&&d.shown[i],rest=over&&i!==V.me&&left&&p.cards[0]!=null;
+    const sp=playXY(slot,n,o),shown=d&&d.shown[i],rest=over&&i!==V.me&&left&&p.cards[0]!=null;
     if(rest||shown){
       const lz=d?d.laizi:-1;
       const inner=rest?`<span class="dd-tag">剩余</span>${ddCardsHTML(p.cards,lz)}`:shown==='pass'?'<span class="dd-pass">不要</span>':ddCardsHTML(shown.cards,lz,shown.cls);
@@ -664,7 +663,8 @@ function ddRenderTable(){
   });
   if(d){
     /* the 赖子 rank rides on the stage line: no extra height in the middle of the table */
-    html+=`<div class="center dd-center"><div class="street">${V.phase==='playing'?ddStageText(d):'本局结束'}${d.laizi>=0?` <b class="dd-lz" aria-label="赖子是 ${DR[d.laizi]}">赖子 ${DR[d.laizi]}</b>`:''}</div>
+    const c=centerXY(o);
+    html+=`<div class="center dd-center" style="left:${c.x}%;top:${c.y}%"><div class="street">${V.phase==='playing'?ddStageText(d):'本局结束'}${d.laizi>=0?` <b class="dd-lz" aria-label="赖子是 ${DR[d.laizi]}">赖子 ${DR[d.laizi]}</b>`:''}</div>
       <div class="dd-bottom" aria-label="底牌">${d.bottom.map(id=>ddCardHTML(id,{lz:d.laizi})).join('')}</div>
       <div class="pot">倍数 <span>×${d.mult}</span></div></div>`;
   }

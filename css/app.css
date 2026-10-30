@@ -83,12 +83,8 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .terms dt{font-weight:700;display:inline}
 .terms dd{margin:0;color:var(--muted)}
 
-/* game layout */
-.game{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
-.table-wrap{position:relative;padding:50px 64px 58px}
-.table{position:relative;aspect-ratio:16/9.4;border-radius:999px;background:radial-gradient(ellipse at 50% 42%,var(--felt) 0%,var(--felt-deep) 80%);border:12px solid var(--rail);box-shadow:inset 0 0 0 2px var(--rail-hi),inset 0 12px 40px var(--shade),0 22px 50px var(--shade)}
-.table::after{content:"";position:absolute;inset:9%;border:1px solid rgba(255,255,255,.07);border-radius:999px;pointer-events:none}
-.center{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:66%;z-index:1;text-align:center}
+/* game layout: the full-screen table is styled further down (body.in-game) */
+.center{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1;text-align:center;pointer-events:none}
 .street{font-size:10.5px;letter-spacing:.18em;color:rgba(230,237,232,.6)}
 .board{display:flex;gap:6px;justify-content:center}
 .board .card,.board .slot{--cw:var(--bw)}
@@ -98,12 +94,18 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .msg{font-size:12.5px;color:var(--text);background:var(--shade);border-radius:8px;padding:4px 10px;max-width:100%}
 .msg:empty{display:none}
 
-.seat{position:absolute;transform:translate(-50%,-50%);width:var(--seat-w);display:flex;flex-direction:column;align-items:center;gap:3px;z-index:2;transition:opacity .2s}
-.seat .cards{display:flex;gap:3px;min-height:calc(var(--cw)*1.4)}
-.seat.me{--cw:40px}
-.plate{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 8px 5px;width:100%;text-align:center;line-height:1.25}
-.seat.active .plate{border-color:var(--brass);box-shadow:0 0 0 3px rgba(217,168,76,.28)}
-.seat.win .plate{border-color:var(--good);box-shadow:0 0 0 3px rgba(94,197,143,.25)}
+/* a seat: round avatar with any small cards beside it, a dark name plate under them (placed and scaled by renderTable) */
+.seat{position:absolute;transform:translate(-50%,-50%);width:var(--seat-w);display:grid;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:3px;row-gap:2px;z-index:2;transition:opacity .2s}
+.seat .ava{width:var(--av);height:var(--av);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#ffe3a3,#c98f2e);border:2px solid rgba(255,255,255,.55);color:#4a2c00;font-weight:800;font-size:calc(var(--av)*.42);line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.55)}
+.seat .cards{display:flex;gap:2px;min-height:calc(var(--cw)*243/167)}
+.seat .cards:empty{display:none}
+.seat .plate{grid-column:1 / -1;width:var(--seat-w);min-width:0;overflow:hidden}
+.seat .pname,.seat .pstack,.seat .pact,.seat .ptag{min-width:0}
+.plate{position:relative;background:rgba(0,0,0,.66);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:2px 6px 3px;width:100%;text-align:center;line-height:1.25}
+.seat.active .ava{box-shadow:0 0 0 3px var(--brass),0 0 16px rgba(217,168,76,.7)}
+.seat.active .plate{border-color:var(--brass);box-shadow:0 0 0 2px rgba(217,168,76,.35)}
+.seat.win .ava{box-shadow:0 0 0 3px var(--good),0 0 16px rgba(94,197,143,.6)}
+.seat.win .plate{border-color:var(--good);box-shadow:0 0 0 2px rgba(94,197,143,.3)}
 .seat.folded{opacity:.42}
 .seat.out{opacity:.25}
 .pname{font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -119,10 +121,12 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .chip{width:13px;height:13px;border-radius:50%;background:var(--brass);border:2px dashed var(--brass-ink)}
 
 .card{width:var(--cw);aspect-ratio:167/243;background:var(--face) center/100% 100% no-repeat;border-radius:calc(var(--cw)*.06);box-shadow:0 2px 4px var(--shade);flex:none;position:relative}
+/* the back image is a little wider than the faces: crop it into the same box rather than squash it */
+.card.back{background-size:cover}
 .card .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .card.best{outline:2px solid var(--good);outline-offset:1px}
 
-.actions{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px;margin-top:6px}
+.actions{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px}
 .actions .status{color:var(--muted)}
 .act-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .act-row .btn{padding:10px 16px;font-size:15px}
@@ -194,30 +198,18 @@ details.panel summary{cursor:pointer;font-weight:700}
 details.panel[open] summary{margin-bottom:10px}
 
 @media (max-width:1060px){
-  .game{grid-template-columns:minmax(0,1fr)}
   .setup{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:760px){
   .grid2{grid-template-columns:minmax(0,1fr)}
   :root{--seat-w:84px;--cw:22px}
-  .seat.me{--cw:30px}
-  .table-wrap{padding:46px 34px 54px}
-  .table{aspect-ratio:3/4.6;border-width:9px}
-  .center{width:78%}
-  .board{gap:4px}
-  .board .card,.board .slot{--cw:clamp(26px,7.6vw,36px)}
-  .pot{font-size:18px} .pot span{font-size:15px}
-  .pname{font-size:11.5px} .pstack{font-size:11.5px} .ptag{display:none}
   .hero-res .big{font-size:48px}
   .brand h1{font-size:28px}
 }
-/* Phones held sideways (touch screens only; desktop windows never match).
-   Designed for a 6.74" phone: about 800-880 x 360-393 CSS px in landscape, full screen.
-   One slim top bar; the table fills the height on the left; a fixed-width side panel keeps the
-   action buttons in view at the top and scrolls the coach and the rest underneath. */
+/* Phones held sideways (touch screens only; desktop windows never match): a slim header for the home page, lobby and settlement.
+   The table has its own full-screen layout (body.in-game, below). */
 @media (orientation:landscape) and (max-height:500px) and (pointer:coarse){
   :root{--seat-w:88px;--cw:22px;--bar:42px}
-  .seat.me{--cw:30px}
   .wrap{padding-block:4px 0;max-width:none}
   .top{flex-wrap:nowrap;height:var(--bar);padding-bottom:4px;margin-bottom:6px;gap:10px;overflow-x:auto;scrollbar-width:none}
   .top::-webkit-scrollbar{display:none}
@@ -231,59 +223,12 @@ details.panel[open] summary{margin-bottom:10px}
   .meta .btn{padding:5px 10px;font-size:12.5px}
   .toggle button{padding:3px 8px;font-size:11.5px}
   .banner{margin-bottom:6px;padding:6px 10px;font-size:12.5px}
-  /* game: table | side panel, exactly one screen tall */
-  #game-view:not([hidden]) .game{display:grid;grid-template-columns:minmax(0,1fr) clamp(250px,33vw,310px);grid-template-rows:auto minmax(0,1fr);gap:8px 10px;height:calc(100vh - var(--bar) - 14px);height:calc(100dvh - var(--bar) - 14px);align-items:stretch}
-  .game>div:first-child{display:contents}
-  .table-wrap{grid-column:1;grid-row:1 / span 2;align-self:center;justify-self:center;width:100%;padding:28px 48px 32px;
-    max-width:calc((100vh - var(--bar) - 74px) * 1.7 + 96px);max-width:calc((100dvh - var(--bar) - 74px) * 1.7 + 96px)}
-  .table{aspect-ratio:16/9.4;border-width:8px}
-  .center{width:62%;gap:6px}
-  .pot{font-size:18px}
-  .pot span{font-size:16px}
-  .board .card,.board .slot{--cw:28px}
-  .board{gap:3px}
-  .center{width:auto;max-width:50%}
-  /* two-line name plate: name + chips on one line, last action below; keeps neighbouring seats apart */
-  .plate{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:5px;align-items:baseline;padding:3px 7px 4px;border-radius:9px;text-align:left}
-  .ptag{display:none}
-  .pname{font-size:12px}
-  .pstack{font-size:12px}
-  .pact{grid-column:1 / span 2;font-size:11px;text-align:center;min-height:1.2em}
-  .table[data-n="7"],.table[data-n="8"],.table[data-n="9"]{--seat-w:84px;--cw:19px}
-  .table[data-n="7"] .seat.me,.table[data-n="8"] .seat.me,.table[data-n="9"] .seat.me{--cw:26px}
-  .table[data-n="7"] .board .card,.table[data-n="8"] .board .card,.table[data-n="9"] .board .card,
-  .table[data-n="7"] .board .slot,.table[data-n="8"] .board .slot,.table[data-n="9"] .board .slot{--cw:24px}
-  .table[data-n="7"] .center,.table[data-n="8"] .center,.table[data-n="9"] .center{gap:3px}
-  .table[data-n="7"] .street,.table[data-n="8"] .street,.table[data-n="9"] .street{display:none}
-  .table[data-n="7"] .pname,.table[data-n="8"] .pname,.table[data-n="9"] .pname,
-  .table[data-n="7"] .pstack,.table[data-n="8"] .pstack,.table[data-n="9"] .pstack{font-size:11px}
-  .bet{font-size:11.5px;padding:2px 8px 2px 3px}
-  /* actions stay on top of the side panel; a long list (炸金花 raise / compare choices) scrolls inside it */
-  .actions{grid-column:2;grid-row:1;margin-top:0;padding:10px;gap:8px;border-radius:12px;overflow-y:auto;overscroll-behavior:contain;
-    max-height:calc((100vh - var(--bar) - 14px) * .66);max-height:calc((100dvh - var(--bar) - 14px) * .66)}
-  .actions .status{font-size:13px}
-  .act-row{gap:6px}
-  .act-row .btn:not(.sm){flex:1 1 auto;padding:9px 8px;font-size:14px;min-height:40px}
-  .act-row .btn.sm{padding:5px 9px;font-size:12.5px;min-height:32px}
-  .act-row .rec-hint{flex:0 0 100%}
-  .raise-box{padding-top:8px;gap:6px}
-  .presets .btn{flex:1 1 calc(50% - 6px);padding:6px 4px;font-size:12px}
-  .rec-hint{font-size:12px}
-  .rail{grid-column:2;grid-row:2;overflow-y:auto;overscroll-behavior:contain;min-height:0;gap:10px;padding-bottom:max(8px,env(safe-area-inset-bottom,0px));scrollbar-width:thin}
-  .rail .panel{padding:12px}
-  .rail h2{font-size:17px}
-  .stats{gap:8px 10px}
-  .stat .v{font-size:14px}
-  .drawer{display:none}
   .allin-banner b{font-size:56px}
 }
-/* 炸金花 on phones: face-down hands overlap to save width; any face-up card (look, compare, showdown, reveal options) is laid out in full */
-@media (max-width:760px),(orientation:landscape) and (max-height:500px) and (pointer:coarse){
-  .table.zjh .seat .cards{gap:0}
-  .table.zjh .seat .cards .card+.card{margin-left:3px}
-  .table.zjh .seat:not(.me) .cards .card.back+.card.back{margin-left:calc(var(--cw)*-0.5)}
-  .table.zjh .seat.me .cards .card.back+.card.back{margin-left:calc(var(--cw)*-0.25)}
-}
+/* 炸金花: face-down hands overlap to save width; any face-up card (look, compare, showdown, reveal options) is laid out in full */
+.table.zjh .seat .cards{gap:0}
+.table.zjh .seat .cards .card+.card{margin-left:2px}
+.table.zjh .seat .cards .card.back+.card.back{margin-left:calc(var(--cw)*-0.5)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ---------- chat, voice, lobby, effects ---------- */
@@ -340,11 +285,6 @@ input.code{font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercas
 .quick button:hover{border-color:var(--brass)}
 .chat-input{display:flex;gap:6px;margin-top:8px}
 .chat-input input{flex:1 1 auto;width:auto}
-/* small round-cornered buttons in the phone toolbar above the action area: coach / stats / rules */
-.fab{position:relative;border:1px solid var(--brass);background:var(--panel);color:var(--brass);border-radius:999px;font-weight:700;display:inline-flex;gap:5px;align-items:center}
-.fab[aria-expanded="true"]{background:var(--brass);color:var(--brass-ink)}
-.fab .dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 0 2px var(--room)}
-.tools{display:none}
 /* the chat bubble floats over the waiting room and the table; drag it out of the way, it sticks to the nearer side */
 .chat-bubble{position:fixed;z-index:35;top:70%;right:max(10px,env(safe-area-inset-right,0px));width:48px;height:48px;border-radius:50%;
   display:grid;place-items:center;padding:0;border:1px solid var(--brass);background:var(--panel);color:var(--brass);
@@ -377,12 +317,8 @@ body.recording{-webkit-user-select:none;user-select:none;-webkit-touch-callout:n
 .ptbl .pill{font-size:11px;padding:1px 7px}
 @media (max-width:1060px){.lobby{grid-template-columns:minmax(0,1fr)}}
 
-/* ---------- phones: coach, stats and rules move into one sheet opened from the small buttons ---------- */
-@media (pointer:coarse){
-  .tools{display:flex;gap:6px;flex:none;padding:0 2px}
-  .fab{padding:4px 14px;font-size:12.5px;min-height:30px}
-  body.m-sheets .rail,body.m-sheets .drawer{display:none}
-}
+/* ---------- the sheet: menu, coach, stats and rules (always at the table, and on touch screens elsewhere) ---------- */
+body.m-sheets .rail,body.m-sheets .drawer{display:none}
 .sheet-backdrop{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.5)}
 .sheet{position:fixed;z-index:41;left:0;right:0;bottom:0;max-height:80vh;max-height:80dvh;display:flex;flex-direction:column;
   background:var(--room);border:1px solid var(--brass);border-bottom:0;border-radius:16px 16px 0 0;box-shadow:0 -12px 40px var(--shade);
@@ -400,20 +336,6 @@ body.recording{-webkit-user-select:none;user-select:none;-webkit-touch-callout:n
 .sheet-body .log{max-height:none}
 @media (orientation:landscape){
   .sheet{top:0;left:auto;right:0;bottom:0;width:min(460px,62vw);max-height:none;border:1px solid var(--brass);border-right:0;border-radius:16px 0 0 16px;box-shadow:-12px 0 40px var(--shade);padding-right:env(safe-area-inset-right,0px)}
-}
-/* phones sideways with the side panel gone: actions get the whole right column, the table gets the room */
-@media (orientation:landscape) and (max-height:500px) and (pointer:coarse){
-  body.m-sheets #game-view:not([hidden]) .game{grid-template-columns:minmax(0,1fr) clamp(220px,28vw,270px)}
-  body.m-sheets .tools{grid-column:2;grid-row:1;align-self:start}
-  body.m-sheets .actions{grid-row:2;align-self:start;max-height:calc(100vh - var(--bar) - 52px);max-height:calc(100dvh - var(--bar) - 52px)}
-  /* the board (or the round line in 炸金花) already says where the hand is */
-  .street{display:none}
-}
-/* phones held upright: the same two-line name plate keeps side seats short enough to clear the bet chips */
-@media (max-width:760px) and (orientation:portrait) and (pointer:coarse){
-  .plate{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:4px;align-items:baseline;padding:3px 6px 4px;text-align:left}
-  .pname,.pstack{font-size:11.5px}
-  .pact{grid-column:1 / span 2;text-align:center;font-size:10.5px}
 }
 /* phones: chat opens as a sheet like coach / stats / rules (bottom upright, right side sideways); the message list takes the spare height */
 .chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -433,80 +355,31 @@ body.recording{-webkit-user-select:none;user-select:none;-webkit-touch-callout:n
   .chat-pop{top:0;left:auto;width:min(460px,62vw);height:auto}
   .chat-pop .panel{border:1px solid var(--brass);border-right:0;border-radius:16px 0 0 16px;box-shadow:-12px 0 40px var(--shade);padding-bottom:max(10px,env(safe-area-inset-bottom,0px))}
 }
-/* phones held upright, at the table: the game fits one screen. The action area keeps one fixed height whatever it holds
-   (a longer list scrolls inside it), so the page no longer grows and scrolls as the buttons change; the table scales to the rest. */
-@media (max-width:760px) and (orientation:portrait) and (pointer:coarse){
-  body:has(#game-view:not([hidden])){--bar:42px;--act-h:clamp(170px,30dvh,262px);--tools-h:36px}
-  body:has(#game-view:not([hidden])) .wrap{padding-block:4px 0}
-  body:has(#game-view:not([hidden])) .top{flex-wrap:nowrap;height:var(--bar);padding-bottom:4px;margin-bottom:6px;gap:10px;overflow-x:auto;scrollbar-width:none}
-  body:has(#game-view:not([hidden])) .top::-webkit-scrollbar{display:none}
-  body:has(#game-view:not([hidden])) .brand{flex:none}
-  body:has(#game-view:not([hidden])) .brand h1{font-size:19px}
-  body:has(#game-view:not([hidden])) .brand small,body:has(#game-view:not([hidden])) .brand .suits{display:none}
-  body:has(#game-view:not([hidden])) .meta{flex-wrap:nowrap;gap:12px;flex:none}
-  body:has(#game-view:not([hidden])) .meta .kv{flex:none}
-  body:has(#game-view:not([hidden])) .meta .k{font-size:10px}
-  body:has(#game-view:not([hidden])) .meta .v{font-size:13px}
-  body:has(#game-view:not([hidden])) .meta .btn{padding:5px 10px;font-size:12.5px}
-  body:has(#game-view:not([hidden])) .toggle button{padding:3px 8px;font-size:11.5px}
-  body:has(#game-view:not([hidden])) .banner{margin-bottom:6px;padding:6px 10px;font-size:12.5px}
-  #game-view:not([hidden]) .game>div:first-child{display:flex;flex-direction:column;gap:6px;height:calc(100vh - var(--bar) - 16px);height:calc(100dvh - var(--bar) - 16px)}
-  /* the buttons left the table's top edge, so only the top seat's cards need room up there */
-  #game-view:not([hidden]) .table-wrap{flex:none;width:100%;align-self:center;padding-top:24px;
-    /* the 3:4.6 table plus its 78px of padding must fit the height left over; 68px is the side padding */
-    max-width:calc((100dvh - var(--bar) - 22px - var(--tools-h) - var(--act-h) - 78px) / 1.533 + 68px)}
-  #game-view:not([hidden]) .tools{margin-top:auto}
-  #game-view:not([hidden]) .actions{flex:none;height:var(--act-h);margin-top:0;padding:10px;gap:8px;overflow-y:auto;overscroll-behavior:contain;align-content:start}
-}
-
-/* ---------- 斗地主: three seats, the hand in a row under the table, each seat's last play toward the middle ---------- */
-.table.ddz{aspect-ratio:16/8}
+/* ---------- 斗地主: three seats, my hand in a row at the bottom, each seat's last play on the felt in front of it ---------- */
 .table.ddz .seat.me .cards{display:none}
-.dd-center{top:27%;gap:6px;width:auto}
 .dd-bottom{display:flex;gap:4px}
-.dd-bottom .card{--cw:30px}
+.dd-bottom .card{--cw:var(--dbw,30px)}
 .dd-lord{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--brass);color:var(--brass-ink);font-weight:700;font-size:10.5px;line-height:1;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 3px var(--shade)}
 .dd-count{position:relative}
-.dd-count .card{--cw:26px}
+.dd-count .card{--cw:calc(var(--av)*.62)}
 .dd-count b{position:absolute;inset:0;display:grid;place-items:center;font:800 15px/1 var(--f-mono);color:#fff;text-shadow:0 1px 3px #000}
 .dd-count.warn .card{box-shadow:0 0 0 2px var(--bad)}
 .dd-count.warn b{color:#ffd0c8}
-.dd-play{position:absolute;display:flex;align-items:center;z-index:3;--cw:26px;transform:translate(-50%,-50%);pointer-events:none}
-.dd-play.l{transform:translate(0,-50%)}
-.dd-play.r{transform:translate(-100%,-50%)}
+.dd-play{position:absolute;display:flex;align-items:center;z-index:3;--cw:var(--pw,26px);transform:translate(-50%,-50%) perspective(600px) rotateX(var(--tilt,0deg));pointer-events:none}
+.dd-play.l{transform:translate(0,-50%) perspective(600px) rotateX(var(--tilt,0deg));transform-origin:0 50%}
+.dd-play.r{transform:translate(-100%,-50%) perspective(600px) rotateX(var(--tilt,0deg));transform-origin:100% 50%}
 .dd-play .card{flex:none;box-shadow:-1px 0 3px rgba(0,0,0,.3)}
 .dd-play .card+.card{margin-left:calc(var(--cw)*-0.5)}
-.dd-play.rest{--cw:20px}
+.dd-play.rest{--cw:calc(var(--pw,26px)*.8)}
 .dd-play.rest .card+.card{margin-left:calc(var(--cw)*-0.55)}
 .dd-pass{font-weight:700;color:var(--muted);background:var(--shade);padding:3px 12px;border-radius:999px;font-size:13px;white-space:nowrap}
 .dd-tag{font-size:11px;color:var(--muted);margin-right:6px;white-space:nowrap}
-.dd-hand{position:relative;margin-top:38px;--hw:46px}
+.dd-hand{position:relative;--hw:46px}
 .dd-row{display:flex;justify-content:center;padding-top:calc(var(--hw)*0.32);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* every card positioned, so a lifted (transformed) card still sits under the one to its right */
 .dd-row .card{--cw:var(--hw);position:relative;flex:none;cursor:pointer;transition:transform .12s;box-shadow:-2px 0 5px rgba(0,0,0,.28)}
 .dd-row .card+.card{margin-left:calc(var(--step,28px) - var(--hw))}
 .dd-row .card.sel{transform:translateY(calc(var(--hw)*-0.3));outline:2px solid var(--brass);outline-offset:-1px}
-@media (max-width:760px){
-  .dd-hand{margin-top:30px;--hw:34px;margin-inline:-26px}
-  .dd-play{--cw:20px}
-  .dd-play.rest{--cw:16px}
-  .dd-bottom .card{--cw:24px}
-  .dd-count .card{--cw:22px}
-}
-/* phones upright at the table: a squarer table for three seats; the hand takes the height the table gave up */
-@media (max-width:760px) and (orientation:portrait) and (pointer:coarse){
-  .table.ddz{aspect-ratio:3/3.3}
-  #game-view:not([hidden]) .table-wrap:has(.table.ddz){max-width:none;padding-bottom:10px}
-}
-/* phones sideways: a flatter table so the hand row fits under it */
-@media (orientation:landscape) and (max-height:500px) and (pointer:coarse){
-  .table.ddz{aspect-ratio:16/7}
-  .table-wrap:has(.table.ddz){max-width:calc((100vh - var(--bar) - 158px) * 2.29 + 96px);max-width:calc((100dvh - var(--bar) - 158px) * 2.29 + 96px)}
-  .dd-hand{margin-top:26px;--hw:34px}
-  .dd-play{--cw:20px}
-  .dd-center{top:25%}
-  .dd-bottom .card{--cw:22px}
-}
 
 /* ---------- 斗地主 coach: recommended cards, card counter, warnings ---------- */
 .dd-row .card.rec{box-shadow:inset 0 0 0 2px var(--good),-2px 0 5px rgba(0,0,0,.28)}
@@ -534,7 +407,6 @@ body.recording{-webkit-user-select:none;user-select:none;-webkit-touch-callout:n
 
 /* ---------- use notice: page footer (not at the table, where phones fit one screen) and the first-online confirmation ---------- */
 .foot{margin:28px 0 8px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.6;text-align:center}
-body:has(#game-view:not([hidden])) .foot{display:none}
 .consent-bg{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
 .consent{width:min(460px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;background:var(--room);border:1px solid var(--brass);border-radius:16px;padding:18px 18px 14px;box-shadow:0 16px 48px var(--shade)}
 .consent h2{margin:0 0 10px}
@@ -551,3 +423,104 @@ body:has(#game-view:not([hidden])) .foot{display:none}
 .wheel-res b{color:var(--brass);font-size:22px}
 .wheel-list{color:var(--muted);font-size:12.5px;margin:4px 0 0}
 .wheel-box .setup-actions{justify-content:center}
+
+/* ---------- the table: full screen, pseudo-3D (body.in-game) ----------
+   The viewer sits at the near end: the felt runs off the bottom of the screen, its far edge is near the top and narrower.
+   Seats, bets, plays and the middle are placed by js/table-layout.js in % of the table; what lies on the felt tilts with it
+   (--tilt: less when upright, so the cards stay easy to read). My own hand stays flat and big at the bottom. */
+body.in-game .top,body.in-game .banner,body.in-game .foot,body.in-game .rail,body.in-game .drawer{display:none!important}
+body.in-game .wrap{padding:0;max-width:none}
+body.in-game #game-view{position:fixed;inset:0;overflow:hidden;background:radial-gradient(ellipse 95% 75% at 50% 0%,#4a3524 0%,#22160c 50%,#0e0905 85%);
+  --tilt:40deg;--seat-w:clamp(80px,9vw,124px);--av:clamp(30px,8.6vh,52px);--cw:clamp(18px,5.4vh,34px);--bw:clamp(28px,8.6vh,58px);
+  --pw:clamp(24px,7vh,46px);--dbw:clamp(22px,6.4vh,40px);--hw:clamp(38px,11vh,76px);--mw:clamp(40px,12vh,90px);
+  --hand-h:calc(var(--mw)*1.46 + 14px);--act-top:46%;--hand-l:calc(8% + var(--seat-w)/2 + 10px);--hand-r:64px}
+body.in-game #game-view[data-orient="port"]{--tilt:16deg;--seat-w:clamp(64px,18vw,120px);--av:clamp(28px,8.2vw,52px);--cw:clamp(16px,4.8vw,32px);--bw:clamp(30px,9.4vw,60px);
+  --pw:clamp(22px,6.4vw,42px);--dbw:clamp(22px,6.4vw,40px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
+body.in-game #game-view[data-game="ddz"]{--hand-h:calc(var(--hw)*1.78 + 10px)}
+body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]){--act-top:50%}
+body.in-game .game,body.in-game .game>div:first-child{display:contents}
+body.in-game .table-wrap{position:absolute;inset:0}
+body.in-game .table{position:absolute;inset:0}
+/* the table itself: wooden rim with a light inner edge, felt bright in the middle and dark at the edges, a fine grain on the felt */
+.table::before,.table::after{content:"";position:absolute;inset:0;pointer-events:none}
+.table::before{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2394622f'/%3E%3Cstop offset='.3' stop-color='%236b3f1f'/%3E%3Cstop offset='1' stop-color='%233a200e'/%3E%3C/linearGradient%3E%3CradialGradient id='f' cx='50%' cy='30%' r='60%'%3E%3Cstop offset='0' stop-color='%233aa070'/%3E%3Cstop offset='.6' stop-color='%2318663f'/%3E%3Cstop offset='1' stop-color='%230a3320'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M27 9.4Q50 3.9 73 9.4Q82 11.7 90 33L110 117H-10L10 33Q18 11.7 27 9.4Z' fill='url(%23w)'/%3E%3Cpath d='M28.5 13.3Q50 8.3 71.5 13.3Q79.5 15.5 86.7 35.5L105 117H-5L13.3 35.5Q20.5 15.5 28.5 13.3Z' fill='url(%23f)' stroke='%23e4b46c' stroke-opacity='.8' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center/100% 100% no-repeat;filter:drop-shadow(0 -6px 18px rgba(0,0,0,.55))}
+.table::after{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.22;mix-blend-mode:overlay;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M28.5 13.3Q50 8.3 71.5 13.3Q79.5 15.5 86.7 35.5L105 117H-5L13.3 35.5Q20.5 15.5 28.5 13.3Z'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M28.5 13.3Q50 8.3 71.5 13.3Q79.5 15.5 86.7 35.5L105 117H-5L13.3 35.5Q20.5 15.5 28.5 13.3Z'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+#game-view[data-orient="port"] .table::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2394622f'/%3E%3Cstop offset='.3' stop-color='%236b3f1f'/%3E%3Cstop offset='1' stop-color='%233a200e'/%3E%3C/linearGradient%3E%3CradialGradient id='f' cx='50%' cy='26%' r='60%'%3E%3Cstop offset='0' stop-color='%233aa070'/%3E%3Cstop offset='.6' stop-color='%2318663f'/%3E%3Cstop offset='1' stop-color='%230a3320'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M26.7 10.8Q50 8.6 73.3 10.8Q87.3 12.3 92 23L110 108H-10L8 23Q12.7 12.3 26.7 10.8Z' fill='url(%23w)'/%3E%3Cpath d='M29.3 12.9Q50 11.1 70.7 12.9Q82.7 14.2 87.3 24L104 108H-4L12.7 24Q17.3 14.2 29.3 12.9Z' fill='url(%23f)' stroke='%23e4b46c' stroke-opacity='.8' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E")}
+#game-view[data-orient="port"] .table::after{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M29.3 12.9Q50 11.1 70.7 12.9Q82.7 14.2 87.3 24L104 108H-4L12.7 24Q17.3 14.2 29.3 12.9Z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M29.3 12.9Q50 11.1 70.7 12.9Q82.7 14.2 87.3 24L104 108H-4L12.7 24Q17.3 14.2 29.3 12.9Z'/%3E%3C/svg%3E")}
+/* lying on the felt */
+.board,.center .pot,.center .msg,.dd-bottom{transform:perspective(600px) rotateX(var(--tilt,0deg))}
+.bet{transform:translate(-50%,-50%) perspective(600px) rotateX(var(--tilt,0deg));z-index:3}
+.board .card,.board .slot{--cw:var(--bw)}
+.board{gap:4px}
+.center .pot{font-size:clamp(15px,2.6vh,22px);background:rgba(0,0,0,.6);padding:3px 12px;border-radius:999px;color:var(--text)}
+.center .pot span{font-size:.85em}
+.center .street{text-shadow:0 1px 2px #000}
+body.in-game .seat .pname{font-size:clamp(10.5px,1.6vh,13px)}
+body.in-game .seat .pstack{font-size:clamp(10.5px,1.6vh,13px)}
+body.in-game .seat .pact{font-size:clamp(10px,1.5vh,12px)}
+body.in-game .seat .ptag{display:none}
+body.in-game .dbtn{width:18px;height:18px;font-size:10px;line-height:18px;top:-7px;right:-7px}
+#game-view[data-orient="port"] .seat .pname,#game-view[data-orient="port"] .seat .pstack{font-size:clamp(10.5px,2.9vw,13px)}
+#game-view[data-orient="port"] .seat .pact{font-size:clamp(10px,2.7vw,12px)}
+@media (min-width:1000px) and (min-height:700px){body.in-game .seat .ptag{display:block}}
+@media (max-height:500px){body.in-game .center .street{display:none}}
+/* my own cards (德州 / 炸金花): big at the bottom, not tilted */
+.my-hand{position:absolute;left:50%;bottom:max(6px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;z-index:3;--cw:var(--mw)}
+.my-hand .card{box-shadow:-2px 2px 8px rgba(0,0,0,.5)}
+.my-hand .card:first-child{transform:rotate(-5deg)}
+.my-hand .card+.card{margin-left:calc(var(--mw)*-.22)}
+.my-hand .card:last-child:not(:first-child){transform:rotate(5deg)}
+.table.zjh .my-hand .card+.card{margin-left:calc(var(--mw)*-.3)}
+.table.zjh .my-hand .card:nth-child(2):not(:last-child){transform:translateY(-4px)}
+/* 斗地主 hand: one row at the bottom, clear of my seat when sideways */
+body.in-game .dd-hand{position:absolute;left:var(--hand-l);right:var(--hand-r);bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:4}
+/* the action panel sits on the table above the hand (sideways: in the middle; upright: right of my seat) */
+body.in-game .actions{position:absolute;z-index:6;left:50%;transform:translateX(-50%);bottom:calc(var(--hand-h) + env(safe-area-inset-bottom,0px));
+  width:min(600px,62vw);max-height:calc(100% - var(--hand-h) - var(--act-top));overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:6px 10px;padding:8px 10px;
+  background:rgba(4,12,8,.72);border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+body.in-game .actions>*{flex:1 1 100%}
+body.in-game .actions>.rec-hint{flex:0 1 auto}
+/* upright the seats are narrow: hole cards overlap beside the avatar */
+#game-view[data-orient="port"] .seat .cards .card+.card{margin-left:calc(var(--cw)*-.35)}
+#game-view[data-orient="port"] .actions{left:calc(12% + var(--seat-w)/2 + 6px);right:8px;width:auto;transform:none}
+body.in-game .actions .status{font-size:13px;line-height:1.4}
+body.in-game .act-row{gap:6px}
+body.in-game .act-row .btn{padding:7px 12px;font-size:14px}
+body.in-game .act-row .btn.sm{padding:4px 9px;font-size:12.5px}
+body.in-game .raise-box{padding-top:6px;gap:5px}
+body.in-game .presets{gap:5px}
+body.in-game .presets .btn{padding:4px 8px;font-size:12px}
+body.in-game .rec-hint{font-size:12px;line-height:1.4}
+/* 斗地主 on the felt */
+.dd-center{gap:4px}
+.dd-pass{background:rgba(0,0,0,.6)}
+body.in-game .dd-lord{top:-8px;left:auto;right:-8px;transform:none;padding:2px 5px}
+/* corner buttons: menu, coach, stats, rules, full screen top left; game info and the card counter top right. Upright: icons only. */
+.corner{position:absolute;top:max(6px,env(safe-area-inset-top,0px));display:flex;align-items:center;gap:6px;z-index:8}
+.corner.tl{left:max(8px,env(safe-area-inset-left,0px))}
+.corner.tr{right:max(8px,env(safe-area-inset-right,0px))}
+.corner #corner-fs:empty{display:none}
+.cbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:30px;min-width:30px;padding:0 10px;border-radius:15px;
+  background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.16);color:var(--text);font-size:12.5px;font-weight:700;white-space:nowrap}
+.cbtn .ic{font-size:14px;line-height:1}
+.cbtn:hover{border-color:var(--brass)}
+.cbtn[aria-expanded="true"],.cbtn[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+.cbtn .dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 0 2px var(--room)}
+#game-view[data-orient="port"] .cbtn{padding:0;width:32px}
+#game-view[data-orient="port"] .cbtn .lb{display:none}
+/* phones held sideways are short too: labels would reach the far seats, so icons only there as well */
+@media (max-height:500px){body.in-game .cbtn{padding:0;width:32px}body.in-game .cbtn .lb{display:none}}
+.cinfo{height:30px;display:inline-flex;align-items:center;padding:0 11px;border-radius:15px;background:rgba(0,0,0,.62);font-size:12.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dd-cpop{position:absolute;z-index:8;top:calc(max(6px,env(safe-area-inset-top,0px)) + 36px);right:max(8px,env(safe-area-inset-right,0px));max-width:calc(100% - 16px);
+  padding:6px;border-radius:10px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12)}
+.dd-cpop .dd-counter{width:auto;min-width:0}
+.dd-cpop .note{display:none}
+/* the menu sheet */
+.menu-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:4px 0 14px}
+.menu-kv .kv{display:flex;flex-direction:column;line-height:1.3}
+.menu-kv .k,.menu-row .k{font-size:11px;color:var(--muted);letter-spacing:.06em}
+.menu-kv .v{font-size:15px;font-weight:700}
+.menu-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.menu-acts{display:flex;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
