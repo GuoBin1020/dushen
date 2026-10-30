@@ -11,6 +11,42 @@ function log(t,cls){S.log.push({t,cls:cls||''});if(S.log.length>400)S.log.splice
 const isBot=p=>p.kind==='ai';
 const DISC_GRACE=15000;
 const present=p=>p.kind!=='remote'||p.connected;
+/* ---------- 出牌限时 and 托管: the host's clock for the person whose turn it is ----------
+   cfg.turnSec 0 = no limit. A connected person who lets it run out is played for from then on (p.trust): by the coach
+   with 「超时后采用教练方案」, else by the default move. 德州 / 炸金花 without it sit out from the next hand (p.away) until
+   下一局加入; 斗地主 needs all three seats, so it only plays for them. A dropped player keeps the old 15 s grace. */
+const turnMs=()=>S&&S.cfg.turnSec>0?S.cfg.turnSec*1000:0;
+/* schedule whoever is to act; S.turnEnd is set before the state goes out, so the snapshot carries the time left */
+function turnTimer(p,still,bot,disc,grace){
+  S.turnEnd=0;
+  const run=(f,ms)=>{timer=setTimeout(()=>{if(still())f(p)},ms)};
+  if(isBot(p))return run(bot,delay());
+  if(!present(p))return run(disc,grace);
+  if(p.trust)return run(autoMove,delay());
+  const ms=turnMs();if(!ms)return;
+  S.turnEnd=Date.now()+ms;
+  /* dropped just as the clock ran out: the old grace, not 托管 */
+  timer=setTimeout(()=>{if(!still())return;if(present(p))return turnOut(p);S.turnEnd=0;run(disc,Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));sync()},ms);
+}
+function turnOut(p){p.trust=true;log(`${p.name} 超时，进入托管`,'board-l');autoMove(p)}
+function autoMove(p){const coach=S.cfg.coachAuto!==false;return isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
+/* 取消托管 / 下一局加入. A guest's tap reaches the host as the 'rebuy' message (doRebuy), so the sealed online code needs no new message. */
+function hostBack(p){
+  const was=p.away;p.trust=false;p.away=false;
+  log(`${p.name} ${was?'回到座位，下一手入座':'取消托管'}`,'board-l');
+  if(S.phase==='playing'&&S.toAct===p.id)return proceed();
+  if(was&&(S.phase==='waiting'||S.phase==='busted'||S.phase==='handover'&&!S.cfg.auto))return startHand();
+  sync();
+}
+/* a dropped player who sat out (暂时离桌) is dealt in again once they reconnect. The sealed online code only sets
+   p.connected (and syncs), so the change is noticed here: from sync() and from the next deal. True if someone came back. */
+function backOnline(){
+  let back=false;
+  P().forEach(p=>{if(p.kind!=='remote')return;if(!p.connected){p.wasOff=true;return}
+    if(!p.wasOff)return;p.wasOff=false;
+    if(p.away){p.away=false;back=true;log(`${p.name} 重连，下一手入座`,'board-l')}});
+  return back;
+}
 function delay(){
   const base={slow:950,normal:600,fast:220}[S.cfg.speed]||600;
   if(S.cfg.ff&&!P().some(p=>!isBot(p)&&alive(p)&&present(p)))return 60;
@@ -42,6 +78,8 @@ function normalizeCfg(c){
   c.stack=Math.round(num(c.stack,c.bb*100,v=>v>=c.bb*(c.game==='ddz'?20:10)));
   if(!['mixed',...Object.keys(STYLES)].includes(c.style))c.style='mixed';
   if(!['slow','normal','fast'].includes(c.speed))c.speed='normal';
+  /* a room or prefs from before 出牌限时 existed play without a limit */
+  c.turnSec=[10,15,20,30,60].includes(+c.turnSec)?+c.turnSec:0;c.coachAuto=c.coachAuto!==false;
   return c;
 }
 function startGame(cfg,humans){
@@ -65,6 +103,7 @@ function startHand(){
   clearTimeout(timer);
   const cfg=S.cfg;
   if(isD(S))ddSeatChanges();
+  backOnline();
   for(const p of P()){
     if(p.stack>0||p.out)continue;
     if(isBot(p)){
@@ -73,9 +112,12 @@ function startHand(){
       else{p.out=true;log(`${p.name} 输光离桌`,'board-l')}
     }else p.busted=true;
   }
-  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false}));
+  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
+  /* 托管 that ran to the end of a 德州 / 炸金花 hand without 「超时后采用教练方案」 becomes 暂时离桌 */
+  if(!isD(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
   /* 斗地主 deals a dropped player in too: the bot plays their turns until they are back */
-  const live=P().filter(p=>!p.out&&p.stack>0&&(present(p)||isD(S)));
+  const live=P().filter(p=>!p.out&&p.stack>0&&!p.away&&(present(p)||isD(S)));
+  if(!live.some(p=>!isBot(p))&&P().some(p=>p.away&&p.stack>0)){S.phase='waiting';S.msg='真人玩家都暂时离桌了，点「下一局加入」继续';sync();return}
   if(!live.some(p=>!isBot(p))){S.phase='busted';S.msg='真人玩家的筹码都输光了，补码后继续';sync();return}
   if(live.length<2){S.phase='waiting';S.msg='玩家不足 2 人，等待有人加入或补码';sync();return}
   if(isD(S)&&live.length<3){S.phase='waiting';S.msg='斗地主需要 3 个人，等待有人补码或入座';sync();return}
@@ -123,11 +165,16 @@ function distributePots(al,u,pick){
 }
 function endHand(){
   commitHand();
+  /* 「亮出所有人的底牌」: name the hands nobody showed down; 德州 folded hands use the board dealt when they folded */
+  if(S.cfg.showAll&&!isD(S))P().forEach(p=>{if(p.inHand&&p.cards.length&&!(p.shown&&!p.folded&&p.handName))
+    p.revealName=isZ(S)?(S.cfg.z235&&z235(p.cards)?'235':zName(zEval(p.cards))):handName(evalCards([...p.cards,...S.board.slice(0,p.folded?p.foldAt||0:5)]))});
   S.phase='handover';sync();
   P().filter(p=>isBot(p)&&p.won-p.total>=S.cfg.bb*15).forEach(p=>{if(Math.random()<0.3)botChat(p,['运气不错','谢谢老板','这把舒服','承让承让'])});
   if(S.cfg.auto){const hn=S.handNo;clearTimeout(timer);timer=setTimeout(()=>{if(S&&S.phase==='handover'&&S.handNo===hn)startHand()},NET.role==='solo'?2400:3600)}
 }
 function doRebuy(p){
+  /* 托管 / 离桌 with no chips left: cancel it and rebuy in the same tap */
+  if(p&&!isBot(p)&&(p.trust||p.away)){if(p.stack<=0&&!p.inHand)p.trust=p.away=false;else return hostBack(p)}
   if(!p||isBot(p)||p.stack>0||p.inHand)return;
   p.stack=S.cfg.stack;p.rebuys++;p.busted=false;log(`${p.name} 补码 ${fmt(S.cfg.stack)}`,'board-l');
   if(S.phase==='busted'||S.phase==='waiting')startHand();else sync();
@@ -149,7 +196,9 @@ function viewFor(seat){
   const reveal=S.cfg.reveal&&NET.role==='solo';
   return {
     cfg:S.cfg,me:seat,dealer:S.dealer,handNo:S.handNo,board:S.board.slice(),street:S.street,currentBet:S.currentBet,minRaise:S.minRaise,raises:S.raises,
-    toAct:S.toAct,phase:S.phase,msg:S.msg,dd:S.dd?ddPublic(S.dd):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
+    toAct:S.toAct,phase:S.phase,msg:S.msg,
+    /* time left on the turn clock as of this snapshot: each device counts down from when it got it, so clocks need not agree */
+    turnMs:turnMs(),turnLeft:S.phase==='playing'&&S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0,dd:S.dd?ddPublic(S.dd):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
     players:S.players.map(p=>{
       const showAll=S.cfg.showAll&&S.phase==='handover'&&p.inHand;
       /* 炸金花: a blind player cannot see their own cards; a compare shows both hands to the two players involved */
@@ -157,12 +206,14 @@ function viewFor(seat){
         :(p.id===seat||(p.shown&&!p.folded)||reveal||showAll);
       return {id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,bet:p.bet,total:p.total,folded:p.folded,allIn:p.allIn,inHand:p.inHand,out:p.out,busted:p.busted,connected:p.connected,
         st:p.st,vs:flowVs(S.flow,p.id,seat),gender:p.gender,
-        lastAction:p.lastAction,won:p.won,shown:p.shown,handName:p.handName,rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
+        lastAction:p.lastAction,won:p.won,shown:p.shown,handName:p.handName,revealName:showAll?p.revealName||'':'',rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,trust:!!p.trust,away:!!p.away,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
     })
   };
 }
 function sync(){
   if(!S)return;
+  /* everyone left had sat out: the one who is back starts the next hand */
+  if(backOnline()&&S.phase==='waiting'){clearTimeout(timer);timer=setTimeout(()=>{if(S&&S.phase==='waiting')startHand()},0)}
   /* the host's card travels with each state, so a guest joining mid-game can check it */
   const hostCard=NET.role==='host'&&typeof myCard==='function'?myCard():null;
   for(const [seat,c] of NET.conns)if(P()[seat]&&P()[seat].connected)c.send({t:'state',v:viewFor(seat),hostCard});

@@ -77,10 +77,17 @@ function zProceed(){
   if(S.round>S.cfg.zrounds)return zShowdown(`已到 ${S.cfg.zrounds} 轮上限，所有人亮牌比大小`);
   if(S.toAct<0||!zCanAct(P()[S.toAct]))S.toAct=nextIdx(S.toAct<0?S.dealer:S.toAct,zCanAct);
   const p=P()[S.toAct],id=p.id,hn=S.handNo,mark=S.zseq=(S.zseq||0)+1;
-  sync();clearTimeout(timer);
+  clearTimeout(timer);
   const still=()=>S&&S.phase==='playing'&&S.toAct===id&&S.handNo===hn&&S.zseq===mark;
-  if(isBot(p))timer=setTimeout(()=>{if(still())zAiAct(p)},delay());
-  else if(!present(p))timer=setTimeout(()=>{if(still())zAct(p,'fold')},Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  turnTimer(p,still,zAiAct,q=>zAct(q,'fold'),Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  sync();
+}
+/* 托管 / 出牌超时: the coach's move (a 看牌 first, then what it says with the cards seen), or fold */
+function zAutoMove(p,coach){
+  if(!coach)return zAct(p,'fold');
+  let r=zAdvise(S,p).rec;
+  if(r.type==='look'){zAct(p,'look');r=zAdvise(S,p).rec}
+  zAct(p,r.type,r.type==='compare'?r.target:r.to);
 }
 function zStat(p,type,wonCmp){
   const s=p.st;
@@ -259,17 +266,15 @@ function zRenderActions(el,m){
   const mark=(t,x)=>live&&rt===t&&(x==null||a.rec.to===x||a.rec.target===x)?' is-rec':'';
   const cost=zCost(V,m),canCall=m.stack>cost;
   const lv=zLevels(V).filter(v=>m.stack>(m.seen?2:1)*v);
-  const opps=V.players.filter(q=>q.id!==m.id&&alive(q)),canCmp=V.round>=2&&m.stack>=cost;
-  if(ACTPOP==='raise'&&!lv.length||ACTPOP==='cmp'&&!canCmp)ACTPOP=null;
-  /* raise and compare open a panel above the row with the amounts or the opponents */
+  if(ACTPOP==='raise'&&!lv.length)ACTPOP=null;
+  /* raise opens a panel above the row with the amounts; compare is in the panel that opens on a tap on the other player's avatar */
   const bar=`${m.seen?'':`<button class="btn b-yellow${mark('look')}" data-act="zlook">看牌</button>`}
      <button class="btn b-gray${mark('fold')}" data-act="fold">弃牌</button>
      ${canCall?`<button class="btn b-green${mark('call')}" data-act="call">${m.seen?'跟注':'闷跟'} ${fmt(cost)}</button>`:`<button class="btn b-red${mark('allin')}" data-act="allin">全下 ${fmt(m.stack)}</button>`}
-     ${lv.length?`<button class="btn b-red${mark('raise')}" data-act="zpop" data-pop="raise" aria-haspopup="true">加注</button>`:''}
-     <button class="btn b-red${mark('compare')}" data-act="zpop" data-pop="cmp" aria-haspopup="true"${canCmp?'':` disabled title="${V.round<2?'第 2 轮起才能比牌':'筹码不够比牌'}"`}>比牌</button>`;
+     ${lv.length?`<button class="btn b-red${mark('raise')}" data-act="zpop" data-pop="raise" aria-haspopup="true">加注</button>`:''}`;
   const pop=ACTPOP==='raise'?`<div class="pop-t">加注到单注（闷牌付 1 倍单注，看牌后付 2 倍）：</div><div class="pop-row">${lv.map(v=>`<button class="btn b-red${mark('raise',v)}" data-act="zraise" data-v="${v}">${fmt(v)}（付 ${fmt((m.seen?2:1)*v)}）</button>`).join('')}</div>`
-    :ACTPOP==='cmp'?`<div class="pop-t">比牌（付 ${fmt(cost)}）：牌小或一样大的发起方出局。</div><div class="pop-row">${opps.map(q=>`<button class="btn b-red${mark('compare',q.id)}" data-act="zcmp" data-t="${q.id}">和 ${esc(q.name)} 比</button>`).join('')}</div>`:'';
-  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
+    :'';
+  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>${rt==='compare'?'（点 TA 的头像）':''}`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
   el.innerHTML=actHTML(hint,bar,pop,ACTPOP);
 }
 function zRulesHTML(){

@@ -95,11 +95,13 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .msg:empty{display:none}
 
 /* a seat: round avatar with any small cards beside it, a dark name plate under them (placed and scaled by renderTable) */
-.seat{position:absolute;transform:translate(-50%,-50%);width:var(--seat-w);display:grid;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:3px;row-gap:2px;z-index:2;transition:opacity .2s}
+.seat{position:absolute;transform:translate(-50%,-50%);width:var(--seat-w);display:flex;flex-direction:column;row-gap:2px;z-index:2;transition:opacity .2s}
+/* the top row: avatar, the turn clock while it runs, the cards; it may stick out of the seat's width on a crowded table */
+.seat .stop{display:grid;grid-auto-flow:column;justify-content:center;align-items:center;column-gap:3px;row-gap:2px}
 .seat .ava{width:var(--av);height:var(--av);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#ffe3a3,#c98f2e);border:2px solid rgba(255,255,255,.55);color:#4a2c00;font-weight:800;font-size:calc(var(--av)*.42);line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.55)}
-.seat .cards{display:flex;gap:2px;min-height:calc(var(--cw)*243/167)}
+.seat .cards{position:relative;display:flex;gap:2px;min-height:calc(var(--cw)*243/167)}
 .seat .cards:empty{display:none}
-.seat .plate{grid-column:1 / -1;width:var(--seat-w);min-width:0}
+.seat .plate{width:var(--seat-w);min-width:0}
 .seat .pname,.seat .pstack,.seat .pact,.seat .ptag{min-width:0}
 .plate{position:relative;background:rgba(0,0,0,.66);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:2px 6px 3px;width:100%;text-align:center;line-height:1.25}
 .seat.active .ava{box-shadow:0 0 0 3px var(--brass),0 0 16px rgba(217,168,76,.7)}
@@ -223,6 +225,21 @@ details.panel[open] summary{margin-bottom:10px}
 .table.zjh .seat .cards{gap:0}
 .table.zjh .seat .cards .card+.card{margin-left:2px}
 .table.zjh .seat .cards .card.back+.card.back{margin-left:calc(var(--cw)*-0.5)}
+/* 炸金花 比牌 PK (js/ui.js compareFx): the two avatars meet mid-table, 「PK」 clashes between them, the loser dims */
+.pk-ava{position:absolute;z-index:7;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#ffe3a3,#c98f2e);
+  border:3px solid #fff;color:#4a2c00;font-weight:800;line-height:1;box-shadow:0 0 0 3px var(--brass),0 8px 20px rgba(0,0,0,.6);transition:left .4s cubic-bezier(.5,0,.3,1.25),top .4s cubic-bezier(.5,0,.3,1.25),filter .3s,opacity .3s}
+.pk-ava.go{animation:pk-shake .3s .45s 3}
+.pk-ava.lose{filter:grayscale(1) brightness(.55);opacity:.7;box-shadow:0 0 0 3px #666,0 8px 20px rgba(0,0,0,.6)}
+.pk-ava.back{transition-duration:.45s;transition-timing-function:ease-in}
+@keyframes pk-shake{0%,100%{margin-left:0}30%{margin-left:-4px}70%{margin-left:4px}}
+.pk-mark{position:absolute;z-index:8;transform:translate(-50%,-50%);pointer-events:none;display:grid;place-items:center}
+.pk-mark::before{content:"";position:absolute;width:2.3em;height:1.35em;border-radius:999px;background:rgba(0,0,0,.72);box-shadow:0 0 18px rgba(0,0,0,.6)}
+.pk-mark b{position:relative;font:900 1em/1 var(--f-display);font-style:italic;letter-spacing:.02em;color:#ffdf6b;-webkit-text-stroke:2px #7a1d00;text-shadow:0 0 14px rgba(255,120,40,.9),0 3px 0 #7a1d00;animation:pk-in .45s cubic-bezier(.3,1.6,.5,1) both}
+.pk-mark i{position:absolute;left:50%;top:50%;width:2.4em;height:2.4em;margin:-1.2em 0 0 -1.2em;border-radius:50%;background:radial-gradient(circle,rgba(255,240,180,.95) 0,rgba(255,150,40,.6) 30%,rgba(255,80,0,0) 65%);animation:pk-burst .6s ease-out forwards}
+@keyframes pk-in{0%{opacity:0;transform:scale(2.6) rotate(-12deg)}100%{opacity:1;transform:none}}
+@keyframes pk-burst{0%{opacity:1;transform:scale(.2)}100%{opacity:0;transform:scale(1.6)}}
+.pk-line{position:absolute;z-index:8;left:50%;top:40%;transform:translate(-50%,-50%);max-width:calc(100% - 32px);padding:5px 14px;border-radius:999px;background:rgba(0,0,0,.75);color:var(--text);font-size:14px;font-weight:700;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.pk-line b{color:var(--bad)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ---------- chat, voice, lobby, effects ---------- */
@@ -431,10 +448,13 @@ body.in-game .top,body.in-game .banner,body.in-game .foot,body.in-game .rail,bod
 body.in-game .wrap{padding:0;max-width:none}
 body.in-game #game-view{position:fixed;inset:0;overflow:hidden;background:radial-gradient(ellipse 95% 75% at 50% 0%,#4a3524 0%,#22160c 50%,#0e0905 85%);
   --tilt:40deg;--seat-w:clamp(80px,9vw,124px);--av:clamp(30px,8.6vh,52px);--cw:clamp(18px,5.4vh,34px);--bw:clamp(28px,8.6vh,58px);
-  --pw:clamp(24px,7vh,46px);--dbw:clamp(22px,6.4vh,40px);--hw:clamp(38px,11vh,76px);--mw:clamp(40px,12vh,90px);
+  --pw:clamp(36px,10.5vh,69px);--dbw:clamp(33px,9.6vh,60px);--hw:clamp(38px,11vh,76px);--mw:clamp(40px,12vh,90px);
   --hand-h:calc(var(--mw)*1.46 + 14px);--act-top:46%;--hand-l:calc(8% + var(--seat-w)/2 + 10px);--hand-r:64px}
 body.in-game #game-view[data-orient="port"]{--tilt:16deg;--seat-w:clamp(64px,18vw,120px);--av:clamp(28px,8.2vw,52px);--cw:clamp(16px,4.8vw,32px);--bw:clamp(30px,9.4vw,60px);
-  --pw:clamp(22px,6.4vw,42px);--dbw:clamp(22px,6.4vw,40px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
+  --pw:clamp(26px,7.7vw,50px);--dbw:clamp(26px,7.7vw,50px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
+/* 德州 / 炸金花: the other players' cards are a third bigger than before, so they read on a phone */
+body.in-game #game-view:not([data-game="ddz"]){--cw:clamp(18px,7.3vh,40px)}
+body.in-game #game-view[data-orient="port"]:not([data-game="ddz"]){--cw:clamp(16px,6.5vw,40px)}
 body.in-game #game-view[data-game="ddz"]{--hand-h:calc(var(--hw)*1.78 + 10px)}
 body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]){--act-top:50%}
 body.in-game .game,body.in-game .game>div:first-child{display:contents}
@@ -470,11 +490,35 @@ body.in-game .dbtn{width:18px;height:18px;font-size:10px;line-height:18px;top:-7
 /* my own cards (德州 / 炸金花): big at the bottom, not tilted */
 .my-hand{position:absolute;left:50%;bottom:max(6px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;z-index:3;--cw:var(--mw)}
 .my-hand .card{box-shadow:-2px 2px 8px rgba(0,0,0,.5)}
-.my-hand .card:first-child{transform:rotate(-5deg)}
+.my-hand .card:first-of-type{transform:rotate(-5deg)}
 .my-hand .card+.card{margin-left:calc(var(--mw)*-.22)}
-.my-hand .card:last-child:not(:first-child){transform:rotate(5deg)}
+.my-hand .card:last-of-type:not(:first-of-type){transform:rotate(5deg)}
 .table.zjh .my-hand .card+.card{margin-left:calc(var(--mw)*-.3)}
-.table.zjh .my-hand .card:nth-child(2):not(:last-child){transform:translateY(-4px)}
+.table.zjh .my-hand .card:nth-of-type(2):not(:last-of-type){transform:translateY(-4px)}
+/* seat alignment (js/ui.js seatCls): the left half of the table hugs the left edge of the seat box, the right half the right
+   edge; the far middle and my own seat stay centred. Seats on the right edge put their cards on the inner side of the avatar. */
+.seat.al-l .stop{justify-content:start}
+.seat.al-r .stop{justify-content:end}
+.seat.al-l .plate{text-align:left}
+.seat.al-r .plate{text-align:right}
+.seat.rside .cards{order:-2}
+/* the hand name at the end of a hand: a tag over the foot of the seat's cards (clear of the name and chips lines); beside my
+   own hand; the winner's in green */
+.seat .plate{position:relative}
+.hname{position:absolute;z-index:2;white-space:nowrap;pointer-events:none;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.22);
+  color:var(--text);font-weight:800;line-height:1.35;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.hname.win{background:linear-gradient(#9be895,#38a036);color:#0d3a0d;border-color:#d8ffd2}
+.seat .hname{left:50%;bottom:1px;transform:translateX(-50%);font-size:calc(11px / var(--s,1));line-height:1.3;padding:0 6px}
+.hname .hw{font-style:normal}
+/* upright, a full table's far seats are narrower than 「赢 同花顺」: the green tag alone marks the winner there, */
+#game-view[data-orient="port"] .table[data-n="8"] .seat.uh .hname,#game-view[data-orient="port"] .table[data-n="9"] .seat.uh .hname{padding:0 3px}
+/* and the tag lines up with the edge of the narrow, overlapped cards away from the avatar instead of being centred on them,
+   so what sticks out lies over the seat's own avatar, never over the next seat */
+#game-view[data-orient="port"] .table[data-n="8"] .seat.uh .hname,#game-view[data-orient="port"] .table[data-n="9"] .seat.uh .hname{left:auto;right:0;transform:none}
+#game-view[data-orient="port"] .table[data-n="8"] .seat.uh.rside .hname,#game-view[data-orient="port"] .table[data-n="9"] .seat.uh.rside .hname{left:0;right:auto}
+#game-view[data-orient="port"] .table[data-n="8"] .seat.uh .hname .hw,#game-view[data-orient="port"] .table[data-n="9"] .seat.uh .hname .hw{display:none}
+.my-hand .hname{left:calc(100% + 4px);bottom:12px;font-size:13px;padding:2px 9px}
+.seat.folded.reveal{opacity:.8}
 /* 斗地主 hand: one row at the bottom, clear of my seat when sideways */
 body.in-game .dd-hand{position:absolute;left:var(--hand-l);right:var(--hand-r);bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:4}
 /* the action area on the felt above my hand: one fixed-height row of pill buttons (or one line of text), a small hint label
@@ -487,6 +531,8 @@ body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;w
 .act-hint:empty{display:none}
 /* upright my seat sits just above the row on the left: the label stays narrower than the gap beside it */
 #game-view[data-orient="port"] .act-hint{max-width:calc(76vw - var(--seat-w) - 12px)}
+/* short sideways screens: one line only (wider, clear of my seat), so a long hint never climbs into the plays on the felt above */
+@media (orientation:landscape) and (max-height:500px){.act-hint{-webkit-line-clamp:1;max-width:calc(100vw - 2 * var(--hand-l))}}
 .act-hint b{color:var(--brass)}
 .act-hint .dd-warn{display:inline;margin:0 6px 0 0;font-size:inherit}
 .act-bar{height:var(--bar-h);max-width:100%;display:flex;flex-wrap:nowrap;align-items:center;justify-content:center;gap:8px}
@@ -504,6 +550,19 @@ body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;w
 .btn.b-green{background:linear-gradient(#9be895,#38a036);color:#0d3a0d}
 .btn.b-red{background:linear-gradient(#ffa394,#d8432f);color:#4a0d06}
 .act-bar .btn.is-rec,.act-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
+/* 炸金花: the panel by a tapped seat (js/ui.js renderSeatPop places it) */
+.seat-pop{position:absolute;z-index:9;width:max-content;min-width:150px;max-width:min(260px,calc(100vw - 16px));display:grid;gap:6px;padding:9px 12px;border-radius:14px;
+  background:rgba(6,14,10,.92);border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 28px rgba(0,0,0,.6);color:var(--text)}
+.seat-pop[hidden]{display:none}
+.seat-pop .sp-name{font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat-pop .sp-info{display:flex;gap:10px;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.seat-pop .sp-info b{color:var(--text)}
+.seat-pop .sp-st{color:var(--brass);font-weight:700}
+.seat-pop .sp-acts{display:grid;gap:6px}
+.seat-pop .btn{height:40px;padding:0 14px;border:none;border-radius:20px;font-size:13.5px;font-weight:800;white-space:nowrap;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55)}
+.seat-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
+/* in a game, notices drop from the top, under the corner buttons, instead of covering my hand */
+body.in-game .toast{top:calc(max(6px,env(safe-area-inset-top,0px)) + 40px);bottom:auto}
 /* the pop-up panel: above the row, clear of my seat when upright */
 .act-pop{position:fixed;z-index:7;left:50%;transform:translateX(-50%);width:min(460px,calc(100% - 16px));
   bottom:calc(var(--hand-h) + 4px + env(safe-area-inset-bottom,0px) + var(--bar-h) + 8px);
@@ -520,6 +579,8 @@ body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;w
 @media (max-height:500px){.act-pop .raise-t{display:none}}
 /* upright the seats are narrow: hole cards overlap beside the avatar */
 #game-view[data-orient="port"] .seat .cards .card+.card{margin-left:calc(var(--cw)*-.35)}
+/* a full table packs the far row edge to edge: there the cards overlap more, so a seat's row stays within its own width */
+#game-view[data-orient="port"] .table[data-n="8"] .seat.uh .cards .card+.card,#game-view[data-orient="port"] .table[data-n="9"] .seat.uh .cards .card+.card{margin-left:calc(var(--cw)*-.65)}
 /* 斗地主 on the felt */
 .dd-center{gap:4px}
 .dd-pass{background:rgba(0,0,0,.6)}
@@ -540,10 +601,25 @@ body.in-game .dd-lord{top:-8px;left:auto;right:-8px;transform:none;padding:2px 5
 /* phones held sideways are short too: labels would reach the far seats, so icons only there as well */
 @media (max-height:500px){body.in-game .cbtn{padding:0;width:32px}body.in-game .cbtn .lb{display:none}}
 .cinfo{height:30px;display:inline-flex;align-items:center;padding:0 11px;border-radius:15px;background:rgba(0,0,0,.62);font-size:12.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
-.dd-cpop{position:absolute;z-index:8;top:calc(max(6px,env(safe-area-inset-top,0px)) + 36px);right:max(8px,env(safe-area-inset-right,0px));max-width:calc(100% - 16px);
-  padding:6px;border-radius:10px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12)}
-.dd-cpop .dd-counter{width:auto;min-width:0}
-.dd-cpop .note{display:none}
+/* 斗地主 card counter: a strip centred under the top corners, 大王 to 8 and 7 to 3 on two rows upright, one row sideways.
+   Upright, data-cnt (set while it shows) moves the table down below it: --cnt-b is the strip's bottom edge, and the table's
+   empty top (about a tenth of the height above the far rim) tucks under it. Sideways the two seats sit beside the strip and
+   the bottom cards lie lower, in one row with the stage line and 倍数 (js/table-layout.js), so the table stays put. */
+.dd-strip{position:absolute;z-index:8;top:calc(max(6px,env(safe-area-inset-top,0px)) + 38px);left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 16px);box-sizing:border-box;
+  padding:3px;border-radius:9px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);pointer-events:none}
+.dd-scells{display:flex;flex-wrap:wrap;justify-content:center;gap:2px}
+.dd-scells span{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:24px;height:26px;padding:0 2px;box-sizing:border-box;
+  border-radius:5px;background:rgba(255,255,255,.08);font:700 12px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.dd-scells span b{font-size:9.5px;font-weight:600;color:var(--muted)}
+.dd-scells span.zero{opacity:.35}
+.dd-scells span.lzc{box-shadow:inset 0 0 0 1px var(--brass)}
+.dd-scells .br{flex-basis:100%;height:0}
+#game-view:not([data-orient="port"]) .dd-scells .br{display:none}
+/* upright the box is as wide as the top row (ten cells, plus room for a wider 赖子 cell), not as wide as all fifteen */
+#game-view[data-orient="port"] .dd-scells{width:268px}
+body.in-game #game-view[data-game="ddz"][data-orient="port"]{--cnt-b:calc(max(6px,env(safe-area-inset-top,0px)) + 38px + 62px)}
+body.in-game #game-view[data-game="ddz"][data-orient="port"][data-cnt] .table-wrap{top:max(0px,calc(var(--cnt-b) + 8px - 10%))}
+body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]) .dd-center{flex-direction:row;gap:10px}
 /* the menu sheet */
 .menu-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:4px 0 14px}
 .menu-kv .kv{display:flex;flex-direction:column;line-height:1.3}
@@ -551,3 +627,25 @@ body.in-game .dd-lord{top:-8px;left:auto;right:-8px;transform:none;padding:2px 5
 .menu-kv .v{font-size:15px;font-weight:700}
 .menu-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .menu-acts{display:flex;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
+
+/* ---------- 出牌限时: the turn clock beside the avatar of whoever is to act ----------
+   As big as the avatar, in its own cell of the seat right beside the avatar on the side toward the middle (js/ui.js
+   avatarHTML): after it on the left half, before it on the right half. Upright the upper seats can be packed edge to edge, so
+   there it goes in a row of its own under the avatar and cards, toward the middle; margin-top puts back what the taller seat
+   would lift the avatar by (the seat is centred on its spot and scaled by --s), so only the plate moves down. */
+.seat.al-r .tring{order:-1}
+.tring{--rg:var(--av);position:relative;width:var(--rg);height:var(--rg);border-radius:50%;background:rgba(8,18,14,.9);display:grid;place-items:center;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+#game-view[data-orient="port"] .seat.uh.tr{margin-top:calc(var(--s,1) * (var(--av) + 2px) / 2)}
+#game-view[data-orient="port"] .seat.uh.tr .stop{grid-auto-flow:row;grid-template-columns:auto auto}
+#game-view[data-orient="port"] .seat.uh.tr .tring{grid-column:1 / -1;grid-row:2;justify-self:center}
+.tring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.tring circle{fill:none;stroke-width:3.6}
+.tring .tr-bg{stroke:rgba(255,255,255,.16)}
+.tring .tr-fg{stroke:var(--brass);stroke-linecap:round;transition:stroke-dashoffset .2s linear}
+.tring b{position:relative;font:800 max(calc(var(--rg)*.46),calc(12px / var(--s,1)))/1 var(--f-mono);color:#fff}
+.tring.low .tr-fg{stroke:var(--bad)}
+.tring.low b{color:#ff9d95}
+/* ---------- 托管 on my own device: a dim panel over my hand ---------- */
+.trust-veil{position:absolute;inset:-4px;z-index:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;gap:6px 12px;padding:4px;border-radius:12px;background:rgba(6,14,10,.62);-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);color:var(--text);font-weight:800;font-size:15px;text-shadow:0 1px 3px #000}
+.trust-veil .btn{height:40px;padding:0 16px;border:none;border-radius:20px;font-size:14px;font-weight:800;white-space:nowrap;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55);text-shadow:none}
+.my-hand .trust-veil{inset:-6px -10px;flex-direction:column;flex-wrap:nowrap}

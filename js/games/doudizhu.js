@@ -421,11 +421,26 @@ function ddProceed(){
     else{d.stage='play';S.toAct=d.landlord;P().forEach(p=>{p.lastAction=p.id===d.landlord?'地主':''})}
   }
   const p=P()[S.toAct],id=p.id,hn=S.handNo,mark=S.ddseq=(S.ddseq||0)+1;
-  sync();clearTimeout(timer);
+  clearTimeout(timer);
   const still=()=>S&&S.phase==='playing'&&S.toAct===id&&S.handNo===hn&&S.ddseq===mark;
   /* a seat that dropped off is played by the bot logic once the grace period is over */
-  if(isBot(p))timer=setTimeout(()=>{if(still())ddBotTurn(p)},delay());
-  else if(!present(p))timer=setTimeout(()=>{if(still())ddBotTurn(p)},ddGraceFor(p));
+  turnTimer(p,still,ddBotTurn,ddBotTurn,ddGraceFor(p));
+  sync();
+}
+/* 托管 / 出牌超时: this seat's coach advice, or the default: no bid, no double, lead the smallest single, else 不要 */
+function ddAutoMove(p,coach){
+  const d=S.dd,seq=S.ev&&S.ev.seq;
+  if(coach){
+    const r=ddAdvise(viewFor(p.id)).rec;
+    if(r.type==='bid'||r.type==='double')ddAct(p,r.type,r.yes?1:0);
+    else if(r.type==='play')ddAct(p,'play',{cards:r.cards,as:r.cls?{type:r.cls.type,main:r.cls.main,len:r.cls.len||1}:undefined});
+    else ddAct(p,'pass');
+  }else if(d.stage==='bid')ddAct(p,'bid',0);
+  else if(d.stage==='double')ddAct(p,'double',0);
+  else if(d.lead&&d.lead.pid!==p.id)ddAct(p,'pass');
+  else ddAct(p,'play',[ddSort(p.cards).pop()]);
+  /* refused (it should never happen): the bot logic plays it, so the hand cannot stall */
+  if(S&&S.phase==='playing'&&S.dd===d&&S.toAct===p.id&&(S.ev&&S.ev.seq)===seq)ddBotTurn(p);
 }
 /* how long a dropped seat waits before the bot plays it: nothing for someone who left for good */
 const ddGraceFor=p=>p.left?0:Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now());
@@ -641,13 +656,13 @@ function ddRenderTable(){
     const slot=(i-V.me+n)%n,s=seatXY(slot,n,o);
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
     /* a dropped player's turns are played by the bot until they reconnect */
-    const tg=p.kind==='remote'&&!p.connected&&p.inHand;
-    const status=(tg?'托管中 · ':'')+(p.busted&&!p.inHand?'筹码输光':p.lastAction||'');
+    const tg=(p.kind==='remote'&&!p.connected||p.trust)&&p.inHand;
+    const status=[tg?'托管中':'',p.busted&&!p.inHand?'筹码输光':p.lastAction||''].filter(Boolean).join(' · ');
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)} · ${ddRole(V,i)}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const left=p.cards.length,warn=left>0&&left<=2&&d&&d.stage==='play';
     const cards=i===V.me||!p.inHand?'':`<div class="dd-count${warn?' warn':''}">${ddCardHTML(null)}<b>${left}</b></div>`;
-    html+=`<div class="${cls}" data-pid="${i}" style="${seatStyle(s)}">
-      ${avatarHTML(p)}<div class="cards">${cards}</div>
+    html+=`<div class="${cls}${seatCls(s,i===V.me,i)}" data-pid="${i}" style="${seatStyle(s)}">
+      <div class="stop">${avatarHTML(p)}<div class="cards">${cards}</div></div>
       <div class="plate">${ddRole(V,i)==='地主'?'<span class="dd-lord" title="地主">地主</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
@@ -689,7 +704,7 @@ function ddRenderHand(){
   if(key!==DSEL_KEY){DSEL=new Set();DSEL_KEY=key}
   DSEL.forEach(id=>{if(!ids.includes(id))DSEL.delete(id)});
   const a=coachOn()&&LOCAL.mode==='live'&&myTurn()&&V.dd&&V.dd.stage==='play'?ddGetAdvice():null,rec=new Set(a&&a.rec.type==='play'?a.rec.cards:[]);
-  el.innerHTML=`<div class="dd-row" role="group" aria-label="我的手牌，点选要出的牌">${ids.map(id=>ddCardHTML(id,{sel:DSEL.has(id),pick:true,rec:rec.has(id),lz:V.dd?V.dd.laizi:-1})).join('')}</div>`;
+  el.innerHTML=`<div class="dd-row" role="group" aria-label="我的手牌，点选要出的牌">${ids.map(id=>ddCardHTML(id,{sel:DSEL.has(id),pick:true,rec:rec.has(id),lz:V.dd?V.dd.laizi:-1})).join('')}</div>${ids.length?trustVeil():''}`;
   ddFitHand();
 }
 /* overlap the cards just enough to fit the row */
