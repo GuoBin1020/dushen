@@ -77,10 +77,17 @@ function zProceed(){
   if(S.round>S.cfg.zrounds)return zShowdown(`已到 ${S.cfg.zrounds} 轮上限，所有人亮牌比大小`);
   if(S.toAct<0||!zCanAct(P()[S.toAct]))S.toAct=nextIdx(S.toAct<0?S.dealer:S.toAct,zCanAct);
   const p=P()[S.toAct],id=p.id,hn=S.handNo,mark=S.zseq=(S.zseq||0)+1;
-  sync();clearTimeout(timer);
+  clearTimeout(timer);
   const still=()=>S&&S.phase==='playing'&&S.toAct===id&&S.handNo===hn&&S.zseq===mark;
-  if(isBot(p))timer=setTimeout(()=>{if(still())zAiAct(p)},delay());
-  else if(!present(p))timer=setTimeout(()=>{if(still())zAct(p,'fold')},Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  turnTimer(p,still,zAiAct,q=>zAct(q,'fold'),Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  sync();
+}
+/* 托管 / 出牌超时: the coach's move (a 看牌 first, then what it says with the cards seen), or fold */
+function zAutoMove(p,coach){
+  if(!coach)return zAct(p,'fold');
+  let r=zAdvise(S,p).rec;
+  if(r.type==='look'){zAct(p,'look');r=zAdvise(S,p).rec}
+  zAct(p,r.type,r.type==='compare'?r.target:r.to);
 }
 function zStat(p,type,wonCmp){
   const s=p.st;

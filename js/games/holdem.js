@@ -369,11 +369,15 @@ function proceed(){
   if(!P().some(needs))return endStreet();
   if(S.toAct<0||!needs(P()[S.toAct]))S.toAct=nextIdx(S.toAct<0?S.dealer:S.toAct,needs);
   const p=P()[S.toAct],id=p.id,hn=S.handNo;
-  sync();
   clearTimeout(timer);
   const still=()=>S&&S.phase==='playing'&&S.toAct===id&&S.handNo===hn;
-  if(isBot(p))timer=setTimeout(()=>{if(still())aiAct(p)},delay());
-  else if(!present(p))timer=setTimeout(()=>{if(still())act(p,S.currentBet>p.bet?'fold':'check')},Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  turnTimer(p,still,aiAct,q=>act(q,S.currentBet>q.bet?'fold':'check'),Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  sync();
+}
+/* 托管 / 出牌超时: the coach's move, or check when free and fold otherwise */
+function hmAutoMove(p,coach){
+  if(!coach)return act(p,S.currentBet>p.bet?'fold':'check');
+  const r=advise(S,p).rec;act(p,r.type,r.to);
 }
 function trackRange(p,type){
   if(type==='fold')return;
