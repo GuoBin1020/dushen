@@ -109,7 +109,7 @@ function renderChat(){
   if(!el.dataset.ready){
     el.innerHTML=`<div class="chat-head"><h2>聊天</h2><button type="button" class="btn sm chat-close" data-act="chat-toggle">关闭</button></div><div class="chat-list" id="chat-list"></div>
       <div class="quick">${QUICK.map((q,i)=>`<button type="button" data-quick="${i}">${q}</button>`).join('')}</div>
-      <form class="chat-input" id="chat-form"><input type="text" id="chat-text" maxlength="40" placeholder="说点什么…（最多 40 字）" autocomplete="off"><button class="btn sm primary" type="submit">发送</button><button type="button" class="btn sm ptt" id="ptt" title="按住说话，松开发送；移出按钮再松开可取消">按住说话</button></form>${micSupport().ok?'':`<p class="note ptt-hint">语音消息不可用：${micSupport().reason}</p>`}`;
+      <form class="chat-input" id="chat-form"><input type="text" id="chat-text" maxlength="40" placeholder="说点什么…（最多 40 字）" autocomplete="off"><button class="btn sm primary" type="submit">发送</button><button type="button" class="btn sm ptt" id="ptt" title="${pttFine()?'点击开始说话，再点发送；点上方「取消」不发送':'按住说话，松开发送；移出按钮再松开可取消'}；最长 ${VMAX_SEC} 秒，超时自动取消">${pttIdle()}</button></form>${micSupport().ok?'':`<p class="note ptt-hint">语音消息不可用：${micSupport().reason}</p>`}`;
     el.dataset.ready='1';
   }
   el.dataset.n=String(CHAT.length);
@@ -990,15 +990,19 @@ document.addEventListener('input',e=>{
   const ans=e.target.dataset&&e.target.dataset.ans;if(ans){const s=NET.lanSlots.find(x=>x.id===ans);if(s)s.ans=e.target.value}
 });
 document.addEventListener('change',e=>{if(e.target.name==='f-net')syncJoinNet()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();peekBet(+b.dataset.pid)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&REC.click){recStop(true);return}if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();peekBet(+b.dataset.pid)}});
 /* push-to-talk: hold to record, release to send, release outside the button to cancel */
 function pttOutside(x,y){const b=$('#ptt');if(!b)return false;const r=b.getBoundingClientRect();return x<r.left-20||x>r.right+20||y<r.top-30||y>r.bottom+20}
 function pttMove(x,y){const out=pttOutside(x,y);if(out!==REC.outside){REC.outside=out;if(REC.rec)updRecBtn((Date.now()-REC.t0)/1000)}}
 function pttDown(){REC.pressing=true;REC.outside=false;document.body.classList.add('recording');recStart()}
-document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;const b=e.target.closest('#ptt');if(!b)return;e.preventDefault();try{b.setPointerCapture(e.pointerId)}catch(x){}pttDown()});
-document.addEventListener('pointermove',e=>{if(e.pointerType!=='touch'&&REC.pressing)pttMove(e.clientX,e.clientY)});
-document.addEventListener('pointerup',e=>{if(e.pointerType!=='touch'&&REC.pressing)recStop(REC.outside)});
-document.addEventListener('pointercancel',e=>{if(e.pointerType!=='touch'&&REC.pressing)recStop(true)});
+/* mouse and pen: click to start, click again to send, 取消 above the button to drop it */
+document.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch')return;
+  if(e.target.closest('#ptt-x')){e.preventDefault();recStop(true);return}
+  if(!e.target.closest('#ptt'))return;
+  e.preventDefault();
+  if(REC.rec)recStop(false);else if(REC.click)recStop(true);else{REC.click=true;recStart()}
+});
 /* touch: preventDefault on touchstart stops the long-press text selection / copy menu */
 document.addEventListener('touchstart',e=>{if(!e.target.closest('#ptt'))return;e.preventDefault();pttDown()},{passive:false});
 document.addEventListener('touchmove',e=>{if(!REC.pressing)return;const t=e.touches[0];if(t)pttMove(t.clientX,t.clientY);e.preventDefault()},{passive:false});

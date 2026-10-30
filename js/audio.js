@@ -154,7 +154,10 @@ function toast(text,ms){
   t.textContent=text;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},ms||5000);
 }
 /* recording */
-const REC={stream:null,rec:null,chunks:[],t0:0,timer:null,cancel:false,pressing:false,outside:false};
+/* touch: hold to talk, release to send. mouse: click to start, click 发送 or 取消; a clip that reaches VMAX_SEC is dropped */
+const REC={stream:null,rec:null,chunks:[],t0:0,timer:null,cancel:false,pressing:false,outside:false,click:false,timeout:false};
+const pttFine=()=>!!(window.matchMedia&&matchMedia('(hover:hover) and (pointer:fine)').matches);
+const pttIdle=()=>pttFine()?'点击说话':'按住说话';
 async function recStart(){
   if(REC.rec)return;
   const sup=micSupport();
@@ -167,22 +170,22 @@ async function recStart(){
       :n==='NotFoundError'?'没有找到可用的麦克风。':'无法使用麦克风：'+(e&&e.message||e),9000);
     return;
   }
-  if(!REC.pressing){REC.stream.getTracks().forEach(t=>t.stop());REC.stream=null;toast('麦克风已就绪，按住按钮说话。',2500);return}
+  if(!REC.pressing&&!REC.click){REC.stream.getTracks().forEach(t=>t.stop());REC.stream=null;toast(`麦克风已就绪，${pttFine()?'点击':'按住'}按钮说话。`,2500);return}
   const mime=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t));
   const rec=new MediaRecorder(REC.stream,mime?{mimeType:mime,audioBitsPerSecond:24000}:{audioBitsPerSecond:24000});
-  REC.rec=rec;REC.chunks=[];REC.t0=Date.now();REC.cancel=false;
+  REC.rec=rec;REC.chunks=[];REC.t0=Date.now();REC.cancel=false;REC.timeout=false;
   rec.ondataavailable=e=>{if(e.data&&e.data.size)REC.chunks.push(e.data)};
   rec.onstop=recDone;
   rec.start(250);
-  REC.timer=setInterval(()=>{const sec=(Date.now()-REC.t0)/1000;updRecBtn(sec);if(sec>=VMAX_SEC)recStop(false)},100);
+  REC.timer=setInterval(()=>{const sec=(Date.now()-REC.t0)/1000;updRecBtn(sec);if(sec>=VMAX_SEC){REC.timeout=true;recStop(true)}},100);
   updRecBtn(0);
 }
-function recStop(cancel){REC.pressing=false;document.body.classList.remove('recording');if(!REC.rec)return;REC.cancel=REC.cancel||cancel;clearInterval(REC.timer);try{REC.rec.state!=='inactive'&&REC.rec.stop()}catch(e){}}
+function recStop(cancel){REC.pressing=false;REC.click=false;document.body.classList.remove('recording');if(!REC.rec)return;REC.cancel=REC.cancel||cancel;clearInterval(REC.timer);try{REC.rec.state!=='inactive'&&REC.rec.stop()}catch(e){}}
 async function recDone(){
   const rec=REC.rec,dur=(Date.now()-REC.t0)/1000,cancel=REC.cancel,chunks=REC.chunks;
   REC.rec=null;if(REC.stream){REC.stream.getTracks().forEach(t=>t.stop());REC.stream=null}
   updRecBtn(-1);
-  if(cancel){toast('已取消发送。',1500);return}
+  if(cancel){toast(REC.timeout?`录音超过 ${VMAX_SEC} 秒，已自动取消。`:'已取消发送。',REC.timeout?3000:1500);REC.timeout=false;return}
   if(dur<0.7){toast('说话时间太短。',1500);return}
   const blob=new Blob(chunks,{type:(rec&&rec.mimeType)||'audio/webm'});
   const data=await blobToDataURL(blob);
@@ -191,6 +194,12 @@ async function recDone(){
 }
 function updRecBtn(sec){
   const b=$('#ptt');if(!b)return;
-  b.classList.toggle('rec',sec>=0&&!REC.outside);b.classList.toggle('cancel',sec>=0&&REC.outside);
-  b.textContent=sec<0?'按住说话':REC.outside?'松开取消':`松开发送 ${sec.toFixed(1)}″`;
+  const on=sec>=0,click=on&&!REC.pressing;
+  b.classList.toggle('rec',on&&!REC.outside);b.classList.toggle('cancel',on&&REC.outside);
+  const txt=!on?pttIdle():REC.outside?'松开取消':`${click?'':'松开'}发送 ${sec.toFixed(1)}″`;
+  /* the bar fills over VMAX_SEC; full means the clip is dropped */
+  b.innerHTML=`<span>${txt}</span>${on?`<i class="ptt-bar" style="width:${Math.min(100,sec/VMAX_SEC*100).toFixed(1)}%"></i>`:''}`;
+  let x=$('#ptt-x');
+  if(click&&!x&&b.parentElement){x=document.createElement('button');x.type='button';x.id='ptt-x';x.className='btn sm ptt-x';x.textContent='取消';b.parentElement.appendChild(x)}
+  if(x&&!click)x.remove();
 }
