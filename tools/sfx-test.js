@@ -64,7 +64,7 @@ function spyNoise(t){t.run('globalThis.__n=0;{const o=noise;noise=function(){__n
   /* partial failure skips only that file */
   t=mk(u=>/slide-2|slide2/.test(String(u))?Promise.reject(new Error('x')):Promise.resolve({ok:true,arrayBuffer:()=>Promise.resolve(new ArrayBuffer(8))}));
   await t.run('sfxLoad()');
-  ok(t.run('SND.buf.slide.length')===3||t.run('SND.buf.slide.length')===4,'单个失败不影响其他');
+  eq(t.run('SND.buf.slide.length'),3,'单个失败不影响其他');
 
   /* sfx-off */
   t=mk();t.run('actx()');nz=spyNoise(t);
@@ -78,6 +78,18 @@ function spyNoise(t){t.run('globalThis.__n=0;{const o=noise;noise=function(){__n
   t.run('SND.buf={chipLay:[{__sample:true}],chipStack:[{__sample:true}]}');
   t.run('SFX.chips(3)');eq(t.cnt.sampleStarts,1,'chips(3) lay');
   t.run('SFX.chips(4)');eq(t.cnt.sampleStarts,2,'chips(4) stack');
+
+
+  /* ddz-play: a 斗地主 card play maps to 'place', never the shuffle/slide of dealing */
+  {
+    const calls=[];
+    const c2=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean,
+      SFX:new Proxy({},{get:(_,k)=>()=>calls.push(k)}),say(){},setTimeout(){},LOCAL:{mode:'live'}});
+    for(const f of ['js/common.js','js/games/doudizhu.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),c2,{filename:f});
+    const play=vm.runInContext("ddFx({players:[{gender:'m',kind:'ai'}]},{type:'play',pid:0,cls:ddClassify([0]),left:5})",c2);
+    ok(calls.includes('flip'),'ddz 出牌走 flip(place)');
+    ok(!calls.includes('deal'),'ddz 出牌不走 deal(shuffle)');
+  }
 
   console.log(`sfx: ${passed} passed, ${failed} failed`);
   process.exit(failed?1:0);

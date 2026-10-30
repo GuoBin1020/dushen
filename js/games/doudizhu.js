@@ -754,7 +754,7 @@ function ddFx(v,ev){
   else if(ev.type==='pass'){SFX.fold();say('不要',g)}
   else if(ev.type==='play'){
     if(ev.cls.type==='bomb'||ev.cls.type==='rocket'){const t=ev.cls.type==='rocket'?'王炸':v.dd&&v.dd.laizi>=0?{soft:'软炸',hard:'硬炸',pure:'纯赖子炸'}[ev.cls.bk||'hard']:'炸弹';ddBombFx(ev.pid,t);say(t,g)}
-    else{SFX.deal(1);say(ddPlayText(ev.cls),g)}
+    else{SFX.flip();say(ddPlayText(ev.cls),g)}
     /* bots announce this in a chat bubble themselves */
     if(human&&(ev.left===1||ev.left===2))setTimeout(()=>say(`我只剩 ${ev.left} 张了`,g),900);
   }
