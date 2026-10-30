@@ -545,3 +545,14 @@ body:has(#game-view:not([hidden])) .foot{display:none}
 .consent h2{margin:0 0 10px}
 .consent p{margin:0 0 10px;line-height:1.6;font-size:14px}
 .consent .setup-actions{margin-top:14px}
+
+/* ---------- 今天吃什么 wheel ---------- */
+.wheel-box{text-align:center}
+.wheel-wrap{position:relative;width:min(280px,72vw);margin:6px auto 10px;aspect-ratio:1}
+.wheel-svg{width:100%;height:100%;display:block;filter:drop-shadow(0 6px 16px rgba(0,0,0,.45))}
+.wheel-svg #wheel-rot{transform-origin:0 0}
+.wheel-pin{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:24px solid var(--brass);z-index:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.wheel-res{font-size:16px;margin:4px 0 2px;min-height:1.6em}
+.wheel-res b{color:var(--brass);font-size:22px}
+.wheel-list{color:var(--muted);font-size:12.5px;margin:4px 0 0}
+.wheel-box .setup-actions{justify-content:center}

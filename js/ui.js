@@ -316,7 +316,8 @@ function renderProfiles(){
 }
 function renderMeta(){
   const el=$('#meta');
-  if(!V||$('#game-view').hidden){el.innerHTML=fsButton()+(NET.role!=='solo'&&!$('#lobby-view').hidden?`<button class="btn" data-act="leave">${NET.role==='host'?'解散房间':'离开房间'}</button>`:'');return}
+  /* the home page also offers the 今天吃什么 wheel (js/wheel.js) */
+  if(!V||$('#game-view').hidden){el.innerHTML=(!$('#setup-view').hidden?'<button class="btn" data-act="wheel">今天吃什么</button>':'')+fsButton()+(NET.role!=='solo'&&!$('#lobby-view').hidden?`<button class="btn" data-act="leave">${NET.role==='host'?'解散房间':'离开房间'}</button>`:'');return}
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
   el.innerHTML=`
@@ -926,6 +927,7 @@ document.addEventListener('click',async e=>{
   }
   else if(a==='host-start')hostStart();
   else if(a==='fs')toggleFS();
+  else if(a==='wheel')openWheel();
   else if(a==='lan-new')lanNewSlot();
   else if(a==='leave'||a==='home'){leaveAll();resetT();showBanner('');show('setup')}
 });
