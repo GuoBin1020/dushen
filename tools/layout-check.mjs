@@ -3,7 +3,7 @@
    自己在项目目录起一个本地服务器（默认端口 8767，被占用就换一个空闲端口），用无头 Chrome 打开牌局，
    在几种人数、游戏和屏幕尺寸下检查：页面不滚动、标题栏和页脚隐藏、座位互不重叠、座位不压住公共牌 / 底牌 / 出的牌 / 按钮面板，
    斗地主 20 张手牌一行放下，下注筹码不压住按钮区，手机上按钮至少 40px 高，转屏后重新检查，控制台没有报错。
-   按钮区另有场景：按钮一排的位置在各种状态下不动、德州加注的弹出面板和炸金花点头像比牌的面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
+   按钮区另有场景：出牌限时的倒计时圈（贴着轮到的人的头像、不压住别的东西、秒数减少、最后 5 秒变红）、托管面板和「取消托管」「下一局加入」按钮（能点、点了恢复）、按钮一排的位置在各种状态下不动、德州加注的弹出面板和炸金花点头像比牌的面板、斗地主按钮一行放下、旁观等待时没有结算按钮、教练高亮。输出 JSON，有任何一项不通过时退出码为 1。 */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -315,6 +315,59 @@ const TOAST_TOP=`(async()=>{${PG}
   [...document.querySelectorAll('#dd-hand .card,#table .my-hand .card')].filter(vis).forEach((c,i)=>{if(hit(R(c),r))f.push('toast 压住手牌 '+i)});
   [...document.querySelectorAll('#actions .act-bar button,.corner > *')].filter(vis).forEach(b=>{if(hit(R(b),r))f.push('toast 压住「'+(b.textContent.trim()||b.getAttribute('aria-label')||'按钮')+'」')});
   t.hidden=true;return f})()`;
+/* 出牌限时: the ring beside the avatar of whoever is to act, on screen and clear of other seats, the middle, my hand and the
+   buttons; the seconds go down and turn red for the last 5 s. Checked on my own turn (the host's real clock), then on every seat. */
+const TURN_RING=`(async()=>{${PG}
+  S.cfg.turnSec=15;proceed();await sleep(120);clearTimeout(timer);
+  const ring=()=>Q('#table .seat.active .tring');
+  const place=(tag,pid)=>{const r=ring();if(!vis(r)){f.push(tag+'：没有倒计时');return}
+    const rr=R(r),seat=Q('#table .seat[data-pid="'+pid+'"]'),av=R(seat.querySelector('.ava'));
+    if(!r.closest('.seat[data-pid="'+pid+'"]'))f.push(tag+'：倒计时不在轮到的人的座位上');
+    if(Math.hypot(rr.x+rr.w/2-(av.x+av.w/2),rr.y+rr.h/2-(av.y+av.h/2))>av.w)f.push(tag+'：倒计时离头像太远');
+    if(rr.x<-0.5||rr.y<-0.5||rr.x+rr.w>innerWidth+0.5||rr.y+rr.h>innerHeight+0.5)f.push(tag+'：倒计时超出屏幕');
+    /* a ring drawn over the avatar itself (the far row) covers nothing the avatar does not already cover */
+    const inAva=rr.x>=av.x-1&&rr.y>=av.y-1&&rr.x+rr.w<=av.x+av.w+1&&rr.y+rr.h<=av.y+av.h+1;
+    if(!inAva)[...document.querySelectorAll('#table .seat')].forEach(s=>{const e=s!==seat&&[s,...s.children].find(e=>vis(e)&&hit(R(e),rr));if(e)f.push(tag+'：倒计时压住座位 '+s.dataset.pid+(${process.env.LC_DEBUG?1:0}?' '+e.className+JSON.stringify([R(e),rr]):''))});
+    ['#table .board','#table .center .pot','#table .dd-bottom','#table .dd-play','#actions .act-bar button','#actions .act-hint','#table .my-hand .card','#dd-hand .card','.corner > *','#dd-strip'].forEach(q=>!inAva&&document.querySelectorAll(q).forEach(e=>{if(vis(e)&&hit(R(e),rr))f.push(tag+'：倒计时压住 '+q+(${process.env.LC_DEBUG?1:0}?JSON.stringify([R(e),rr,av]):''))}));
+    if(rr.w<18)f.push(tag+'：倒计时只有 '+rr.w.toFixed(0)+'px')};
+  const r0=ring();if(!r0)return ['轮到我时没有倒计时'];
+  const s0=+r0.textContent;if(s0!==15)f.push('开始时显示 '+s0+' 秒，不是 15');
+  place('我',V.me);
+  TURN.at-=3200;tickRing();const s1=+ring().textContent;if(!(s1<s0))f.push('3 秒后秒数没有减少：'+s0+' → '+s1);
+  if(ring().classList.contains('low'))f.push('还剩 '+s1+' 秒就变红了');
+  TURN.at-=7000;tickRing();if(!ring().classList.contains('low'))f.push('最后 5 秒没有变红');
+  const keep=V.toAct;
+  for(const p of V.players){if(p.id===V.me)continue;V.toAct=p.id;TURN={at:Date.now(),left:9000,total:15000};renderTable();tickRing();place('座位 '+p.id,p.id)}
+  V.toAct=keep;render();
+  return f})()`;
+/* 托管 on my own device: a dim panel over my hand with 「托管中……」 and 「取消托管」, which gives control back; after a timeout
+   without the coach option, 「下一局加入」 in the button row. Everyone's seat tag says which. */
+const TRUST=`(async()=>{${PG}
+  const tap=b=>{const r=b.getBoundingClientRect(),t=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(t!==b&&!b.contains(t)){f.push('「'+b.textContent.trim()+'」被别的东西盖住');return false}t.click();return true};
+  const tagHas=w=>[...document.querySelectorAll('#table .seat.me .ptag,#table .seat.me .pact')].some(e=>vis(e)&&e.textContent.includes(w));
+  S.cfg.turnSec=10;S.players[0].trust=true;sync();clearTimeout(timer);await sleep(80);
+  const v=Q('.trust-veil');if(!vis(v))return ['托管时手牌上没有面板'];
+  const vr=R(v),h=hand();if(h&&!(vr.x<=h.x+1&&vr.y<=h.y+1&&vr.x+vr.w>=h.x+h.w-1&&vr.y+vr.h>=h.y+h.h-1))f.push('面板没有盖住手牌');
+  if(!v.textContent.includes('托管中'))f.push('面板上没有「托管中」');
+  if(vr.x<-0.5||vr.y<-0.5||vr.x+vr.w>innerWidth+0.5||vr.y+vr.h>innerHeight+0.5)f.push('面板超出屏幕');
+  [...document.querySelectorAll('#table .seat:not(.me)')].forEach(s=>{if(hit(R(s),vr))f.push('面板压住座位 '+s.dataset.pid)});
+  document.querySelectorAll('#actions .act-bar > *').forEach(e=>{if(vis(e)&&hit(R(e),vr))f.push('面板压住按钮行')});
+  if(!tagHas('托管中'))f.push('座位上没有标「托管中」');
+  const b=v.querySelector('[data-act="untrust"]');if(!vis(b))return [...f,'面板上没有取消托管'];
+  if(innerWidth<1000&&R(b).h<39.5)f.push('取消托管不到 40px');
+  if(Q('#actions [data-act="fold"],#actions [data-act="ddplay"],#actions [data-act="ddbid"]'))f.push('托管时还有出牌按钮');
+  if(tap(b)){await sleep(80);clearTimeout(timer);
+    if(S.players[0].trust)f.push('点了取消托管还在托管');if(vis(Q('.trust-veil')))f.push('取消托管后面板还在');
+    if(!Q('#actions [data-act="fold"],#actions [data-act="ddplay"],#actions [data-act="ddbid"],#actions [data-act="ddpass"]'))f.push('取消托管后没有恢复出牌按钮');
+    if(!vis(Q('#table .seat.active .tring')))f.push('取消托管后没有重新计时')}
+  /* 暂时离桌 (德州 / 炸金花 only): not dealt in this hand */
+  if(isD(S))return f;
+  Object.assign(S.players[0],{away:true,inHand:false,cards:[]});S.toAct=1;sync();clearTimeout(timer);await sleep(80);
+  const j=Q('#actions [data-act="rejoin"]');
+  if(!vis(j))f.push('暂时离桌时没有「下一局加入」');
+  else{if(!tagHas('暂时离桌'))f.push('座位上没有标「暂时离桌」');if(innerWidth<1000&&R(j).h<39.5)f.push('下一局加入不到 40px');
+    if(tap(j)){await sleep(80);clearTimeout(timer);if(S.players[0].away)f.push('点了下一局加入还在离桌')}}
+  return f})()`;
 const PH4=[[393,873,true],[873,393,true],[412,915,true],[915,412,true]];
 SCEN.push(
   {name:'board-cards',game:'holdem',n:6,extra:BOARD_CARDS},
@@ -327,7 +380,10 @@ SCEN.push(
   {name:'showdown-zjh-none',game:'zjh',n:6,extra:SHOWDOWN(false),sizes:PH4},
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
   {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
-  {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4}
+  {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
+  {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
+  {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
+  {name:'trust',game:'holdem',n:6,extra:TRUST},{name:'trust-zjh',game:'zjh',n:6,extra:TRUST},{name:'trust-ddz',game:'ddz',n:3,lord20:true,extra:TRUST}
 );
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
 if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);

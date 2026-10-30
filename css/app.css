@@ -592,3 +592,22 @@ body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]) .dd-center{fl
 .menu-kv .v{font-size:15px;font-weight:700}
 .menu-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .menu-acts{display:flex;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
+
+/* ---------- 出牌限时: the turn clock beside the avatar of whoever is to act ---------- */
+.seat .ava{position:relative}
+.tring{--rg:calc(var(--av)*.64/var(--s,1));position:absolute;width:var(--rg);height:var(--rg);top:calc(var(--rg)*-.16);left:calc(var(--rg)*-.5);border-radius:50%;background:rgba(8,18,14,.88);display:grid;place-items:center;pointer-events:none;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+/* on the corner toward the middle of the table, so a seat at the screen edge keeps it on screen and clear of the corner buttons */
+.seat.lh .tring{left:auto;right:calc(var(--rg)*-.5)}
+/* the far row can be packed edge to edge: there the ring wraps the avatar itself, seconds in place of the initial */
+.seat.uh .tring,.seat.uh.lh .tring{--rg:var(--av);top:-2px;left:-2px;right:auto;bottom:auto;box-shadow:none}
+.tring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.tring circle{fill:none;stroke-width:3.6}
+.tring .tr-bg{stroke:rgba(255,255,255,.16)}
+.tring .tr-fg{stroke:var(--brass);stroke-linecap:round;transition:stroke-dashoffset .2s linear}
+.tring b{position:relative;font:800 calc(var(--rg)*.42)/1 var(--f-mono);color:#fff}
+.tring.low .tr-fg{stroke:var(--bad)}
+.tring.low b{color:#ff9d95}
+/* ---------- 托管 on my own device: a dim panel over my hand ---------- */
+.trust-veil{position:absolute;inset:-4px;z-index:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;gap:6px 12px;padding:4px;border-radius:12px;background:rgba(6,14,10,.62);-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);color:var(--text);font-weight:800;font-size:15px;text-shadow:0 1px 3px #000}
+.trust-veil .btn{height:40px;padding:0 16px;border:none;border-radius:20px;font-size:14px;font-weight:800;white-space:nowrap;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55);text-shadow:none}
+.my-hand .trust-veil{inset:-6px -10px;flex-direction:column;flex-wrap:nowrap}
