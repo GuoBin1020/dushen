@@ -2,7 +2,7 @@ Asset credits / 素材来源
 
 1. Playing card faces (cards/*.webp except the ace of spades, jokers and back)
    Author: Byron Knoll (Vector Playing Cards)
-   Source: https://code.google.com/p/vector-playing-cards/ (SVG set as packaged in the Vector-Playing-Cards repository)
+   Source: https://github.com/notpeter/vector-playing-cards (the originals by Byron Knoll were on Google Code: https://code.google.com/archive/p/vector-playing-cards/)
    License: Public domain
    Changes in this project: rasterised the SVG files to 200px wide transparent WebP.
 
@@ -20,7 +20,7 @@ Asset credits / 素材来源
 
 4. Clown face emoji used on the jokers (cards/joker-big.webp, cards/joker-small.webp)
    Author: Google, Noto Emoji (U+1F921)
-   Source: https://github.com/googlefonts/noto-emoji
+   Source: https://github.com/googlefonts/noto-emoji/blob/main/2D/svg/emoji_u1f921.svg
    License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
    Changes in this project: composed into a new joker card design with the corner text 大王 / 小王; the small joker is rendered in greyscale.
    Also made for this project: the ace of spades (cards/AS.webp) is redrawn in the style of the other aces.

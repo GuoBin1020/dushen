@@ -29,6 +29,8 @@ ok(total>0&&total<=1.6*1024*1024,'素材总体积 '+total);
 const sfx=run('SFX_FILES');
 eq(Object.keys(sfx).sort(),['chipLay','chipStack','collide','handle','place','shove','shuffle','slide'],'SFX 键');
 for(const k of Object.keys(sfx)){ok(sfx[k].length>0,'SFX 空 '+k);for(const f of sfx[k])ok(sz(f)>0,'音效缺失 '+f)}
+{const used=new Set(Object.values(sfx).flat().map(f=>path.join(AS,f))),dir=path.join(AS,'sfx');
+ for(const f of fs.existsSync(dir)?fs.readdirSync(dir):[])ok(used.has(path.join(dir,f)),'sfx 里有没被 SFX_FILES 引用的文件 '+f)}
 const cr=fs.existsSync(path.join(AS,'CREDITS.txt'))?fs.readFileSync(path.join(AS,'CREDITS.txt'),'utf8'):'';
 for(const w of ['Byron Knoll','Kenney','CC0','Noto Emoji','Apache'])ok(cr.includes(w),'CREDITS 缺 '+w);
 eq(run("assetURL('cards/KS.webp')"),'data:x');

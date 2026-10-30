@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
+import vm from 'node:vm';
 import {startChrome,openPage,sleep} from './cdp.mjs';
 
 const [SRC,OUT]=process.argv.slice(2);
@@ -12,9 +13,8 @@ if(!SRC||!OUT){console.error('usage: make-assets.mjs <src-dir> <out-dir>');proce
 const FFMPEG=fs.existsSync('/opt/homebrew/bin/ffmpeg')?'/opt/homebrew/bin/ffmpeg':'ffmpeg';
 const RANKS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'],SUITS=['S','H','D','C'];
 const W=200,H=Math.round(W*242.67/167.09); // face size, same ratio as the source SVG viewBox
-/* Keep in sync with SFX_FILES in js/assets.js */
-const SFX={shuffle:['card-shuffle'],slide:4,place:4,shove:2,chipLay:3,chipStack:3,collide:2,handle:3};
-const SFX_SRC={slide:'card-slide',place:'card-place',shove:'card-shove',chipLay:'chip-lay',chipStack:'chips-stack',collide:'chips-collide',handle:'chips-handle'};
+/* The sound list lives in js/assets.js (single source of truth) */
+const SFX_FILES=vm.runInNewContext(fs.readFileSync(new URL('../js/assets.js',import.meta.url),'utf8')+';SFX_FILES');
 const CHIPS={red:'chipRedWhite',blue:'chipBlueWhite',green:'chipGreenWhite',black:'chipBlackWhite',white:'chipWhiteBlue'};
 
 const rd=(...p)=>fs.readFileSync(path.join(SRC,...p));
@@ -71,17 +71,16 @@ try{
 if(pg&&pg.errs.length)console.warn('page errors:',pg.errs);
 
 /* Sounds: only the clips SFX_FILES uses, mono 96k mp3 */
-for(const [key,v] of Object.entries(SFX)){
-  const names=Array.isArray(v)?v:Array.from({length:v},(_,i)=>`${SFX_SRC[key]}-${i+1}`);
-  for(const n of names)
-    execFileSync(FFMPEG,['-y','-loglevel','error','-i',path.join(SRC,'x/audio/Audio',n+'.ogg'),'-vn','-b:a','96k','-ac','1',out('sfx',n+'.mp3')]);
+for(const f of Object.values(SFX_FILES).flat()){
+  const n=path.basename(f,'.mp3');
+  execFileSync(FFMPEG,['-y','-loglevel','error','-i',path.join(SRC,'x/audio/Audio',n+'.ogg'),'-vn','-b:a','96k','-ac','1',out(f)]);
 }
 
 fs.writeFileSync(out('CREDITS.txt'),`Asset credits / 素材来源
 
 1. Playing card faces (cards/*.webp except the ace of spades, jokers and back)
    Author: Byron Knoll (Vector Playing Cards)
-   Source: https://code.google.com/p/vector-playing-cards/ (SVG set as packaged in the Vector-Playing-Cards repository)
+   Source: https://github.com/notpeter/vector-playing-cards (the originals by Byron Knoll were on Google Code: https://code.google.com/archive/p/vector-playing-cards/)
    License: Public domain
    Changes in this project: rasterised the SVG files to 200px wide transparent WebP.
 
@@ -99,7 +98,7 @@ fs.writeFileSync(out('CREDITS.txt'),`Asset credits / 素材来源
 
 4. Clown face emoji used on the jokers (cards/joker-big.webp, cards/joker-small.webp)
    Author: Google, Noto Emoji (U+1F921)
-   Source: https://github.com/googlefonts/noto-emoji
+   Source: https://github.com/googlefonts/noto-emoji/blob/main/2D/svg/emoji_u1f921.svg
    License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
    Changes in this project: composed into a new joker card design with the corner text 大王 / 小王; the small joker is rendered in greyscale.
    Also made for this project: the ace of spades (cards/AS.webp) is redrawn in the style of the other aces.
