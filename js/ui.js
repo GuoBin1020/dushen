@@ -30,7 +30,8 @@ function showBubble(pid,text,voice,dur){
   if(BUB[pid])BUB[pid].remove();
   const el=document.createElement('div');el.className='bubble'+(voice?' voice':'');
   if(voice)el.innerHTML=`<button type="button" class="vbub" data-vplay="${esc(voice)}" data-dur="${dur}">▶ ${dur}″</button>`;else el.textContent=text;
-  el.style.left=pt.x+'px';el.style.top=(pt.y-(pid===V.me?66:54))+'px';
+  /* anchored on the seat's centre; margin lifts the bubble clear of the seat */
+  el.style.left=pt.x+'px';el.style.top=pt.y+'px';el.style.marginTop=-(pid===V.me?66:54)+'px';
   fx.appendChild(el);BUB[pid]=el;
   setTimeout(()=>{if(BUB[pid]===el){el.remove();delete BUB[pid]}},3900);
 }

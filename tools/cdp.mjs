@@ -6,9 +6,9 @@ import path from 'node:path';
 export const CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 /* Start headless Chrome on a debugging port; kill() stops it and removes its temp profile. */
-export async function startChrome(port=9341){
+export async function startChrome(port=9341,extra=[]){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cdp-'));
-  const c=spawn(CHROME,['--headless=new','--disable-gpu','--remote-debugging-port='+port,'--user-data-dir='+dir,'about:blank'],{stdio:'ignore'});
+  const c=spawn(CHROME,['--headless=new','--disable-gpu','--remote-debugging-port='+port,'--user-data-dir='+dir,...extra,'about:blank'],{stdio:'ignore'});
   let up=false;
   for(let i=0;i<75&&!up;i++){try{await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();up=true}catch(e){await sleep(200)}}
   const kill=()=>{c.kill();try{fs.rmSync(dir,{recursive:true,force:true})}catch(e){}};

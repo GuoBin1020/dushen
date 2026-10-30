@@ -121,6 +121,30 @@ SCEN.push(
   {name:'coach-rec-zjh',game:'zjh',n:6,extra:COACH_REC,sizes:PH},
   {name:'coach-rec-ddz',game:'ddz',n:3,extra:COACH_REC,sizes:PH}
 );
+/* fx-points: the start of every animation sits within 20px of the seat it belongs to, and #fx lies over #table */
+const FX_POINTS=`(async()=>{${PG}
+  const fx=Q('#fx'),fr=R(fx),tr=R(Q('#table'));
+  if(!fx)return ['没有 #fx'];
+  if(['x','y','w','h'].some(k=>Math.abs(fr[k]-tr[k])>1))f.push('#fx 和 #table 没对齐：'+JSON.stringify(fr)+' vs '+JSON.stringify(tr));
+  const mid=pid=>{const s=Q('#table .seat[data-pid="'+pid+'"]');if(!s)return null;const r=R(s);return {x:r.x+r.w/2,y:r.y+r.h/2}};
+  const at=(el)=>({x:fr.x+parseFloat(el.style.left),y:fr.y+parseFloat(el.style.top)});
+  const chk=(tag,pid,el)=>{const c=mid(pid);if(!el){f.push(tag+' '+pid+'：没有生成元素');return}
+    const a=at(el),d=Math.hypot(a.x-c.x,a.y-c.y);if(!(d<=20))f.push(tag+' '+pid+'：起点离座位中心 '+d.toFixed(1)+'px')};
+  const keep=V.ev;
+  for(let pid=0;pid<V.players.length;pid++){
+    if(!mid(pid)){f.push('座位 '+pid+' 找不到');continue}
+    fx.innerHTML='';flyChips(seatPoint(pid,'seat'),seatPoint(pid,'bet'),1);chk('飞筹码',pid,fx.querySelector('.fly-chip'));
+    fx.innerHTML='';showBubble(pid,'你好');chk('聊天气泡',pid,fx.querySelector('.bubble'));
+    fx.innerHTML='';allInFx(pid);chk('全下光圈',pid,fx.querySelector('.allin-ring'));
+    if(typeof ddBombFx==='function'&&isD(V)){fx.innerHTML='';ddBombFx(pid,'炸弹');chk('炸弹光圈',pid,fx.querySelector('.allin-ring'))}
+  }
+  fx.innerHTML='';
+  return f})()`;
+SCEN.push(
+  {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
+  {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},
+  {name:'fx-points-ddz',game:'ddz',n:3,extra:FX_POINTS,sizes:PH}
+);
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
 if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);
 /* in the page: start a solo game, wait for my turn, freeze the bots, then stage the scenario */
