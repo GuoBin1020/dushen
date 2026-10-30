@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>赌神智慧树</title>
+<meta name="theme-color" content="#0c1210">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="赌神智慧树">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231e5a44'/%3E%3Ccircle cx='32' cy='32' r='28' fill='none' stroke='%23d9a84c' stroke-width='4' stroke-dasharray='9 6'/%3E%3Ccircle cx='32' cy='32' r='21' fill='%230f3426' stroke='%23d9a84c' stroke-width='1.5'/%3E%3Cpath d='M32 15C25 24 18 28 18 35a7 7 0 0 0 11.5 5.2L27 49h10l-2.5-8.8A7 7 0 0 0 46 35c0-7-7-11-14-20z' fill='%23d9a84c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- web fonts are optional: loaded without blocking the page, so a blocked font host (e.g. in mainland China) never holds up rendering -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>赌神智慧树</h1>
+      <span class="suits" aria-hidden="true">♠♥♦♣</span>
+      <small>德州扑克 · 炸金花 · 单机或联机 · 仅供娱乐与学习，不涉及真钱</small>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <section id="setup-view" class="setup">
+    <form class="panel" id="setup-form" novalidate>
+      <h2>开一桌</h2>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-mode="solo" aria-selected="true">单机练习</button>
+        <button type="button" role="tab" data-mode="host" aria-selected="false">创建联机房间</button>
+        <button type="button" role="tab" data-mode="join" aria-selected="false">加入房间</button>
+      </div>
+      <p class="lead" id="mode-lead"></p>
+
+      <div class="field">
+        <label class="lbl" for="f-name">你的昵称</label>
+        <input type="text" id="f-name" maxlength="12" placeholder="比如：小郭">
+      </div>
+      <div class="field">
+        <span class="lbl">性别（决定你行动时的语音音色）</span>
+        <div class="row" style="gap:18px">
+          <label class="radio"><input type="radio" name="f-gender" id="f-gender-m" value="m" checked><span>男</span></label>
+          <label class="radio"><input type="radio" name="f-gender" id="f-gender-f" value="f"><span>女</span></label>
+        </div>
+      </div>
+
+      <div class="field" data-modes="solo host">
+        <span class="lbl" id="lbl-game">玩什么</span>
+        <div class="seg" id="f-game" role="group" aria-labelledby="lbl-game"><button type="button" data-game="holdem" aria-pressed="true">德州扑克</button><button type="button" data-game="zjh" aria-pressed="false">炸金花</button><button type="button" data-game="ddz" aria-pressed="false">斗地主</button></div>
+      </div>
+
+      <div class="field" data-modes="host join">
+        <span class="lbl">连接方式</span>
+        <label class="radio"><input type="radio" name="f-net" id="f-net-internet" value="internet" checked><span>互联网<br><span class="hint">通过免费的 PeerJS 服务建立点对点连接，凭 6 位邀请码加入。双方都要能上网。</span></span></label>
+        <label class="radio"><input type="radio" name="f-net" id="f-net-lan" value="lan"><span>局域网（不经过第三方）<br><span class="hint">同一 Wi-Fi 或内网下使用。房主和每位玩家手动互换一次连接码，全程不连接任何外部服务器。</span></span></label>
+      </div>
+
+      <div class="field" data-modes="join" id="join-internet">
+        <label class="lbl" for="f-code">邀请码</label>
+        <input type="text" id="f-code" class="code" maxlength="6" placeholder="6 位">
+      </div>
+      <div class="field" data-modes="join" id="join-lan" hidden>
+        <label class="lbl" for="f-offer">房主发给你的连接码</label>
+        <textarea id="f-offer" placeholder="粘贴房主生成的连接码"></textarea>
+        <div id="join-answer" hidden>
+          <div class="hint" style="margin:8px 0 6px">把下面的回复码发回给房主，房主粘贴后就会连上。</div>
+          <textarea id="f-answer" readonly></textarea>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn sm primary" data-copy="#f-answer" data-label="复制回复码">复制回复码</button><span class="hint" id="join-status">等待房主连接…</span></div>
+        </div>
+      </div>
+
+      <div class="field" data-modes="solo host" data-games="holdem zjh">
+        <label class="lbl" id="lbl-players">座位数</label>
+        <div class="seg" id="f-players" role="group" aria-labelledby="lbl-players"></div>
+        <div class="hint" id="players-hint">德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。</div>
+      </div>
+      <div class="field" data-modes="solo host">
+        <label class="lbl" for="f-stack">起始筹码（每人）</label>
+        <div class="row"><input type="number" id="f-stack" min="100" step="100" value="2000"><span class="hint" id="stack-bb"></span></div>
+      </div>
+      <div class="field" data-modes="solo host" data-games="zjh">
+        <label class="lbl" for="f-ante">底注</label>
+        <div class="row">
+          <select id="f-ante"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option></select>
+          <label for="f-zcap" class="hint">单注封顶</label><select id="f-zcap"><option value="10" selected>10 倍底注</option><option value="20">20 倍底注</option></select>
+          <label for="f-zrounds" class="hint">最多</label><select id="f-zrounds"><option value="10" selected>10 轮</option><option value="15">15 轮</option><option value="20">20 轮</option></select>
+        </div>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="f-z235" checked><span>2-3-5 吃豹子（不同花色的 235 是最小的单张，但能赢豹子）</span></label>
+        <div class="hint">每手开始每人先下底注。闷牌跟注付 1 倍单注，看牌后付 2 倍。到轮数上限还剩多人，就全部亮牌比大小。</div>
+      </div>
+      <div class="field" data-modes="solo host" data-games="ddz">
+        <label class="lbl" for="f-ddbase">底分</label>
+        <div class="row">
+          <select id="f-ddbase"><option value="5">5</option><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option></select>
+          <label for="f-ddcap" class="hint">封顶</label><select id="f-ddcap"><option value="16">16 倍</option><option value="32">32 倍</option><option value="64" selected>64 倍</option><option value="128">128 倍</option></select>
+        </div>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="f-laizi"><span>赖子模式（随机翻一个点数当赖子，可以当任意牌）</span></label>
+        <div class="hint">斗地主固定 3 人：你和两个电脑。每个农民的输赢 = 底分 × 倍数，抢地主、炸弹、王炸、春天各 ×2，加倍再 ×2；一局最多「封顶 × 底分」。</div>
+      </div>
+      <div class="field" data-modes="solo host" data-games="holdem">
+        <label class="lbl" for="f-blinds">盲注（小盲 / 大盲）</label>
+        <select id="f-blinds">
+          <option value="5/10">5 / 10</option>
+          <option value="10/20" selected>10 / 20</option>
+          <option value="25/50">25 / 50</option>
+          <option value="50/100">50 / 100</option>
+        </select>
+      </div>
+      <div class="field" data-modes="host">
+        <span class="lbl">联机选项</span>
+        <label class="check"><input type="checkbox" id="f-coach" checked><span>开启教练建议<br><span class="hint">每个人只在自己的设备上看到自己的建议，别人看不到。关闭后对局中不显示建议，赛后仍有个人复盘。</span></span></label>
+        <label class="check"><input type="checkbox" id="f-aifill" checked><span>空位由电脑补位<br><span class="hint">真人不够坐满时，开局时用电脑填满座位。不勾选则只有真人对战（至少 2 人）。</span></span></label>
+      </div>
+      <div class="field" data-modes="solo host" data-games="holdem zjh">
+        <label class="lbl" for="f-style">电脑对手风格</label>
+        <select id="f-style">
+          <option value="mixed" selected>混合（每个电脑随机生成，风格各不相同）</option>
+          <option value="tag">紧凶：只玩好牌，玩就下重注</option>
+          <option value="lag">松凶：牌很宽，经常诈唬</option>
+          <option value="station">跟注站：很少弃牌，很少加注</option>
+          <option value="nit">紧弱：很紧，遇到下注常常弃牌</option>
+          <option value="reg">常规：中规中矩，接近标准打法</option>
+          <option value="maniac">疯子：什么牌都玩，疯狂加注诈唬</option>
+        </select>
+      </div>
+      <div class="field" data-modes="solo host">
+        <span class="lbl">其他</span>
+        <label class="check"><input type="checkbox" id="f-rebuy" checked><span>电脑输光后自动补码</span></label>
+        <label class="check" data-modes="solo" data-games="holdem zjh"><input type="checkbox" id="f-reveal"><span>显示对手底牌（学习模式，仅单机）</span></label>
+        <label class="check" data-games="holdem zjh"><input type="checkbox" id="f-showall"><span>每手结束后亮出所有人的底牌（包括弃牌的人）</span></label>
+        <label class="check"><input type="checkbox" id="f-auto"><span>一手结束后自动发下一手</span></label>
+        <label class="check" data-modes="solo" data-games="holdem zjh"><input type="checkbox" id="f-ff" checked><span>我弃牌后快进剩下的行动</span></label>
+        <div class="row"><label for="f-speed" class="hint">电脑出牌速度</label>
+          <select id="f-speed"><option value="slow">慢</option><option value="normal" selected>正常</option><option value="fast">快</option></select>
+        </div>
+      </div>
+
+      <div class="setup-actions">
+        <button type="submit" class="btn primary" id="start-btn">开始对局</button>
+      </div>
+      <p class="err" id="setup-err"></p>
+    </form>
+    <aside class="panel rules" id="rules"></aside>
+  </section>
+
+  <section id="lobby-view" hidden>
+    <div class="lobby"><div class="panel" id="lobby-main"></div><div class="panel" id="lobby-side"></div></div>
+  </section>
+
+  <section id="game-view" hidden>
+    <div class="game">
+      <div>
+        <div class="table-wrap"><div class="table" id="table"></div><div id="fx" aria-hidden="true"></div><div class="dd-hand" id="dd-hand" hidden></div>
+        </div>
+        <!-- phones only: a slim toolbar on top of the action area, clear of every seat -->
+        <div class="tools">
+          <button type="button" class="fab" data-sheet="coach" aria-controls="sheet" aria-expanded="false">教练<span class="dot" id="coach-dot" hidden></span></button>
+          <button type="button" class="fab" data-sheet="stats" aria-controls="sheet" aria-expanded="false">统计</button>
+          <button type="button" class="fab" data-sheet="rules" aria-controls="sheet" aria-expanded="false">规则</button>
+        </div>
+        <div class="actions" id="actions"></div>
+      </div>
+      <!-- on desktop these panels live here; on phones they move into the sheet below (data-home marks where they return) -->
+      <div class="rail">
+        <div data-home="coach-main"><div class="panel" id="coach"></div></div>
+        <div data-home="coach-opp"><div class="panel" id="profiles"></div></div>
+        <div data-home="coach-room"><div class="panel" id="room" hidden></div></div>
+        <div data-home="stats-me"><div class="panel" id="session"></div></div>
+        <div data-home="stats-log"><div class="panel" id="log-panel"><h2>行动记录</h2><div class="log" id="log"></div></div></div>
+      </div>
+    </div>
+    <details class="panel drawer"><summary>规则速查</summary><div data-home="rules"><div class="rules" id="rules-2"></div></div></details>
+    <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+      <div class="sheet-head">
+        <h2 id="sheet-title" class="sheet-title"></h2>
+        <div class="sheet-tabs" id="sheet-tabs" role="tablist"></div>
+        <button type="button" class="btn sm" data-act="sheet-close">关闭</button>
+      </div>
+      <div class="sheet-body">
+        <div data-pane="coach-main" role="tabpanel"></div>
+        <div data-pane="coach-opp" role="tabpanel"></div>
+        <div data-pane="coach-room" role="tabpanel"></div>
+        <div data-pane="stats-me" role="tabpanel"></div>
+        <div data-pane="stats-log" role="tabpanel"></div>
+        <div data-pane="rules" role="tabpanel"></div>
+      </div>
+    </section>
+  </section>
+
+  <section id="settle-view" class="settle" hidden></section>
+  <footer class="foot">本游戏仅供朋友之间娱乐与学习。游戏里的积分（筹码）没有任何价值，不能充值、兑换或转让；禁止用于赌博或任何形式的金钱结算。</footer>
+
+  <!-- chat floats over the waiting room and the table: a draggable bubble opens it -->
+  <div class="sheet-backdrop" id="sheet-bg" hidden></div>
+  <button type="button" class="chat-bubble" id="chat-bubble" data-act="chat-toggle" aria-label="聊天" aria-expanded="false" aria-controls="chat-slot" hidden>
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.5 3.4 6L4.6 21l4.3-2.4c1 .3 2 .4 3.1.4 5.5 0 10-3.6 10-8s-4.5-8-10-8Zm-4.5 9.3a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Zm4.5 0a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Zm4.5 0a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6Z"/></svg>
+    <span class="badge" id="chat-unread" hidden></span>
+  </button>
+  <div class="chat-pop" id="chat-slot" hidden><div class="panel" id="chat"></div></div>
+</div>
+
+<!-- scripts load in order and share one global scope (plain scripts, so the page also runs from a local file) -->
+<script src="js/vendor/peerjs.min.js"></script>
+<script src="js/vendor/nacl.min.js"></script>
+<script src="js/common.js"></script>
+<script src="js/games/holdem.js"></script>
+<script src="js/games/zjh.js"></script>
+<script src="js/games/doudizhu.js"></script>
+<script src="js/games/doudizhu-coach.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/net-core.js"></script>
+<script src="js/card.js"></script>
+<script src="js/net-online.enc.js"></script>
+<script src="js/state.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
