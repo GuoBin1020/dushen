@@ -33,6 +33,9 @@ function seatXY(slot,n,o){
   return {x:p.x,y:p.y,s:seatScale(o,p.y)};
 }
 const centerXY=o=>({...CENTER_XY[o||tableOrient()]});
+/* 斗地主's three bottom cards (with the stage line and 倍数): centred at the far edge of the table */
+const BOTTOM_XY={land:{x:50,y:19},port:{x:50,y:19}};
+const bottomXY=o=>({...BOTTOM_XY[o||tableOrient()]});
 /* bet chips: 35% of the way from the seat to the middle of the table */
 function betXY(slot,n,o){const s=seatXY(slot,n,o),c=centerXY(o);return {x:s.x+(c.x-s.x)*0.35,y:s.y+(c.y-s.y)*0.35}}
 /* 斗地主 plays lie on the felt in front of the seat: mine above the button row; a side seat's run out toward the middle

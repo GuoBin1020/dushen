@@ -62,8 +62,11 @@ const MEASURE=`(()=>{
   const hand=[...document.querySelectorAll('#dd-hand .card')].map(R);
   return {sh:se.scrollHeight,sw:se.scrollWidth,ih:innerHeight,iw:innerWidth,
     header:vis(document.querySelector('header.top')),footer:vis(document.querySelector('footer.foot')),
-    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-play':all('#table .dd-play'),actions:all('#actions')},
-    hand};
+    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),actions:all('#actions')},
+    hand,ddStage:document.querySelector('#table .dd-center')?vis(document.querySelector('#table .dd-center .street')):null,
+    /* rendered text size on each seat: computed font size times the seat's scale */
+    fonts:[...document.querySelectorAll('#table .seat')].flatMap((s,i)=>{const k=s.offsetWidth?s.getBoundingClientRect().width/s.offsetWidth:1;
+      return [...s.querySelectorAll('.pname,.pstack,.pact')].filter(vis).map(e=>({i,c:e.className,px:parseFloat(getComputedStyle(e).fontSize)*k}))})};
 })()`;
 
 const hit=(a,b)=>Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)>0.5&&Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)>0.5;
@@ -76,6 +79,9 @@ function check(m,sc){
   if(m.seats.length!==sc.n)f.push(`座位数 ${m.seats.length}≠${sc.n}`);
   for(let i=0;i<m.seats.length;i++)for(let j=i+1;j<m.seats.length;j++)if(hit(m.seats[i],m.seats[j]))f.push(`座位 ${i} 和 ${j} 重叠`);
   for(const [k,list] of Object.entries(m.others))list.forEach(r=>m.seats.forEach((s,i)=>{if(hit(s,r))f.push(`座位 ${i} 压住 ${k}`)}));
+  for(const t of m.fonts)if(t.px<9.95){f.push(`座位 ${t.i} 的 .${t.c} 只有 ${t.px.toFixed(1)}px`);break}
+  if(m.ddStage===false)f.push('斗地主的阶段文字（叫地主 / 加倍 / 出牌中）不可见');
+  m.others['dd-play'].forEach((r,i)=>m.others['dd-center'].forEach(c=>{if(hit(r,c))f.push(`出的牌 ${i} 压住底牌区`)}));
   if(sc.lord20){
     const h=m.hand;
     if(h.length!==20)f.push(`手牌 ${h.length} 张，不是 20`);
@@ -122,6 +128,20 @@ async function run(sc,[w,h,mobile],then){
 }
 try{
   for(const sc of SCEN)for(const sz of SIZES)out.results.push(...await run(sc,sz));
+  /* keep-raise: a phone's address bar shrinks the height a little; the table must not rebuild and reset the raise slider */
+  if(!process.env.LC_ONLY||process.env.LC_ONLY==='keep-raise'){
+    let kept=null;
+    const r=await run({name:'keep-raise',game:'holdem',n:6},[393,873,true],async pg=>{
+      const set=await pg.ev(`(()=>{const r=document.getElementById('raise-amt');if(!r)return null;r.value=r.max;r.dispatchEvent(new Event('input',{bubbles:true}));return r.value})()`);
+      await pg.send('Emulation.setDeviceMetricsOverride',{width:393,height:830,deviceScaleFactor:2.75,mobile:true,screenOrientation:{type:'portraitPrimary',angle:0}});
+      await sleep(700);
+      kept={set,now:await pg.ev(`(document.getElementById('raise-amt')||{}).value`)};
+    });
+    const last=r[r.length-1];
+    if(!kept||kept.set==null)last.fails.push('没有加注滑块，无法检查');
+    else if(kept.now!==kept.set)last.fails.push(`高度小变化后加注滑块被重置：${kept.set} → ${kept.now}`);
+    out.results.push(...r);
+  }
   /* rotate: start upright, then turn the phone sideways */
   out.results.push(...await run({name:'rotate',game:'holdem',n:6},[393,873,true],async pg=>{
     await pg.send('Emulation.setDeviceMetricsOverride',{width:873,height:393,deviceScaleFactor:2.75,mobile:true,screenOrientation:{type:'landscapePrimary',angle:90}});

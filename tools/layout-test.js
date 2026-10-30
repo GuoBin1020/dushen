@@ -40,6 +40,16 @@ for(const o of ['land','port']){
     }
   }
 }
+/* 斗地主：底牌在桌子远端正中，不和对手座位、任何出的牌挤在一起 */
+for(const o of ['land','port']){
+  const b=run(`bottomXY('${o}')`);
+  ok(b&&b.x===50&&b.y>=12&&b.y<=20,`斗地主底牌在远端正中 ${o} ${JSON.stringify(b)}`);
+  for(let k=0;k<3;k++){
+    const s=run(`seatXY(${k},3,'${o}')`),p=run(`playXY(${k},3,'${o}')`);
+    if(k)ok(Math.hypot(s.x-b.x,s.y-b.y)>=18,`斗地主底牌离 slot ${k} 太近 ${o}`);
+    ok(Math.hypot(p.x-b.x,p.y-b.y)>=15,`斗地主 slot ${k} 出的牌压在底牌上 ${o} ${f1(Math.hypot(p.x-b.x,p.y-b.y))}`);
+  }
+}
 /* 斗地主：两个对手在左右两侧 */
 ok(run(`seatXY(1,3,'land')`).x<30,'斗地主左边的对手');
 ok(run(`seatXY(2,3,'land')`).x>70,'斗地主右边的对手');

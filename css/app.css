@@ -99,7 +99,7 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .seat .ava{width:var(--av);height:var(--av);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#ffe3a3,#c98f2e);border:2px solid rgba(255,255,255,.55);color:#4a2c00;font-weight:800;font-size:calc(var(--av)*.42);line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.55)}
 .seat .cards{display:flex;gap:2px;min-height:calc(var(--cw)*243/167)}
 .seat .cards:empty{display:none}
-.seat .plate{grid-column:1 / -1;width:var(--seat-w);min-width:0;overflow:hidden}
+.seat .plate{grid-column:1 / -1;width:var(--seat-w);min-width:0}
 .seat .pname,.seat .pstack,.seat .pact,.seat .ptag{min-width:0}
 .plate{position:relative;background:rgba(0,0,0,.66);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:2px 6px 3px;width:100%;text-align:center;line-height:1.25}
 .seat.active .ava{box-shadow:0 0 0 3px var(--brass),0 0 16px rgba(217,168,76,.7)}
@@ -456,15 +456,18 @@ body.in-game .table{position:absolute;inset:0}
 .center .pot{font-size:clamp(15px,2.6vh,22px);background:rgba(0,0,0,.6);padding:3px 12px;border-radius:999px;color:var(--text)}
 .center .pot span{font-size:.85em}
 .center .street{text-shadow:0 1px 2px #000}
-body.in-game .seat .pname{font-size:clamp(10.5px,1.6vh,13px)}
-body.in-game .seat .pstack{font-size:clamp(10.5px,1.6vh,13px)}
-body.in-game .seat .pact{font-size:clamp(10px,1.5vh,12px)}
+/* seat text is divided by the seat's scale (--s), so it never renders below 10px on the smaller far seats */
+body.in-game .seat .pname{font-size:calc(clamp(10.5px,1.6vh,13px) / var(--s,1))}
+body.in-game .seat .pstack{font-size:calc(clamp(10.5px,1.6vh,13px) / var(--s,1))}
+body.in-game .seat .pact{font-size:calc(clamp(10px,1.5vh,12px) / var(--s,1))}
+body.in-game .seat .ptag{font-size:calc(10.5px / var(--s,1))}
 body.in-game .seat .ptag{display:none}
 body.in-game .dbtn{width:18px;height:18px;font-size:10px;line-height:18px;top:-7px;right:-7px}
-#game-view[data-orient="port"] .seat .pname,#game-view[data-orient="port"] .seat .pstack{font-size:clamp(10.5px,2.9vw,13px)}
-#game-view[data-orient="port"] .seat .pact{font-size:clamp(10px,2.7vw,12px)}
+#game-view[data-orient="port"] .seat .pname,#game-view[data-orient="port"] .seat .pstack{font-size:calc(clamp(10.5px,2.9vw,13px) / var(--s,1))}
+#game-view[data-orient="port"] .seat .pact{font-size:calc(clamp(10px,2.7vw,12px) / var(--s,1))}
 @media (min-width:1000px) and (min-height:700px){body.in-game .seat .ptag{display:block}}
-@media (max-height:500px){body.in-game .center .street{display:none}}
+/* short screens drop the street name (the board shows it), but 斗地主 keeps its stage line and 赖子 badge */
+@media (max-height:500px){body.in-game .center:not(.dd-center) .street{display:none}}
 /* my own cards (德州 / 炸金花): big at the bottom, not tilted */
 .my-hand{position:absolute;left:50%;bottom:max(6px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;z-index:3;--cw:var(--mw)}
 .my-hand .card{box-shadow:-2px 2px 8px rgba(0,0,0,.5)}

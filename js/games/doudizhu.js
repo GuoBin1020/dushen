@@ -663,7 +663,7 @@ function ddRenderTable(){
   });
   if(d){
     /* the 赖子 rank rides on the stage line: no extra height in the middle of the table */
-    const c=centerXY(o);
+    const c=bottomXY(o);
     html+=`<div class="center dd-center" style="left:${c.x}%;top:${c.y}%"><div class="street">${V.phase==='playing'?ddStageText(d):'本局结束'}${d.laizi>=0?` <b class="dd-lz" aria-label="赖子是 ${DR[d.laizi]}">赖子 ${DR[d.laizi]}</b>`:''}</div>
       <div class="dd-bottom" aria-label="底牌">${d.bottom.map(id=>ddCardHTML(id,{lz:d.laizi})).join('')}</div>
       <div class="pot">倍数 <span>×${d.mult}</span></div></div>`;

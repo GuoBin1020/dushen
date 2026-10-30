@@ -388,8 +388,10 @@ function peekBet(pid){
 /* the round avatar on a seat: the name's first character */
 const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc([...String(p.name||'?')][0]||'?')}</div>`;
 /* which game and which way up, for the CSS that sizes the full-screen table */
-function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset.game=g}
-const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s})`;
+let FRAME={o:'',w:0,h:0};
+function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset.game=g;FRAME={o,w:innerWidth,h:innerHeight}}
+/* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
+const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
   if(isD(V))return ddRenderTable();
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
@@ -997,7 +999,9 @@ document.addEventListener('contextmenu',e=>{if(e.target.closest('#ptt'))e.preven
 $('#f-blinds').addEventListener('change',updateBB);$('#f-ante').addEventListener('change',updateBB);$('#f-ddbase').addEventListener('change',()=>{$('#f-stack').value=String(100*(+$('#f-ddbase').value||20));updateBB()});
 $('#setup-form').addEventListener('submit',e=>{e.preventDefault();submitSetup()});
 document.addEventListener('submit',e=>{if(e.target.id!=='chat-form')return;e.preventDefault();const t=$('#chat-text');sendChat(t.value);t.value=''});
-/* a turned phone or a resized window lays the table out again */
-let rT;const reLayout=()=>{clearTimeout(rT);rT=setTimeout(()=>{if(V&&!$('#game-view').hidden){render();placeBubble()}},150)};
+/* a turned phone or a clearly resized window lays the table out again. Small changes (a phone's address bar or keyboard)
+   are left alone: everything is placed in %, and a re-render would rebuild the buttons and reset a raise slider mid-drag. */
+const bigResize=()=>tableOrient()!==FRAME.o||Math.abs(innerWidth-FRAME.w)>FRAME.w*0.1||Math.abs(innerHeight-FRAME.h)>FRAME.h*0.1;
+let rT;const reLayout=()=>{clearTimeout(rT);rT=setTimeout(()=>{if(V&&!$('#game-view').hidden&&bigResize()){render();placeBubble()}},150)};
 window.addEventListener('resize',reLayout);window.addEventListener('orientationchange',reLayout);
 window.addEventListener('beforeunload',()=>{try{NET.host&&NET.host.send({t:'leave'})}catch(e){}});
