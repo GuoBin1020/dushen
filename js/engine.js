@@ -24,7 +24,9 @@ function turnTimer(p,still,bot,disc,grace){
   if(!present(p))return run(disc,grace);
   if(p.trust)return run(autoMove,delay());
   const ms=turnMs();if(!ms)return;
-  S.turnEnd=Date.now()+ms;run(turnOut,ms);
+  S.turnEnd=Date.now()+ms;
+  /* dropped just as the clock ran out: the old grace, not 托管 */
+  timer=setTimeout(()=>{if(!still())return;if(present(p))return turnOut(p);S.turnEnd=0;run(disc,Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));sync()},ms);
 }
 function turnOut(p){p.trust=true;log(`${p.name} 超时，进入托管`,'board-l');autoMove(p)}
 function autoMove(p){const coach=S.cfg.coachAuto!==false;return isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
@@ -33,7 +35,7 @@ function hostBack(p){
   const was=p.away;p.trust=false;p.away=false;
   log(`${p.name} ${was?'回到座位，下一手入座':'取消托管'}`,'board-l');
   if(S.phase==='playing'&&S.toAct===p.id)return proceed();
-  if(was&&(S.phase==='waiting'||S.phase==='busted'))return startHand();
+  if(was&&(S.phase==='waiting'||S.phase==='busted'||S.phase==='handover'&&!S.cfg.auto))return startHand();
   sync();
 }
 /* a dropped player who sat out (暂时离桌) is dealt in again once they reconnect. The sealed online code only sets
@@ -171,7 +173,8 @@ function endHand(){
   if(S.cfg.auto){const hn=S.handNo;clearTimeout(timer);timer=setTimeout(()=>{if(S&&S.phase==='handover'&&S.handNo===hn)startHand()},NET.role==='solo'?2400:3600)}
 }
 function doRebuy(p){
-  if(p&&!isBot(p)&&(p.trust||p.away))return hostBack(p);
+  /* 托管 / 离桌 with no chips left: cancel it and rebuy in the same tap */
+  if(p&&!isBot(p)&&(p.trust||p.away)){if(p.stack<=0&&!p.inHand)p.trust=p.away=false;else return hostBack(p)}
   if(!p||isBot(p)||p.stack>0||p.inHand)return;
   p.stack=S.cfg.stack;p.rebuys++;p.busted=false;log(`${p.name} 补码 ${fmt(S.cfg.stack)}`,'board-l');
   if(S.phase==='busted'||S.phase==='waiting')startHand();else sync();

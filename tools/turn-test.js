@@ -135,6 +135,24 @@ function tests(){
   {const R=P()[1];finish();ME().away=true;R.away=true;R.connected=false;startHand();eq(S.phase,'waiting','都离桌：暂停');
     R.connected=true;sync();for(let i=0;i<5&&S.phase==='waiting';i++)tick();eq(S.phase,'playing','重连的人回来后接着发牌');ok(R.inHand&&!ME().inHand,'只给重连的人和电脑发牌');}
 
+  /* ---------- 托管 / 暂时离桌 and out of chips: one 补码 tap cancels it and rebuys ---------- */
+  game('holdem',{turnSec:10,coachAuto:true});
+  {finish();ME().trust=true;ME().stack=0;startHand();eq(S.phase,'busted','托管输光：牌桌停下');
+    doRebuy(ME());ok(!ME().trust,'托管输光：补码取消托管');ok(ME().stack>39000,'托管输光：一次补码就到账');ok(S.phase==='playing'&&ME().inHand,'补码后发牌');}
+  game('zjh',{turnSec:10,coachAuto:false});
+  {finish();ME().trust=true;ME().stack=0;startHand();ok(ME().away&&ME().stack<=0,'炸金花没勾选输光：离桌');
+    doRebuy(ME());ok(!ME().away&&!ME().trust,'离桌输光：补码取消离桌');ok(ME().stack>39000,'离桌输光：一次补码就到账');ok(ME().inHand,'补码后入座');}
+  /* M5: auto-next-hand off, the host sat out at handover: 下一局加入 deals the next hand in one tap */
+  game('holdem',{turnSec:10,coachAuto:false,auto:false});
+  {finish();ME().away=true;eq(S.phase,'handover');doRebuy(ME());ok(!ME().away&&S.phase==='playing'&&ME().inHand,'手间离桌：一次下一局加入就发牌');}
+  /* M1: the turn clock fires for someone who just dropped: the old grace, not 托管 */
+  game('holdem',{turnSec:10,coachAuto:true},[{name:'你',kind:'local',gender:'m'},{name:'乙',kind:'remote',gender:'m'}]);
+  {const R=P()[1];
+    for(let i=0;i<4000&&!(S.phase==='playing'&&S.toAct===1);i++){if(S.phase!=='playing'){startHand();continue}if(S.toAct===0){act(ME(),'call');continue}tick()}
+    ok(S.toAct===1&&viewFor(0).turnLeft>0,'乙在计时');R.connected=false;R.discAt=CLOCK.t;
+    tick();ok(!R.trust,'计时到点时刚掉线：不托管');ok(S.toAct===1&&!R.folded,'还在等重连');
+    eq(viewFor(0).turnLeft,0,'不再显示倒计时');out(1);ok(!R.trust,'宽限到了照旧过牌或弃牌');}
+
   /* ---------- 不限时 and bots ---------- */
   game('holdem',{turnSec:0});ok(meTurn(),'轮到我');eq(pending(),[],'不限时：没有计时器');eq(viewFor(0).turnLeft,0);eq(viewFor(0).turnMs,0);
   game('holdem',{turnSec:10});

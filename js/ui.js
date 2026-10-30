@@ -458,7 +458,7 @@ function renderTable(){
     const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName&&!hn?' · '+p.handName:''}</div>`:`<div class="pact${tg?' tg':''}">${esc(tg?['托管中',status].filter(Boolean).join(' · '):status)}</div>`;
     if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}${hn}${trustVeil()}</div>`;
     /* seats on the right keep their cards on the inner side of the avatar, so they stay on screen */
-    html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${seatCls(s,mine,i)}" data-pid="${i}" style="${seatStyle(s)}">
+    html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${seatCls(s,mine,i)}" data-pid="${i}"${isZ(V)?` role="button" tabindex="0" aria-label="${esc(p.name)}，点击查看信息和比牌"`:''} style="${seatStyle(s)}">
       <div class="stop">${avatarHTML(p)}<div class="cards">${mine||!cards?'':cards+hn}</div></div>
       <div class="plate">${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
@@ -547,12 +547,13 @@ function renderActions(){
   const el=$('#actions'),m=me(),isHost=NET.role!=='guest';
   if(!myTurn())ACTPOP=null;
   /* 暂时离桌 after a timeout: back from the next hand; 托管: 取消托管 is on the panel over my hand (here only if there is no hand) */
-  if(m.away){el.innerHTML=actWait('你暂时离桌了，点了从下一手开始重新上桌。','<button class="btn b-green" data-act="rejoin">下一局加入</button>');return}
-  if(m.trust&&V.phase==='playing'){el.innerHTML=actWait('托管中，轮到你时自动操作。',m.inHand&&m.cards.length?'':'<button class="btn b-green" data-act="untrust">取消托管</button>');return}
+  /* out of chips comes first: 补码 also cancels 托管 / 离桌 */
   if(m.stack<=0&&!m.inHand){
     el.innerHTML=actWait(`你的筹码输光了。可以补码 ${fmt(V.cfg.stack)} 继续（补码会计入成本）${isHost?'，或者在菜单里结算':'，下一手入座'}。`,
       `<button class="btn b-green" data-act="rebuy">补码 ${fmt(V.cfg.stack)}</button>`);return;
   }
+  if(m.away){el.innerHTML=actWait('你暂时离桌了，点了从下一手开始重新上桌。','<button class="btn b-green" data-act="rejoin">下一局加入</button>');return}
+  if(m.trust&&V.phase==='playing'){el.innerHTML=actWait('托管中，轮到你时自动操作。',m.inHand&&m.cards.length?'':'<button class="btn b-green" data-act="untrust">取消托管</button>');return}
   if(V.phase==='busted'||V.phase==='waiting'){
     /* 斗地主 online: the host may let a bot take the seat of a player who is out of chips */
     const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn b-green" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
@@ -1107,7 +1108,7 @@ document.addEventListener('input',e=>{
   const ans=e.target.dataset&&e.target.dataset.ans;if(ans){const s=NET.lanSlots.find(x=>x.id===ans);if(s)s.ans=e.target.value}
 });
 document.addEventListener('change',e=>{if(e.target.name==='f-net')syncJoinNet()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&REC.click){recStop(true);return}if(e.key==='Escape'&&SEATPOP){closeSeatPop();return}if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();peekBet(+b.dataset.pid)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&REC.click){recStop(true);return}if(e.key==='Escape'&&SEATPOP){closeSeatPop();return}if(e.key==='Escape'&&sheetOpen())closeSheet();if(e.key==='Escape'&&chatPopOpen())setChatPop(false);const b=e.target.closest&&e.target.closest('#table .bet[data-pid],#table .seat[role="button"][data-pid]');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();if(b.classList.contains('seat')){if(V&&isZ(V))toggleSeatPop(+b.dataset.pid)}else peekBet(+b.dataset.pid)}});
 /* push-to-talk: hold to record, release to send, release outside the button to cancel */
 function pttOutside(x,y){const b=$('#ptt');if(!b)return false;const r=b.getBoundingClientRect();return x<r.left-20||x>r.right+20||y<r.top-30||y>r.bottom+20}
 function pttMove(x,y){const out=pttOutside(x,y);if(out!==REC.outside){REC.outside=out;if(REC.rec)updRecBtn((Date.now()-REC.t0)/1000)}}

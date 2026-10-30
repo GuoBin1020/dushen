@@ -420,6 +420,23 @@ const ZJH_PK=`(async()=>{${PG}
   S.round=Math.max(2,S.round);S.toAct=V.me;zAct(S.players[V.me],'compare',a.id);clearTimeout(timer);await sleep(800);
   flown('真的比牌');if(fx.querySelector('.allin-banner'))f.push('真的比牌还有大横幅');
   return f})()`;
+/* 炸金花 seats open the info / 比牌 panel: reachable by keyboard (role=button, tabindex, label; Enter / Space open it, Esc closes) */
+const ZJH_SEAT_KBD=`(async()=>{${PG}
+  const seats=[...document.querySelectorAll('#table .seat[data-pid]')];
+  seats.forEach(s=>{const id=s.dataset.pid;if(s.getAttribute('tabindex')!=='0')f.push('座位 '+id+' 不能用键盘聚焦');if(s.getAttribute('role')!=='button')f.push('座位 '+id+' 没有 role=button');if(!(s.getAttribute('aria-label')||'').trim())f.push('座位 '+id+' 没有 aria-label')});
+  const s=seats.find(x=>!x.classList.contains('me'));if(!s)return f.concat('没有对手座位');
+  s.focus();for(const key of ['Enter',' ']){closeSeatPop();s.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));await sleep(60);if(!vis(Q('#seat-pop')))f.push('按 '+(key===' '?'空格':key)+' 没有打开座位面板')}
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep(40);if(vis(Q('#seat-pop')))f.push('Esc 没有关掉座位面板');
+  return f})()`;
+/* once the showdown animations are over, no chip (.bet / .fly-chip) sits on top of a card */
+const CHIPS_FINAL=`(async()=>{${PG}
+  S.cfg.showAll=true;S.toAct=2;act(S.players[2],'fold');clearTimeout(timer);
+  if(isZ(S))zShowdown('');else{while(S.board.length<5)S.board.push(S.deck.pop());S.street='river';showdown()}
+  clearTimeout(timer);await sleep(2500);
+  const cards=[...document.querySelectorAll('#table .card')].filter(vis).map(c=>[c,R(c)]);
+  if(cards.length<3)f.push('桌上没有牌');
+  [...document.querySelectorAll('#table .bet,.fly-chip')].filter(vis).forEach(b=>{const r=R(b);cards.forEach(([c,cr])=>{if(hit(r,cr))f.push((b.className||'chip')+' 压住牌 '+(c.closest('.seat')?'座位 '+c.closest('.seat').dataset.pid:'公共牌'))})});
+  return f})()`;
 const PH4=[[393,873,true],[873,393,true],[412,915,true],[915,412,true]];
 SCEN.push(
   {name:'board-cards',game:'holdem',n:6,extra:BOARD_CARDS},
@@ -439,6 +456,7 @@ SCEN.push(
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},
   {name:'zjh-pk',game:'zjh',n:6,extra:ZJH_PK,sizes:[...PH4,[1280,800,false]]},{name:'zjh-pk-9',game:'zjh',n:9,extra:ZJH_PK,sizes:PH4},
+  {name:'zjh-seat-kbd',game:'zjh',n:6,extra:ZJH_SEAT_KBD},{name:'chips-final-9',game:'holdem',n:9,extra:CHIPS_FINAL,sizes:PH4},{name:'chips-final-6',game:'holdem',n:6,extra:CHIPS_FINAL,sizes:PH4},
   {name:'trust',game:'holdem',n:6,extra:TRUST},{name:'trust-zjh',game:'zjh',n:6,extra:TRUST},{name:'trust-ddz',game:'ddz',n:3,lord20:true,extra:TRUST}
 );
 /* LC_ONLY=holdem-6 runs one scenario while iterating */

@@ -657,7 +657,7 @@ function ddRenderTable(){
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
     /* a dropped player's turns are played by the bot until they reconnect */
     const tg=(p.kind==='remote'&&!p.connected||p.trust)&&p.inHand;
-    const status=(tg?'托管中 · ':'')+(p.busted&&!p.inHand?'筹码输光':p.lastAction||'');
+    const status=[tg?'托管中':'',p.busted&&!p.inHand?'筹码输光':p.lastAction||''].filter(Boolean).join(' · ');
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)} · ${ddRole(V,i)}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const left=p.cards.length,warn=left>0&&left<=2&&d&&d.stage==='play';
     const cards=i===V.me||!p.inHand?'':`<div class="dd-count${warn?' warn':''}">${ddCardHTML(null)}<b>${left}</b></div>`;
