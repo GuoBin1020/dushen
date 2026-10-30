@@ -43,7 +43,8 @@ for(const o of ['land','port']){
 /* 斗地主：底牌在桌子远端正中，不和对手座位、任何出的牌挤在一起 */
 for(const o of ['land','port']){
   const b=run(`bottomXY('${o}')`);
-  ok(b&&b.x===50&&b.y>=12&&b.y<=20,`斗地主底牌在远端正中 ${o} ${JSON.stringify(b)}`);
+  /* sideways it lies lower, below the card counter strip */
+  ok(b&&b.x===50&&b.y>=12&&b.y<=(o==='land'?30:20),`斗地主底牌在远端正中 ${o} ${JSON.stringify(b)}`);
   for(let k=0;k<3;k++){
     const s=run(`seatXY(${k},3,'${o}')`),p=run(`playXY(${k},3,'${o}')`);
     if(k)ok(Math.hypot(s.x-b.x,s.y-b.y)>=18,`斗地主底牌离 slot ${k} 太近 ${o}`);

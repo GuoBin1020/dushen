@@ -231,11 +231,16 @@ function ddWarnHTML(v){
   const mate=d.landlord===v.me?-1:[0,1,2].find(i=>i!==v.me&&i!==d.landlord);
   return v.players.map((p,i)=>i===v.me||i===mate||!p.cards.length||p.cards.length>2?'':`<p class="dd-warn">⚠ ${i===d.landlord?'地主':'农民 '+esc(p.name)} 只剩 ${p.cards.length} 张</p>`).join('');
 }
+/* one cell per rank, 大王 down to 3: the rank and how many are still unseen; br marks where the strip breaks upright (after 8) */
+function ddCounterCells(v,br){
+  const hand=v.players[v.me].cards.filter(c=>c!=null),u=ddUnseen(hand,v.dd.out||[]),lz=v.dd.laizi>=0?v.dd.laizi:-1;
+  return [14,13,12,11,10,9,8,7,6,5,4,3,2,1,0].map(r=>`<span class="${u[r]?'':'zero'}${r===lz?' lzc':''}"><b>${r===14?'大':r===13?'小':DR[r]}${r===lz?'赖':''}</b>${u[r]}</span>${br&&r===5?br:''}`).join('');
+}
+/* the strip under the table's top corners */
+const ddCounterStripHTML=v=>`<div class="dd-scells" role="table" aria-label="记牌器：每个点数还剩几张在别人手里">${ddCounterCells(v,'<i class="br" aria-hidden="true"></i>')}</div>`;
 function ddCounterHTML(v){
-  const hand=v.players[v.me].cards.filter(c=>c!=null),u=ddUnseen(hand,v.dd.out||[]),lb=ddLordBottom(v);
-  const lz=v.dd.laizi>=0?v.dd.laizi:-1;
-  const cells=[14,13,12,11,10,9,8,7,6,5,4,3,2,1,0].map(r=>`<span class="${u[r]?'':'zero'}${r===lz?' lzc':''}"><b>${r===14?'大':r===13?'小':DR[r]}${r===lz?'赖':''}</b>${u[r]}</span>`).join('');
-  return `<div class="dd-counter" role="table" aria-label="记牌器：每个点数还剩几张在别人手里">${cells}</div>
+  const lb=ddLordBottom(v);
+  return `<div class="dd-counter" role="table" aria-label="记牌器：每个点数还剩几张在别人手里">${ddCounterCells(v)}</div>
     <p class="note" style="margin-top:4px">数字是还没出、也不在你手里的张数（${v.dd.landlord>=0?'在另外两家手里':'在另外两家或底牌里'}）。${lb.length?`<br>地主手里确定有：<b>${lb.map(id=>DR[ddRank(id)]).join(' ')}</b>（亮过的底牌，还没出）。`:''}</p>`;
 }
 function ddCoachHTML(v,toggle){

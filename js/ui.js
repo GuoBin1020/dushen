@@ -323,8 +323,8 @@ function renderMeta(){
   /* at the table the page header is hidden: the game's own corners and the menu sheet carry what it showed */
   el.innerHTML='';renderCorners();
 }
-/* 斗地主 card counter floating under the top-right corner; a per-device choice */
-let DCOUNT=false;try{DCOUNT=localStorage.getItem('dushen-counter')==='1'}catch(e){}
+/* 斗地主 card counter: a strip under the top corners, shown unless turned off with 🃏 (a per-device choice) */
+let DCOUNT=true;try{DCOUNT=localStorage.getItem('dushen-counter')!=='0'}catch(e){}
 function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
@@ -332,7 +332,9 @@ function renderCorners(){
   const info=isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   const cnt=isD(V)&&coachOn()&&!!V.dd;
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
-  const pop=$('#dd-cpop');pop.hidden=!(cnt&&DCOUNT);pop.innerHTML=pop.hidden?'':ddCounterHTML(V);
+  /* data-cnt moves the table down below the strip (CSS) */
+  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?ddCounterStripHTML(V):'';
+  if(on)$('#game-view').dataset.cnt='1';else delete $('#game-view').dataset.cnt;
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
     <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>

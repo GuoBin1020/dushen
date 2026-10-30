@@ -33,8 +33,9 @@ function seatXY(slot,n,o){
   return {x:p.x,y:p.y,s:seatScale(o,p.y)};
 }
 const centerXY=o=>({...CENTER_XY[o||tableOrient()]});
-/* 斗地主's three bottom cards (with the stage line and 倍数): centred at the far edge of the table */
-const BOTTOM_XY={land:{x:50,y:19},port:{x:50,y:19}};
+/* 斗地主's three bottom cards (with the stage line and 倍数): centred at the far edge of the table; sideways a little lower,
+   in one row below the card counter strip */
+const BOTTOM_XY={land:{x:50,y:29},port:{x:50,y:19}};
 const bottomXY=o=>({...BOTTOM_XY[o||tableOrient()]});
 /* bet chips: 35% of the way from the seat to the middle of the table */
 function betXY(slot,n,o){const s=seatXY(slot,n,o),c=centerXY(o);return {x:s.x+(c.x-s.x)*0.35,y:s.y+(c.y-s.y)*0.35}}
@@ -42,9 +43,11 @@ function betXY(slot,n,o){const s=seatXY(slot,n,o),c=centerXY(o);return {x:s.x+(c
    (al: which end the row is anchored by), a far seat's drop toward me */
 function playXY(slot,n,o){
   o=o||tableOrient();
-  if(!slot)return {x:50,y:o==='land'?52:56,al:'c'};
-  const s=seatXY(slot,n,o),c=centerXY(o),al=s.x<35?'l':s.x>65?'r':'c',dx=o==='land'?11:12;
+  if(!slot)return {x:50,y:o==='land'?49:56,al:'c'};
+  const s=seatXY(slot,n,o),c=centerXY(o),al=s.x<35?'l':s.x>65?'r':'c';
   if(al==='c')return {x:s.x,y:s.y+12,al};
-  /* below the middle (board / bottom cards and pot), which stands taller when upright */
-  return {x:s.x+(al==='l'?dx:-dx),y:Math.max(s.y+4,c.y+(o==='land'?6:12)),al};
+  /* below the middle (board / bottom cards and pot), which stands taller when upright; sideways 斗地主's two (n=3) start
+     their big cards under the seat itself, so a long run stays clear of my own play in the middle */
+  const dx=o==='land'?(n===3?-3:11):12;
+  return {x:s.x+(al==='l'?dx:-dx),y:Math.max(s.y+4,c.y+(o==='land'?8:12)),al};
 }

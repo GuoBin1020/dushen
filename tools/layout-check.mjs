@@ -156,6 +156,67 @@ const CHIP_ART=`(async()=>{${PG}
   const a=[...document.querySelectorAll('#table .seat .ava')].map(e=>e.textContent);if(a.some(x=>x==='一'))f.push('头像是「一」');
   return f})()`;
 SCEN.push({name:'chip-art',game:'holdem',n:6,extra:CHIP_ART,sizes:[...PH,[1280,800,false]]});
+/* sheets: each corner panel opens above its backdrop: a tap in its middle lands inside it, its tabs and close button work,
+   and a tap on the backdrop beside it closes it. Taps go to whatever element is on top at that point, like a finger would. */
+const SHEET_CLICK=`(async()=>{${PG}
+  const at=(x,y)=>document.elementFromPoint(x,y),nm=t=>t?(t.id?'#'+t.id:t.className?'.'+String(t.className).split(' ')[0]:t.tagName):'空';
+  const tap=el=>{const r=el.getBoundingClientRect(),t=at(r.left+r.width/2,r.top+r.height/2);if(t)t.click();return t};
+  for(const [name,label] of [['coach','教练'],['stats','统计'],['rules','规则'],['menu','菜单']]){
+    const b=Q('.corner [data-sheet="'+name+'"]');if(!b){f.push(label+'：没有角落按钮');continue}
+    tap(b);await sleep(80);
+    const sh=Q('#sheet');if(!vis(sh)){f.push(label+'：面板没有打开');continue}
+    const r=R(sh),t=at(r.x+r.w/2,r.y+r.h/2);
+    if(!t||!sh.contains(t))f.push(label+'：面板中部点到的是 '+nm(t));
+    const tabs=[...sh.querySelectorAll('[data-sheet-tab]')];
+    if(tabs.length>1){const want=tabs[1].dataset.sheetTab,th=tap(tabs[1]);await sleep(60);
+      const cur=Q('#sheet-tabs [aria-selected="true"]');if(!cur||cur.dataset.sheetTab!==want)f.push(label+'：点第二个标签没有切换（点到 '+nm(th)+'）')}
+    const cl=Q('#sheet [data-act="sheet-close"]'),ch=tap(cl);await sleep(60);
+    if(vis(Q('#sheet')))f.push(label+'：点关闭没有关上（点到 '+nm(ch)+'）');
+    tap(b);await sleep(80);const r2=R(Q('#sheet'));
+    const p=r2.y>10?[innerWidth/2,r2.y/2]:[r2.x/2,innerHeight/2],bg=at(p[0],p[1]);
+    if(!bg||bg.id!=='sheet-bg')f.push(label+'：面板外面点到的是 '+nm(bg)+'，不是遮罩');else{bg.click();await sleep(60);if(vis(Q('#sheet')))f.push(label+'：点遮罩没有关上')}
+    if(vis(Q('#sheet')))Q('#sheet [data-act="sheet-close"]').click();
+  }
+  return f})()`;
+/* ddz-top: with plays in front of all three seats, the card counter strip sits under the corner buttons (two rows upright,
+   one row sideways), on screen and clear of everything; the played and bottom cards are bigger than they used to be
+   (OLD: their widths before, per screen size) and still clear of seats, buttons, the counter and my hand */
+const DDZ_TOP=`(async()=>{${PG}
+  const OLD={'393x873':[25.15,25.15],'360x780':[23.04,23.04],'873x393':[27.51,25.15],'768x1024':[42,40],'1280x800':[46,40]};
+  const d=S.dd,pc=(i,k)=>S.players[i].cards.slice(0,k);
+  d.shown[0]={cards:pc(0,4),cls:{type:'single'}};d.shown[1]={cards:pc(1,6),cls:{type:'single'}};d.shown[2]={cards:pc(2,5),cls:{type:'single'}};
+  sync();clearTimeout(timer);await sleep(150);
+  const all=s=>[...document.querySelectorAll(s)].filter(vis);
+  const land=innerWidth>=innerHeight,seats=all('#table .seat').map(R),corner=all('.corner > *').map(R);
+  const bar=[...all('#actions .act-bar button'),...all('#actions .act-hint')].map(R),handC=all('#dd-hand .card').map(R);
+  const plays=all('#table .dd-play').map(R),bottom=all('#table .dd-bottom').map(R),center=all('#table .dd-center').map(R);
+  const off=r=>r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5;
+  const clear=(tag,r,list,what)=>list.forEach((o,i)=>{if(hit(r,o))f.push(tag+' 压住 '+what+' '+i)});
+  const st=Q('#dd-strip');let sr=null;
+  if(!vis(st))f.push('记牌器没有显示');else{
+    sr=R(st);if(off(sr))f.push('记牌器超出屏幕');
+    const cells=[...st.querySelectorAll('span')].filter(vis).map(R);if(cells.length!==15)f.push('记牌器格子 '+cells.length+' 个，不是 15');
+    const rows=new Set(cells.map(c=>Math.round(c.y))).size;if(rows!==(land?1:2))f.push('记牌器 '+rows+' 行，应是 '+(land?1:2)+' 行');
+    const top=Math.max(...corner.map(c=>c.y+c.h));if(sr.y<top-0.5)f.push('记牌器不在角落按钮下面：'+sr.y.toFixed(1)+' < '+top.toFixed(1));
+    clear('记牌器',sr,seats,'座位');clear('记牌器',sr,center,'底牌区');clear('记牌器',sr,plays,'出的牌');clear('记牌器',sr,corner,'角落按钮');clear('记牌器',sr,bar,'按钮区');
+  }
+  const w=s=>{const c=Q(s);return c?parseFloat(getComputedStyle(c).width):0};
+  const old=OLD[innerWidth+'x'+innerHeight],k=land?1.4:1.15,pw=w('#table .dd-play:not(.rest) .card'),dbw=w('#table .dd-bottom .card');
+  if(old){if(pw<old[0]*k-0.05)f.push('出的牌宽 '+pw.toFixed(1)+'px，不到原来 '+old[0]+' 的 '+k+' 倍');
+    if(dbw<old[1]*k-0.05)f.push('底牌宽 '+dbw.toFixed(1)+'px，不到原来 '+old[1]+' 的 '+k+' 倍')}
+  if(plays.length!==3)f.push('出的牌 '+plays.length+' 组，不是 3');
+  [...plays.map((r,i)=>['出的牌 '+i,r]),...bottom.map(r=>['底牌',r])].forEach(([tag,r])=>{
+    if(off(r))f.push(tag+' 超出屏幕');
+    clear(tag,r,seats,'座位');clear(tag,r,corner,'角落按钮');clear(tag,r,bar,'按钮区');clear(tag,r,handC,'手牌');if(sr)clear(tag,r,[sr],'记牌器')});
+  const tg=Q('.corner [data-act="ddcounter"]');if(!tg)f.push('没有 🃏 开关');else{
+    tg.click();await sleep(80);if(vis(Q('#dd-strip')))f.push('点 🃏 没有隐藏记牌器');
+    Q('.corner [data-act="ddcounter"]').click();await sleep(80);if(!vis(Q('#dd-strip')))f.push('再点 🃏 没有显示记牌器')}
+  return f})()`;
+SCEN.push(
+  {name:'sheets',game:'holdem',n:6,extra:SHEET_CLICK},
+  {name:'sheets-ddz',game:'ddz',n:3,extra:SHEET_CLICK,sizes:[...PH,[1280,800,false]]},
+  {name:'ddz-top',game:'ddz',n:3,lord20:true,extra:DDZ_TOP}
+);
 /* LC_ONLY=holdem-6 runs one scenario while iterating */
 if(process.env.LC_ONLY)SCEN=SCEN.filter(s=>s.name===process.env.LC_ONLY);
 /* in the page: start a solo game, wait for my turn, freeze the bots, then stage the scenario */

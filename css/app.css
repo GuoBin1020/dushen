@@ -431,10 +431,10 @@ body.in-game .top,body.in-game .banner,body.in-game .foot,body.in-game .rail,bod
 body.in-game .wrap{padding:0;max-width:none}
 body.in-game #game-view{position:fixed;inset:0;overflow:hidden;background:radial-gradient(ellipse 95% 75% at 50% 0%,#4a3524 0%,#22160c 50%,#0e0905 85%);
   --tilt:40deg;--seat-w:clamp(80px,9vw,124px);--av:clamp(30px,8.6vh,52px);--cw:clamp(18px,5.4vh,34px);--bw:clamp(28px,8.6vh,58px);
-  --pw:clamp(24px,7vh,46px);--dbw:clamp(22px,6.4vh,40px);--hw:clamp(38px,11vh,76px);--mw:clamp(40px,12vh,90px);
+  --pw:clamp(36px,10.5vh,69px);--dbw:clamp(33px,9.6vh,60px);--hw:clamp(38px,11vh,76px);--mw:clamp(40px,12vh,90px);
   --hand-h:calc(var(--mw)*1.46 + 14px);--act-top:46%;--hand-l:calc(8% + var(--seat-w)/2 + 10px);--hand-r:64px}
 body.in-game #game-view[data-orient="port"]{--tilt:16deg;--seat-w:clamp(64px,18vw,120px);--av:clamp(28px,8.2vw,52px);--cw:clamp(16px,4.8vw,32px);--bw:clamp(30px,9.4vw,60px);
-  --pw:clamp(22px,6.4vw,42px);--dbw:clamp(22px,6.4vw,40px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
+  --pw:clamp(26px,7.7vw,50px);--dbw:clamp(26px,7.7vw,50px);--hw:clamp(36px,12.5vw,72px);--mw:clamp(48px,15vw,96px);--act-top:58%;--hand-l:8px;--hand-r:8px}
 body.in-game #game-view[data-game="ddz"]{--hand-h:calc(var(--hw)*1.78 + 10px)}
 body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]){--act-top:50%}
 body.in-game .game,body.in-game .game>div:first-child{display:contents}
@@ -540,10 +540,25 @@ body.in-game .dd-lord{top:-8px;left:auto;right:-8px;transform:none;padding:2px 5
 /* phones held sideways are short too: labels would reach the far seats, so icons only there as well */
 @media (max-height:500px){body.in-game .cbtn{padding:0;width:32px}body.in-game .cbtn .lb{display:none}}
 .cinfo{height:30px;display:inline-flex;align-items:center;padding:0 11px;border-radius:15px;background:rgba(0,0,0,.62);font-size:12.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
-.dd-cpop{position:absolute;z-index:8;top:calc(max(6px,env(safe-area-inset-top,0px)) + 36px);right:max(8px,env(safe-area-inset-right,0px));max-width:calc(100% - 16px);
-  padding:6px;border-radius:10px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12)}
-.dd-cpop .dd-counter{width:auto;min-width:0}
-.dd-cpop .note{display:none}
+/* 斗地主 card counter: a strip centred under the top corners, 大王 to 8 and 7 to 3 on two rows upright, one row sideways.
+   Upright, data-cnt (set while it shows) moves the table down below it: --cnt-b is the strip's bottom edge, and the table's
+   empty top (about a tenth of the height above the far rim) tucks under it. Sideways the two seats sit beside the strip and
+   the bottom cards lie lower, in one row with the stage line and 倍数 (js/table-layout.js), so the table stays put. */
+.dd-strip{position:absolute;z-index:8;top:calc(max(6px,env(safe-area-inset-top,0px)) + 38px);left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 16px);box-sizing:border-box;
+  padding:3px;border-radius:9px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);pointer-events:none}
+.dd-scells{display:flex;flex-wrap:wrap;justify-content:center;gap:2px}
+.dd-scells span{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:24px;height:26px;padding:0 2px;box-sizing:border-box;
+  border-radius:5px;background:rgba(255,255,255,.08);font:700 12px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.dd-scells span b{font-size:9.5px;font-weight:600;color:var(--muted)}
+.dd-scells span.zero{opacity:.35}
+.dd-scells span.lzc{box-shadow:inset 0 0 0 1px var(--brass)}
+.dd-scells .br{flex-basis:100%;height:0}
+#game-view:not([data-orient="port"]) .dd-scells .br{display:none}
+/* upright the box is as wide as the top row (ten cells, plus room for a wider 赖子 cell), not as wide as all fifteen */
+#game-view[data-orient="port"] .dd-scells{width:268px}
+body.in-game #game-view[data-game="ddz"][data-orient="port"]{--cnt-b:calc(max(6px,env(safe-area-inset-top,0px)) + 38px + 62px)}
+body.in-game #game-view[data-game="ddz"][data-orient="port"][data-cnt] .table-wrap{top:max(0px,calc(var(--cnt-b) + 8px - 10%))}
+body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]) .dd-center{flex-direction:row;gap:10px}
 /* the menu sheet */
 .menu-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:4px 0 14px}
 .menu-kv .kv{display:flex;flex-direction:column;line-height:1.3}
