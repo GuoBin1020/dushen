@@ -5,21 +5,20 @@
 const isNarrow=()=>window.matchMedia('(max-width:760px) and (orientation:portrait)').matches;
 /* bet chips sit between the seat and the middle; 炸金花 has no board, so on phones they move further in to clear the 3-card hands */
 const isLandPhone=()=>window.matchMedia('(orientation:landscape) and (max-height:500px) and (pointer:coarse)').matches;
+/* the old oval table's bet ring; kept for callers outside this file, the table itself now uses js/table-layout.js */
 const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,22]:[30,28];
+/* a seat, its bet chips or the middle of the table, in px inside .table-wrap (where #fx draws) */
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
-  const n=V.players.length,slot=(pid-V.me+n)%n,narrow=isNarrow(),ang=(90+slot*360/n)*Math.PI/180;
-  let px,py;
-  if(kind==='center'){px=50;py=47}
-  else if(kind==='bet'){const [brx,bry]=betRadius(narrow);px=50+brx*Math.cos(ang);py=50+bry*Math.sin(ang)}
-  else{px=50+48*Math.cos(ang);py=50+(narrow?47:46)*Math.sin(ang)}
+  const n=V.players.length,slot=(pid-V.me+n)%n,o=tableOrient();
+  const p=kind==='center'?centerXY(o):kind==='bet'?betXY(slot,n,o):seatXY(slot,n,o);
   const tr=tbl.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
-  return {x:tr.left-wr.left+tbl.clientLeft+tbl.clientWidth*px/100,y:tr.top-wr.top+tbl.clientTop+tbl.clientHeight*py/100};
+  return {x:tr.left-wr.left+tbl.clientLeft+tbl.clientWidth*p.x/100,y:tr.top-wr.top+tbl.clientTop+tbl.clientHeight*p.y/100};
 }
-function flyChips(a,b,n=3,wait=0){
+function flyChips(a,b,n=3,wait=0,seat=0){
   const fx=$('#fx');if(!a||!b||!fx)return;
   for(let i=0;i<n;i++){
-    const c=document.createElement('i');c.className='fly-chip';
+    const c=document.createElement('i');c.className='fly-chip';c.style.backgroundImage=`url('${chipURL(seat)}')`;
     c.style.left=(a.x+Math.random()*10-5)+'px';c.style.top=(a.y+Math.random()*10-5)+'px';fx.appendChild(c);
     setTimeout(()=>{c.style.left=(b.x+Math.random()*8-4)+'px';c.style.top=(b.y+Math.random()*8-4)+'px'},30+wait+i*50);
     setTimeout(()=>c.remove(),wait+i*50+560);
@@ -31,7 +30,8 @@ function showBubble(pid,text,voice,dur){
   if(BUB[pid])BUB[pid].remove();
   const el=document.createElement('div');el.className='bubble'+(voice?' voice':'');
   if(voice)el.innerHTML=`<button type="button" class="vbub" data-vplay="${esc(voice)}" data-dur="${dur}">▶ ${dur}″</button>`;else el.textContent=text;
-  el.style.left=pt.x+'px';el.style.top=(pt.y-(pid===V.me?66:54))+'px';
+  /* anchored on the seat's centre; margin lifts the bubble clear of the seat */
+  el.style.left=pt.x+'px';el.style.top=pt.y+'px';el.style.marginTop=-(pid===V.me?66:54)+'px';
   fx.appendChild(el);BUB[pid]=el;
   setTimeout(()=>{if(BUB[pid]===el){el.remove();delete BUB[pid]}},3900);
 }
@@ -58,16 +58,16 @@ function fxDiff(prev,v){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
     if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
-    else if(ev.type==='compare'){SFX.clash();say('比牌',g);flyChips(from,to,3);compareFx(ev)}
-    else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6)}
-    else if(ev.type==='raise'){SFX.chips(4);say(ev.open?'下注':'加注',g);flyChips(from,to,4)}
-    else if(ev.type==='call'){SFX.chips(3);say('跟注',g);flyChips(from,to,3)}
+    else if(ev.type==='compare'){SFX.clash();say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
+    else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6,0,ev.pid)}
+    else if(ev.type==='raise'){SFX.chips(4);say(ev.open?'下注':'加注',g);flyChips(from,to,4,0,ev.pid)}
+    else if(ev.type==='call'){SFX.chips(3);say('跟注',g);flyChips(from,to,3,0,ev.pid)}
     else if(ev.type==='check'){SFX.check();say('过牌',g)}
     else if(ev.type==='fold'){SFX.fold();say('弃牌',g)}
   }
   if(same&&v.phase==='handover'&&prev.phase!=='handover'){
     const ws=v.players.filter(p=>p.won>0);
-    ws.forEach((w,i)=>flyChips(seatPoint(w.id,'center'),seatPoint(w.id,'seat'),6,250+i*120));
+    ws.forEach((w,i)=>flyChips(seatPoint(w.id,'center'),seatPoint(w.id,'seat'),6,250+i*120,w.id));
     setTimeout(()=>ws.some(w=>w.id===v.me)?SFX.win():SFX.pot(),300);
   }
   if(v.phase==='playing'&&v.toAct===v.me&&!(same&&prev.phase==='playing'&&prev.toAct===v.me))setTimeout(()=>SFX.ding(),ev&&ev.allIn?950:300);
@@ -175,10 +175,11 @@ function humanAct(type,to){
   else act(P()[0],type,to);
 }
 
-/* ---------- phones: coach / stats / rules sheet ----------
-   The panels keep their ids and keep rendering as usual; on touch screens they are moved into the sheet's panes,
-   and moved back to their data-home spots in the side rail when the device stops matching (pointer:coarse). */
+/* ---------- menu / coach / stats / rules sheet ----------
+   The panels keep their ids and keep rendering as usual; at the table (and on touch screens) they are moved into the sheet's panes,
+   and moved back to their data-home spots in the side rail otherwise. The menu panel always lives in its pane. */
 const SHEETS={
+  menu:{title:'菜单',tabs:[['menu','菜单']]},
   coach:{title:'教练',tabs:[['coach-main','建议'],['coach-opp','对手画像'],['coach-room','房间',()=>NET.role!=='solo']]},
   stats:{title:'统计',tabs:[['stats-me','我的统计'],['stats-log','行动记录']]},
   rules:{title:'规则',tabs:[['rules','规则']]}
@@ -187,7 +188,7 @@ const PANE_SRC={'coach-main':'#coach','coach-opp':'#profiles','coach-room':'#roo
 const sheetMQ=window.matchMedia('(pointer:coarse)');
 let SHEET=null;
 function placePanels(){
-  const m=sheetMQ.matches;
+  const m=sheetMQ.matches||document.body.classList.contains('in-game');
   for(const [pane,sel] of Object.entries(PANE_SRC)){
     const el=$(sel),dest=m?$(`[data-pane="${pane}"]`):$(`[data-home="${pane}"]`);
     if(el&&dest&&el.parentElement!==dest)dest.appendChild(el);
@@ -220,11 +221,10 @@ const sheetOpen=()=>!$('#sheet').hidden;
 const CHB={drag:null,moved:false};
 const bubKey=()=>'dushen-bubble-'+(innerWidth>innerHeight?'land':'port');
 function bubDefault(){
-  /* phones at the table: the empty corner left of my seat; elsewhere the bottom-right corner */
-  /* 斗地主 keeps its hand under the table, so the bubble goes by the table's own corner */
-  const tw=$('#game-view').hidden?null:V&&isD(V)?$('#table'):$('.table-wrap');
-  if(isTouch()&&tw){const r=tw.getBoundingClientRect();if(r.height)return {side:'l',y:r.bottom-60}}
-  return {side:'r',y:innerHeight-80};
+  /* at the table: upright, the left edge between the lowest side seat and mine; sideways, the bottom-right corner beside the hand.
+     Elsewhere the bottom-right corner. */
+  if(!$('#game-view').hidden&&tableOrient()==='port')return {side:'l',y:innerHeight*0.6};
+  return {side:'r',y:innerHeight-(!$('#game-view').hidden?110:80)};
 }
 function setBubble(side,y){
   const b=$('#chat-bubble'),h=b.offsetHeight||48;
@@ -271,9 +271,11 @@ function positionChatPop(){
 
 /* ---------- rendering ---------- */
 function cardTxt(c){return RL[c>>2]+SU[c&3]}
-function cardHTML(c){if(c==null)return '<div class="card back"></div>';const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}"><span>${RL[c>>2]}</span><span class="s">${SU[c&3]}</span></div>`}
+function cardHTML(c){if(c==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}" ${faceStyle(cardImgFor(c))} aria-label="${SUIT_NAME[c&3]}${RL[c>>2]}"><span class="vh">${cardTxt(c)}</span></div>`}
 function show(v){
   ['setup','lobby','game','settle'].forEach(x=>{$('#'+x+'-view').hidden=x!==v});window.scrollTo(0,0);
+  /* the table fills the window: no page header, banner, footer or side rail; panels open in the sheet */
+  document.body.classList.toggle('in-game',v==='game');placePanels();
   /* one floating chat for the waiting room and the table */
   const chatHere=v==='lobby'||v==='game';
   $('#chat-bubble').hidden=!chatHere;
@@ -318,16 +320,28 @@ function renderMeta(){
   const el=$('#meta');
   /* the home page also offers the 今天吃什么 wheel (js/wheel.js) */
   if(!V||$('#game-view').hidden){el.innerHTML=(!$('#setup-view').hidden?'<button class="btn" data-act="wheel">今天吃什么</button>':'')+fsButton()+(NET.role!=='solo'&&!$('#lobby-view').hidden?`<button class="btn" data-act="leave">${NET.role==='host'?'解散房间':'离开房间'}</button>`:'');return}
+  /* at the table the page header is hidden: the game's own corners and the menu sheet carry what it showed */
+  el.innerHTML='';renderCorners();
+}
+/* 斗地主 card counter floating under the top-right corner; a per-device choice */
+let DCOUNT=false;try{DCOUNT=localStorage.getItem('dushen-counter')==='1'}catch(e){}
+function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
-  el.innerHTML=`
-   <div class="kv"><span class="k">模式</span><span class="v" style="font-size:13px">${esc(tag)}</span></div>
-   <div class="kv"><span class="k">${isD(V)?'局数':'手数'}</span><span class="v">${V.handNo}</span></div>
-   <div class="kv"><span class="k">${isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v">${isD(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
-   <div class="kv"><span class="k">我的盈亏</span><span class="v ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
-   <span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span>
-   ${fsButton()}
-   ${NET.role==='guest'?'<button class="btn danger" data-act="leave">离开房间</button>':'<button class="btn danger" data-act="settle">结束并结算</button>'}`;
+  $('#corner-fs').innerHTML=fsCorner();
+  const info=isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  const cnt=isD(V)&&coachOn()&&!!V.dd;
+  $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
+  const pop=$('#dd-cpop');pop.hidden=!(cnt&&DCOUNT);pop.innerHTML=pop.hidden?'':ddCounterHTML(V);
+  $('#menu').innerHTML=`<h2>菜单</h2>
+   <div class="menu-kv">
+    <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>
+    <div class="kv"><span class="k">${isD(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
+    <div class="kv"><span class="k">${isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
+    <div class="kv"><span class="k">我的盈亏</span><span class="v num ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
+   </div>
+   <div class="menu-row"><span class="k">声音</span><span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span></div>
+   <div class="menu-acts">${NET.role!=='guest'?'<button type="button" class="btn danger" data-act="settle">结束并结算</button>':''}<button type="button" class="btn" data-act="menu-home">${NET.role==='guest'?'离开房间':'回到主页'}</button></div>`;
 }
 /* fullscreen: Android and desktop browsers allow it for pages; iPhone only via the home-screen app */
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
@@ -335,10 +349,13 @@ const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||
 /* phones: one tap goes full screen and turns the table sideways; desktop keeps a plain full screen */
 const isTouch=()=>window.matchMedia('(pointer:coarse)').matches;
 let LAND_LOCK=false;
-function fsButton(){
-  if(isStandalone())return isTouch()&&screen.orientation&&screen.orientation.lock?`<button type="button" class="btn sm" data-act="fs">${LAND_LOCK?'解除横屏':'锁定横屏'}</button>`:'';
-  return `<button type="button" class="btn sm" data-act="fs">${fsEl()?'退出全屏':isTouch()?'横屏全屏':'全屏'}</button>`;
+function fsLabel(){
+  if(isStandalone())return isTouch()&&screen.orientation&&screen.orientation.lock?(LAND_LOCK?'解除横屏':'锁定横屏'):'';
+  return fsEl()?'退出全屏':isTouch()?'横屏全屏':'全屏';
 }
+function fsButton(){const l=fsLabel();return l?`<button type="button" class="btn sm" data-act="fs">${l}</button>`:''}
+/* the same button among the table's corner buttons; upright it shows only the icon */
+function fsCorner(){const l=fsLabel();return l?`<button type="button" class="cbtn" data-act="fs" aria-label="${l}"><span class="ic" aria-hidden="true">⤢</span><span class="lb">${l}</span></button>`:''}
 async function lockLandscape(){
   if(!screen.orientation||!screen.orientation.lock)return false;
   try{await screen.orientation.lock('landscape');LAND_LOCK=true;return true}catch(e){return false}
@@ -369,87 +386,98 @@ function peekBet(pid){
   const el=document.querySelector(`.bet[data-pid="${pid}"]`);if(el)el.classList.add('peek');
   clearTimeout(peekTimer);peekTimer=setTimeout(()=>{PEEK=null;document.querySelectorAll('.bet.peek').forEach(b=>b.classList.remove('peek'))},2500);
 }
+/* the round avatar on a seat: the name's first character */
+const avatarHTML=p=>`<div class="ava" aria-hidden="true">${esc(avatarChar(p.name))}</div>`;
+/* which game and which way up, for the CSS that sizes the full-screen table */
+let FRAME={o:'',w:0,h:0};
+function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset.game=g;FRAME={o,w:innerWidth,h:innerHeight}}
+/* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
+const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
   if(isD(V))return ddRenderTable();
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
-  const n=V.players.length,narrow=isNarrow();
+  const n=V.players.length,o=tableOrient();
+  tableFrame(o,isZ(V)?'zjh':'holdem');
   let html='';
   V.players.forEach((p,i)=>{
-    const slot=(i-V.me+n)%n;
-    const ang=(90+slot*360/n)*Math.PI/180;
-    const x=50+48*Math.cos(ang),y=50+(narrow?47:46)*Math.sin(ang);
-    const [brx,bry]=betRadius(narrow),bx=50+brx*Math.cos(ang),by=50+bry*Math.sin(ang);
-    const cards=p.inHand?p.cards.map(c=>cardHTML(c)).join(''):'';
+    const slot=(i-V.me+n)%n,s=seatXY(slot,n,o),b=betXY(slot,n,o);
+    /* my own cards are drawn big at the bottom, not on my seat */
+    const mine=i===V.me,cards=p.inHand?p.cards.map(c=>cardHTML(c)).join(''):'';
     const done=V.phase!=='playing'&&V.phase!=='runout';
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.folded?'folded':'',p.out||(!p.inHand&&V.phase==='playing')?'out':'',p.won>0&&done?'win':''].join(' ');
     const status=p.out?'已离桌':p.busted&&!p.inHand?'筹码输光':!p.inHand&&V.phase==='playing'?'下一手入座':p.lastAction||(p.shown&&p.handName?p.handName:'');
     const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName?' · '+p.handName:''}</div>`:`<div class="pact">${esc(status)}</div>`;
-    html+=`<div class="${cls}" data-pid="${i}" style="left:${x}%;top:${y}%">
-      <div class="cards">${cards}</div>
+    if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}</div>`;
+    html+=`<div class="${cls}" data-pid="${i}" style="${seatStyle(s)}">
+      ${avatarHTML(p)}<div class="cards">${mine?'':cards}</div>
       <div class="plate">${V.dealer===i&&p.inHand?'<span class="dbtn" title="庄位">D</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>
         ${act}
       </div></div>`;
-    if(p.bet>0)html+=`<div class="bet${PEEK&&PEEK.pid===i&&Date.now()<PEEK.until?' peek':''}" data-pid="${i}" role="button" tabindex="0" aria-label="${esc(p.name)} 下注 ${fmt(p.bet)}，点击放大查看" style="left:${bx}%;top:${by}%"><i class="chip"></i>${fmt(p.bet)}</div>`;
+    if(p.bet>0)html+=`<div class="bet${PEEK&&PEEK.pid===i&&Date.now()<PEEK.until?' peek':''}" data-pid="${i}" role="button" tabindex="0" aria-label="${esc(p.name)} 下注 ${fmt(p.bet)}，点击放大查看" style="left:${b.x.toFixed(2)}%;top:${b.y.toFixed(2)}%"><i class="chip" ${chipStyle(i)}></i>${fmt(p.bet)}</div>`;
   });
   const slots=[0,1,2,3,4].map(k=>V.board[k]!=null?cardHTML(V.board[k]):'<div class="slot"></div>').join('');
   const ended=V.phase==='handover';
   const zinfo=isZ(V)?`<div class="pot" style="font-size:15px">${V.phase==='playing'?`第 ${V.round}/${V.cfg.zrounds} 轮 · 单注 <span>${fmt(V.stake)}</span>`:'炸金花'}</div>`:'';
-  html+=`<div class="center"><div class="street">${ended?'本手结束':isZ(V)?(V.phase==='playing'?'炸金花':'暂停'):V.phase==='playing'||V.phase==='runout'?STREET_CN[V.street]||'':'暂停'}</div>${isZ(V)?zinfo:`<div class="board">${slots}</div>`}<div class="pot">底池 <span>${fmt(ended?V.players.reduce((a,p)=>a+p.won,0):potOf(V))}</span></div><div class="msg">${esc(V.msg)}</div></div>`;
+  const c=centerXY(o);
+  html+=`<div class="center" style="left:${c.x}%;top:${c.y}%"><div class="street">${ended?'本手结束':isZ(V)?(V.phase==='playing'?'炸金花':'暂停'):V.phase==='playing'||V.phase==='runout'?STREET_CN[V.street]||'':'暂停'}</div>${isZ(V)?zinfo:`<div class="board">${slots}</div>`}<div class="pot">底池 <span>${fmt(ended?V.players.reduce((a,p)=>a+p.won,0):potOf(V))}</span></div><div class="msg">${esc(V.msg)}</div></div>`;
   $('#table').innerHTML=html;
   $('#table').classList.toggle('zjh',isZ(V));$('#table').classList.remove('ddz');
   $('#table').dataset.n=String(n);
 }
+/* the action area: a hint label (coach advice or a tip, may be empty), one fixed-height row of buttons or one line of
+   text, and an optional pop-up panel above the row. ACTPOP names the open panel ('raise', 'cmp'); it closes when the turn ends. */
+let ACTPOP=null;
+const actHTML=(hint,bar,pop,kind)=>`<div class="act-hint">${hint||''}</div><div class="act-bar">${bar}</div>${pop?`<div class="act-pop" data-pop="${kind||''}"${ACTPOP&&ACTPOP===kind?'':' hidden'}>${pop}</div>`:''}`;
+const actWait=(txt,btns)=>actHTML('',`<span class="act-wait">${txt}</span>${btns||''}`);
+function closeActPop(){ACTPOP=null;document.querySelectorAll('#actions .act-pop').forEach(p=>{p.hidden=true})}
 function renderActions(){
   const el=$('#actions'),m=me(),isHost=NET.role!=='guest';
-  const settleBtn=isHost?'<button class="btn danger" data-act="settle">结束并结算</button>':'';
+  if(!myTurn())ACTPOP=null;
   if(m.stack<=0&&!m.inHand){
-    el.innerHTML=`<div class="status">你的筹码输光了。可以补码 ${fmt(V.cfg.stack)} 继续（补码会计入成本）${isHost?'，或者直接结算':'，下一手入座'}。</div>
-      <div class="act-row"><button class="btn primary" data-act="rebuy">补码 ${fmt(V.cfg.stack)}</button>${settleBtn}</div>`;return;
+    el.innerHTML=actWait(`你的筹码输光了。可以补码 ${fmt(V.cfg.stack)} 继续（补码会计入成本）${isHost?'，或者在菜单里结算':'，下一手入座'}。`,
+      `<button class="btn b-green" data-act="rebuy">补码 ${fmt(V.cfg.stack)}</button>`);return;
   }
   if(V.phase==='busted'||V.phase==='waiting'){
     /* 斗地主 online: the host may let a bot take the seat of a player who is out of chips */
-    const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
-    el.innerHTML=`<div class="status">${esc(V.msg)}</div><div class="act-row">${take}${settleBtn}</div>`;return;
+    const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn b-green" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
+    el.innerHTML=actWait(esc(V.msg),take);return;
   }
   if(V.phase==='handover'){
     const last=T.hist[T.hist.length-1];const d=last&&last.hand===V.handNo?last.delta:0;
-    el.innerHTML=`<div class="status">这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}</div>
-      ${isHost?`<div class="act-row">${V.cfg.auto?'':'<button class="btn primary" data-act="next">下一手 ▶</button>'}${settleBtn}</div>`:''}`;return;
+    el.innerHTML=actWait(`这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}`,
+      isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一手 ▶</button>':'');return;
   }
-  if(!myTurn()&&isD(V)){el.innerHTML=`<div class="status">${!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText()}</div>`;return}
+  if(!myTurn()&&isD(V)){el.innerHTML=actWait(!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText());return}
   if(!myTurn()){
     const p=V.players[V.toAct];
     const waitTxt=p&&p.kind==='remote'&&!p.connected?`${esc(p.name)} 掉线了，等他重连，最多等 15 秒，之后自动过牌或弃牌…`:p?`等待 ${esc(p.name)} 行动…`:'…';
-    el.innerHTML=`<div class="status">${V.phase==='runout'?'正在发完公共牌…':!m.inHand?'你这手没有入座，下一手开始参与。':!alive(m)?'你已弃牌，等待本手结束…':waitTxt}</div>
-      <div class="act-row"><button class="btn" disabled>弃牌</button><button class="btn" disabled>过牌 / 跟注</button><button class="btn" disabled>加注</button></div>`;return;
+    el.innerHTML=actWait(V.phase==='runout'?'正在发完公共牌…':!m.inHand?'你这手没有入座，下一手开始参与。':!alive(m)?'你已弃牌，等待本手结束…':waitTxt);return;
   }
   if(isZ(V))return zRenderActions(el,m);
   if(isD(V))return ddRenderActions(el,m);
   const live=coachOn()&&LOCAL.mode==='live';
   const a=live?getAdvice():null;
   const toCall=Math.min(V.currentBet-m.bet,m.stack),maxTo=m.bet+m.stack,pot=potOf(V);
-  const minTo=Math.min(maxTo,V.currentBet+V.minRaise),canRaise=maxTo>V.currentBet;
+  const minTo=Math.min(maxTo,V.currentBet+V.minRaise),canRaise=maxTo>V.currentBet,slide=canRaise&&maxTo>minTo;
   const rt=a?a.rec.type:'';
   const mark=t=>live&&rt===t?' is-rec':'';
-  const def=live&&rt==='raise'?a.rec.to:minTo;
+  const def=live&&rt==='raise'?a.rec.to:minTo,verb=V.currentBet===0?'下注':'加注到';
   const presets=[['最小',0],['½ 池',0.5],['⅔ 池',0.66],['1 池',1]].map(([l,f])=>{
     const v=f===0?minTo:Math.min(maxTo,V.currentBet+Math.max(V.minRaise,roundU(V,f*(pot+toCall))));
-    return `<button type="button" class="btn sm" data-preset="${v}">${l} · ${fmt(v)}</button>`}).join('');
-  el.innerHTML=`
-   <div class="act-row">
-     <button class="btn${mark('fold')}" data-act="fold">弃牌</button>
-     ${toCall>0?`<button class="btn${mark('call')}" data-act="call">跟注 ${fmt(toCall)}${toCall>=m.stack?'（全下）':''}</button>`:`<button class="btn${mark('check')}" data-act="check">过牌</button>`}
-     ${canRaise?`<button class="btn primary${mark('raise')}" data-act="raise" id="raise-btn">${V.currentBet===0?'下注':'加注到'} ${fmt(def)}</button>
-     <button class="btn" data-act="allin">全下 ${fmt(maxTo)}</button>`:''}
-   </div>
-   ${canRaise&&maxTo>minTo?`<div class="raise-box">
-     <label for="raise-amt" class="rec-hint">${V.currentBet===0?'下注':'加注到'}金额（总注额，最小 ${fmt(minTo)}，最多 ${fmt(maxTo)}）</label>
-     <input type="range" id="raise-amt" min="${minTo}" max="${maxTo}" step="${V.cfg.sb}" value="${def}">
-     <div class="presets">${presets}</div></div>`:''}
-   ${live?`<div class="rec-hint">教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}</div>`:coachOn()?'<div class="rec-hint">练习模式：先自己决定，行动后右侧会显示分析。</div>':''}`;
+    return `<button type="button" class="btn b-gray" data-preset="${v}">${l} · ${fmt(v)}</button>`}).join('');
+  const bar=`<button class="btn b-gray${mark('fold')}" data-act="fold">弃牌</button>
+     ${toCall>0?`<button class="btn b-green${mark('call')}" data-act="call">${toCall>=m.stack?'全下':'跟注'} ${fmt(toCall)}</button>`:`<button class="btn b-gray${mark('check')}" data-act="check">过牌</button>`}
+     ${slide?`<button class="btn b-red${mark('raise')}" data-act="raise-open" aria-haspopup="true">${V.currentBet===0?'下注':'加注'}</button>`
+       :canRaise?`<button class="btn b-red${mark('raise')}" data-act="allin">全下 ${fmt(maxTo)}</button>`:''}`;
+  /* the raise panel: slider, all-in and the confirm button, then the quick amounts */
+  const pop=slide?`<label for="raise-amt" class="pop-t raise-t">${verb}金额（总注额，最小 ${fmt(minTo)}，最多 ${fmt(maxTo)}）</label>
+     <div class="pop-row pop-slide"><input type="range" id="raise-amt" min="${minTo}" max="${maxTo}" step="${V.cfg.sb}" value="${def}" aria-label="${verb}金额"><button class="btn b-red" data-act="allin">全下 ${fmt(maxTo)}</button><button class="btn b-green${mark('raise')}" data-act="raise" id="raise-btn">${verb} ${fmt(def)}</button></div>
+     <div class="pop-row">${presets}</div>`:'';
+  const hint=live?`教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
+  el.innerHTML=actHTML(hint,bar,pop,'raise');
 }
 function meter(e,po){return `<div class="meter"><i style="width:${Math.min(100,e*100)}%"></i>${po>0?`<b style="left:${Math.min(99,po*100)}%"></b>`:''}</div><div class="legend"><span class="l1">你的胜率</span>${po>0?'<span class="l2">跟注所需胜率</span>':''}</div>`}
 function preHead(){return '<div class="gto-tag"><span class="pill brass">GTO 翻前范围</span><span class="muted">6 人桌 · 100BB 近似</span></div>'}
@@ -730,7 +758,7 @@ function rulesHTML(game){
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
 function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
-function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('[data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
+function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
 const playersHint=()=>GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
   solo:'选德州扑克、炸金花或斗地主，和电脑对手同桌。轮到你时教练会给出建议，并给每个决定打分。打完点「结束并结算」查看收益和问题点。',
@@ -872,8 +900,10 @@ document.addEventListener('click',async e=>{
     return;
   }
   const tab=e.target.closest('.tabs [data-mode]');if(tab){setMode(tab.dataset.mode);return}
-  const gb=e.target.closest('[data-game]');if(gb){setGame(gb.dataset.game);return}
+  const gb=e.target.closest('#f-game [data-game]');if(gb){setGame(gb.dataset.game);return}
   const pb=e.target.closest('[data-players]');if(pb){seatsDraft=+pb.dataset.players;renderSeg();return}
+  /* a tap outside the open action panel closes it */
+  if(ACTPOP&&!e.target.closest('#actions .act-pop,[data-act="raise-open"],[data-act="zpop"]'))closeActPop();
   const pr=e.target.closest('[data-preset]');if(pr){const r=$('#raise-amt');if(r){r.value=pr.dataset.preset;syncRaise()}return}
   if(chatPopOpen()&&!e.target.closest('#chat-slot,#chat-bubble'))setChatPop(false);
   const bt=e.target.closest('#table .bet[data-pid],#table .seat[data-pid]');if(bt){peekBet(+bt.dataset.pid);return}
@@ -904,6 +934,8 @@ document.addEventListener('click',async e=>{
   if(a==='fold')humanAct('fold');
   else if(a==='check')humanAct('check');
   else if(a==='call')humanAct('call');
+  else if(a==='raise-open'){if(ACTPOP==='raise')closeActPop();else{ACTPOP='raise';const p=$('#actions .act-pop');if(p)p.hidden=false}}
+  else if(a==='zpop'){ACTPOP=ACTPOP===b.dataset.pop?null:b.dataset.pop;renderActions()}
   else if(a==='raise'){const r=$('#raise-amt'),m=me();let v;if(r)v=+r.value;else{const ad=coachOn()&&LOCAL.mode==='live'?getAdvice():null;v=ad&&ad.rec.type==='raise'?ad.rec.to:Math.min(m.bet+m.stack,V.currentBet+V.minRaise)}humanAct('raise',v)}
   else if(a==='allin'){const m=me();if(isZ(V))humanAct('allin');else humanAct('raise',m.bet+m.stack)}
   else if(a==='zlook')humanAct('look');
@@ -927,9 +959,12 @@ document.addEventListener('click',async e=>{
   }
   else if(a==='host-start')hostStart();
   else if(a==='fs')toggleFS();
+  else if(a==='ddcounter'){DCOUNT=!DCOUNT;try{localStorage.setItem('dushen-counter',DCOUNT?'1':'0')}catch(x){}renderMeta()}
   else if(a==='wheel')openWheel();
   else if(a==='lan-new')lanNewSlot();
-  else if(a==='leave'||a==='home'){leaveAll();resetT();showBanner('');show('setup')}
+  /* menu exit: host and solo have unsettled results, so ask first; a guest just leaves */
+  else if(a==='menu-home'&&NET.role!=='guest'&&!confirm('还没有结算，确定直接回到主页吗？本局记录不会保存。')){}
+  else if(a==='leave'||a==='home'||a==='menu-home'){leaveAll();resetT();showBanner('');show('setup')}
 });
 /* 斗地主 hand: a tap picks or unpicks a card; pressing and sliding across cards sets each one like the first */
 let DDRAG=null;
@@ -974,5 +1009,9 @@ document.addEventListener('contextmenu',e=>{if(e.target.closest('#ptt'))e.preven
 $('#f-blinds').addEventListener('change',updateBB);$('#f-ante').addEventListener('change',updateBB);$('#f-ddbase').addEventListener('change',()=>{$('#f-stack').value=String(100*(+$('#f-ddbase').value||20));updateBB()});
 $('#setup-form').addEventListener('submit',e=>{e.preventDefault();submitSetup()});
 document.addEventListener('submit',e=>{if(e.target.id!=='chat-form')return;e.preventDefault();const t=$('#chat-text');sendChat(t.value);t.value=''});
-let rT;window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{if(V&&!$('#game-view').hidden)renderTable()},120)});
+/* a turned phone or a clearly resized window lays the table out again. Small changes (a phone's address bar or keyboard)
+   are left alone: everything is placed in %, and a re-render would rebuild the buttons and reset a raise slider mid-drag. */
+const bigResize=()=>tableOrient()!==FRAME.o||Math.abs(innerWidth-FRAME.w)>FRAME.w*0.1||Math.abs(innerHeight-FRAME.h)>FRAME.h*0.1;
+let rT;const reLayout=()=>{clearTimeout(rT);rT=setTimeout(()=>{if(V&&!$('#game-view').hidden&&bigResize()){render();placeBubble()}},150)};
+window.addEventListener('resize',reLayout);window.addEventListener('orientationchange',reLayout);
 window.addEventListener('beforeunload',()=>{try{NET.host&&NET.host.send({t:'leave'})}catch(e){}});

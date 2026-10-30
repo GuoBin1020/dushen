@@ -619,27 +619,26 @@ function ddPublic(d){
 /* cards this device has picked in its own hand; cleared on a new hand, after a play and on 重选 */
 let DSEL=new Set(),DSEL_KEY='';
 function ddCardHTML(id,o={}){
-  if(id==null)return '<div class="card back"></div>';
+  if(id==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;
   const r=ddRank(id),wild=o.lz>=0&&id<52&&r===o.lz,sel=(o.sel?' sel':'')+(o.rec?' rec':'')+(wild?' lz':''),data=o.pick?` data-dd="${id}"`:'';
   /* a 赖子 card: a 「赖」 tag, or 「→K」 once played as another rank; bottom-left, so it shows on stacked cards */
   const tag=o.stand!=null?`<i class="lzt ast">→${DR[o.stand]}</i>`:wild?'<i class="lzt">赖</i>':'';
-  if(r>=13)return `<div class="card joker${r===14?' red':''}${sel}"${data}><span>${r===14?'大':'小'}</span><span class="s">王</span></div>`;
+  if(r>=13)return `<div class="card joker${r===14?' red':''}${sel}"${data} ${faceStyle(jokerFile(r===14))} aria-label="${DR[r]}"><span class="vh">${DR[r]}</span></div>`;
   const red=(id&3)===1||(id&3)===2;
-  return `<div class="card${red?' red':''}${sel}"${data}><span>${DR[r]}</span><span class="s">${SU[id&3]}</span>${tag}</div>`;
+  return `<div class="card${red?' red':''}${sel}"${data} ${faceStyle(cardFaceFile(DR[r],id&3))} aria-label="${SUIT_NAME[id&3]}${DR[r]}"><span class="vh">${DR[r]}${SU[id&3]}</span>${tag}</div>`;
 }
 /* a row of cards; `cls` (a played reading) marks the wild cards it used as other ranks */
 const ddCardsHTML=(ids,lz=-1,cls=null)=>{const st=new Map(((cls&&cls.as)||[]).map(a=>[a.id,a.rank]));return ids.map(id=>ddCardHTML(id,{lz,stand:st.has(id)?st.get(id):null})).join('')};
 const ddStageText=d=>d.stage==='bid'?(d.ask&&d.ask.kind==='rob'?'抢地主':'叫地主'):d.stage==='double'?'加倍':d.stage==='play'?'出牌中':'本局结束';
 const ddRole=(v,pid)=>!v.dd||v.dd.landlord<0?'':pid===v.dd.landlord?'地主':'农民';
-/* where each seat's last play sits: the two opponents' under their seats, toward the middle; mine above my seat.
-   Phones held sideways have a flat table, so the opponents' plays drop lower to clear their name plates. */
-function ddPlaySpot(slot){const land=isLandPhone();return slot===0?{x:50,y:land?64:69,al:'c'}:slot===1?{x:land?17:13,y:land?63:52,al:'l'}:{x:land?83:87,y:land?63:52,al:'r'}}
+/* where each seat's last play lies on the felt: the two opponents' in front of them, toward the middle; mine above the buttons */
+function ddPlaySpot(slot){return playXY(slot,V?V.players.length:3,tableOrient())}
 function ddRenderTable(){
-  const d=V.dd,n=V.players.length,narrow=isNarrow(),over=V.phase!=='playing';
+  const d=V.dd,n=V.players.length,o=tableOrient(),over=V.phase!=='playing';
+  tableFrame(o,'ddz');
   let html='';
   V.players.forEach((p,i)=>{
-    const slot=(i-V.me+n)%n,ang=(90+slot*360/n)*Math.PI/180;
-    const x=50+48*Math.cos(ang),y=50+(narrow?47:46)*Math.sin(ang);
+    const slot=(i-V.me+n)%n,s=seatXY(slot,n,o);
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
     /* a dropped player's turns are played by the bot until they reconnect */
     const tg=p.kind==='remote'&&!p.connected&&p.inHand;
@@ -647,15 +646,15 @@ function ddRenderTable(){
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)} · ${ddRole(V,i)}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const left=p.cards.length,warn=left>0&&left<=2&&d&&d.stage==='play';
     const cards=i===V.me||!p.inHand?'':`<div class="dd-count${warn?' warn':''}">${ddCardHTML(null)}<b>${left}</b></div>`;
-    html+=`<div class="${cls}" data-pid="${i}" style="left:${x}%;top:${y}%">
-      <div class="cards">${cards}</div>
+    html+=`<div class="${cls}" data-pid="${i}" style="${seatStyle(s)}">
+      ${avatarHTML(p)}<div class="cards">${cards}</div>
       <div class="plate">${ddRole(V,i)==='地主'?'<span class="dd-lord" title="地主">地主</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>${act}
       </div></div>`;
     /* last play, or at the end what the others still held */
-    const sp=ddPlaySpot(slot),shown=d&&d.shown[i],rest=over&&i!==V.me&&left&&p.cards[0]!=null;
+    const sp=playXY(slot,n,o),shown=d&&d.shown[i],rest=over&&i!==V.me&&left&&p.cards[0]!=null;
     if(rest||shown){
       const lz=d?d.laizi:-1;
       const inner=rest?`<span class="dd-tag">剩余</span>${ddCardsHTML(p.cards,lz)}`:shown==='pass'?'<span class="dd-pass">不要</span>':ddCardsHTML(shown.cards,lz,shown.cls);
@@ -664,7 +663,8 @@ function ddRenderTable(){
   });
   if(d){
     /* the 赖子 rank rides on the stage line: no extra height in the middle of the table */
-    html+=`<div class="center dd-center"><div class="street">${V.phase==='playing'?ddStageText(d):'本局结束'}${d.laizi>=0?` <b class="dd-lz" aria-label="赖子是 ${DR[d.laizi]}">赖子 ${DR[d.laizi]}</b>`:''}</div>
+    const c=bottomXY(o);
+    html+=`<div class="center dd-center" style="left:${c.x}%;top:${c.y}%"><div class="street">${V.phase==='playing'?ddStageText(d):'本局结束'}${d.laizi>=0?` <b class="dd-lz" aria-label="赖子是 ${DR[d.laizi]}">赖子 ${DR[d.laizi]}</b>`:''}</div>
       <div class="dd-bottom" aria-label="底牌">${d.bottom.map(id=>ddCardHTML(id,{lz:d.laizi})).join('')}</div>
       <div class="pot">倍数 <span>×${d.mult}</span></div></div>`;
   }
@@ -718,32 +718,29 @@ function ddWaitText(){
 }
 function ddRenderActions(el,m){
   const d=V.dd,live=coachOn()&&LOCAL.mode==='live',a=live?ddGetAdvice():null;
-  /* the coach's pick gets the usual highlight */
+  /* the coach's pick gets the usual highlight; the advice and short tips go in the label above the row */
   const mark=(t,yes)=>a&&a.rec.type===t&&(yes==null||a.rec.yes===yes)?' is-rec':'';
-  const tip=a?`<div class="rec-hint">教练建议：<b>${esc(ddRecLabel(a.rec))}</b></div>`:coachOn()?'<div class="rec-hint">练习模式：先自己决定，行动后教练面板显示点评。</div>':'';
+  const tip=a?`教练建议：<b>${esc(ddRecLabel(a.rec))}</b>`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评':'';
+  const hint=(...xs)=>xs.filter(Boolean).join(' · ');
   if(d.stage==='bid'){
     const rob=d.ask&&d.ask.kind==='rob';
-    el.innerHTML=`<div class="status">${rob?'有人叫了地主，你要抢吗？每抢一次倍数 ×2。':'轮到你叫地主。叫了就当地主，一个人对两个农民。'}</div>
-      <div class="act-row"><button class="btn primary${mark('bid',true)}" data-act="ddbid" data-v="1">${rob?'抢地主':'叫地主'}</button><button class="btn${mark('bid',false)}" data-act="ddbid" data-v="0">${rob?'不抢':'不叫'}</button></div>
-      ${tip}<div class="rec-hint">当前倍数 ×${d.mult} · 底分 ${V.cfg.base}</div>`;return;
+    el.innerHTML=actHTML(hint(tip,rob?'有人叫了地主，每抢一次倍数 ×2':'叫了就当地主，一个人对两个农民'),
+      `<button class="btn b-gray${mark('bid',false)}" data-act="ddbid" data-v="0">${rob?'不抢':'不叫'}</button><button class="btn b-green${mark('bid',true)}" data-act="ddbid" data-v="1">${rob?'抢地主':'叫地主'}</button>`);return;
   }
   if(d.stage==='double'){
     const lord=d.landlord===V.me;
-    el.innerHTML=`<div class="status">${lord?'你是地主。':'你是农民。'}要加倍吗？${lord?'地主加倍对两个农民都生效。':'农民加倍只影响你和地主之间的输赢。'}</div>
-      <div class="act-row"><button class="btn primary${mark('double',true)}" data-act="dddbl" data-v="1">加倍</button><button class="btn${mark('double',false)}" data-act="dddbl" data-v="0">不加倍</button></div>
-      ${tip}<div class="rec-hint">当前倍数 ×${d.mult} · 底分 ${V.cfg.base}</div>`;return;
+    el.innerHTML=actHTML(hint(tip,lord?'你是地主，加倍对两个农民都生效':'你是农民，加倍只影响你和地主之间的输赢'),
+      `<button class="btn b-gray${mark('double',false)}" data-act="dddbl" data-v="0">不加倍</button><button class="btn b-green${mark('double',true)}" data-act="dddbl" data-v="1">加倍</button>`);return;
   }
   const st=ddPickState(),who=st.prev?V.players[d.lead.pid]:null,hints=coachOn()?ddHintList().length:0;
   const recPlay=a&&a.rec.type==='play'&&ddSameCards([...DSEL],a.rec.cards)?' is-rec':'';
-  el.innerHTML=`${coachOn()?ddWarnHTML(V):''}<div class="status">${st.prev?`${esc(who.name)} 出了 <b>${ddPlayText(st.prev)}</b>，压得过就出，压不过就「不要」。`:'轮到你出牌，可以出任意牌型。'}</div>
-    <div class="act-row">
-      ${st.readings&&st.readings.length>1?st.readings.map((r,i)=>`<button class="btn primary" data-act="ddplay" data-as="${i}">出牌 · ${esc(ddChoiceLabel(r))}</button>`).join(''):
-        `<button class="btn primary${recPlay}" data-act="ddplay"${st.cls?'':' disabled'}>出牌${st.cls?' · '+ddTypeName(st.cls):''}</button>`}
-      <button class="btn${mark('pass')}" data-act="ddpass"${st.prev?'':' disabled'}>不要</button>
-      ${coachOn()?`<button class="btn" data-act="ddhint"${hints?'':' disabled'} title="${hints?'每按一次换一手能出的牌':'没有能压过上家的牌'}">提示</button>`:''}
-      <button class="btn" data-act="ddreset"${DSEL.size?'':' disabled'}>重选</button>
-    </div>
-    ${tip}${coachOn()&&!hints?'<div class="rec-hint">没有能压过上家的牌，只能「不要」。</div>':''}<div class="rec-hint">${st.why?esc(st.why):'可以出'}${st.prev?'':' · 你先出牌，不能「不要」'} · 倍数 ×${d.mult}</div>`;
+  const info=st.prev?`${esc(who.name)} 出了 <b>${ddPlayText(st.prev)}</b>`:'你先出，可以出任意牌型';
+  el.innerHTML=actHTML(`${coachOn()?ddWarnHTML(V).replace(/<p /g,'<span ').replace(/<\/p>/g,'</span>'):''}${hint(tip,info,coachOn()&&!hints?'没有能压过上家的牌，只能「不要」':st.why?esc(st.why):'')}`,
+    `<button class="btn b-gray${mark('pass')}" data-act="ddpass"${st.prev?'':' disabled'}>不要</button>
+      <button class="btn b-yellow" data-act="ddreset"${DSEL.size?'':' disabled'}>重选</button>
+      ${coachOn()?`<button class="btn b-yellow" data-act="ddhint"${hints?'':' disabled'} title="${hints?'每按一次换一手能出的牌':'没有能压过上家的牌'}">提示</button>`:''}
+      ${st.readings&&st.readings.length>1?st.readings.map((r,i)=>`<button class="btn b-green" data-act="ddplay" data-as="${i}">出牌 · ${esc(ddChoiceLabel(r))}</button>`).join(''):
+        `<button class="btn b-green${recPlay}" data-act="ddplay"${st.cls?'':' disabled'}>出牌${st.cls?' · '+ddTypeName(st.cls):''}</button>`}`);
 }
 /* sounds and voices for one event of the view */
 function ddFx(v,ev){
@@ -754,7 +751,7 @@ function ddFx(v,ev){
   else if(ev.type==='pass'){SFX.fold();say('不要',g)}
   else if(ev.type==='play'){
     if(ev.cls.type==='bomb'||ev.cls.type==='rocket'){const t=ev.cls.type==='rocket'?'王炸':v.dd&&v.dd.laizi>=0?{soft:'软炸',hard:'硬炸',pure:'纯赖子炸'}[ev.cls.bk||'hard']:'炸弹';ddBombFx(ev.pid,t);say(t,g)}
-    else{SFX.deal(1);say(ddPlayText(ev.cls),g)}
+    else{SFX.flip();say(ddPlayText(ev.cls),g)}
     /* bots announce this in a chat bubble themselves */
     if(human&&(ev.left===1||ev.left===2))setTimeout(()=>say(`我只剩 ${ev.left} 张了`,g),900);
   }

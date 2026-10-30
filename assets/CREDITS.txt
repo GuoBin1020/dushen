@@ -1,0 +1,26 @@
+Asset credits / 素材来源
+
+1. Playing card faces (cards/*.webp except the ace of spades, jokers and back)
+   Author: Byron Knoll (Vector Playing Cards)
+   Source: https://github.com/notpeter/vector-playing-cards (the originals by Byron Knoll were on Google Code: https://code.google.com/archive/p/vector-playing-cards/)
+   License: Public domain
+   Changes in this project: rasterised the SVG files to 200px wide transparent WebP.
+
+2. Card back, chips (cards/back.webp, chips/*.png)
+   Author: Kenney (https://kenney.nl), pack "Boardgame Pack"
+   Source: https://kenney.nl/assets/boardgame-pack
+   License: Creative Commons CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+   Changes in this project: scaled (card back to 200px wide WebP, chips to 48px PNG), colours unchanged.
+
+3. Sound effects (sfx/*.mp3)
+   Author: Kenney (https://kenney.nl), pack "Casino Audio"
+   Source: https://kenney.nl/assets/casino-audio
+   License: Creative Commons CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+   Changes in this project: only the clips in use, transcoded from OGG to mono 96 kbit/s MP3.
+
+4. Clown face emoji used on the jokers (cards/joker-big.webp, cards/joker-small.webp)
+   Author: Google, Noto Emoji (U+1F921)
+   Source: https://github.com/googlefonts/noto-emoji/blob/main/2D/svg/emoji_u1f921.svg
+   License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+   Changes in this project: composed into a new joker card design with the corner text 大王 / 小王; the small joker is rendered in greyscale.
+   Also made for this project: the ace of spades (cards/AS.webp) is redrawn in the style of the other aces.

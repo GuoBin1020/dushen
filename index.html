@@ -160,12 +160,6 @@
       <div>
         <div class="table-wrap"><div class="table" id="table"></div><div id="fx" aria-hidden="true"></div><div class="dd-hand" id="dd-hand" hidden></div>
         </div>
-        <!-- phones only: a slim toolbar on top of the action area, clear of every seat -->
-        <div class="tools">
-          <button type="button" class="fab" data-sheet="coach" aria-controls="sheet" aria-expanded="false">教练<span class="dot" id="coach-dot" hidden></span></button>
-          <button type="button" class="fab" data-sheet="stats" aria-controls="sheet" aria-expanded="false">统计</button>
-          <button type="button" class="fab" data-sheet="rules" aria-controls="sheet" aria-expanded="false">规则</button>
-        </div>
         <div class="actions" id="actions"></div>
       </div>
       <!-- on desktop these panels live here; on phones they move into the sheet below (data-home marks where they return) -->
@@ -177,6 +171,16 @@
         <div data-home="stats-log"><div class="panel" id="log-panel"><h2>行动记录</h2><div class="log" id="log"></div></div></div>
       </div>
     </div>
+    <!-- corner buttons over the table: menu and panels top left, game info top right (filled by renderMeta) -->
+    <div class="corner tl" role="toolbar" aria-label="牌局菜单">
+      <button type="button" class="cbtn" data-sheet="menu" aria-label="菜单" aria-controls="sheet" aria-expanded="false"><span class="ic" aria-hidden="true">☰</span><span class="lb">菜单</span></button>
+      <button type="button" class="cbtn" data-sheet="coach" aria-label="教练" aria-controls="sheet" aria-expanded="false"><span class="ic" aria-hidden="true">🎓</span><span class="lb">教练</span><span class="dot" id="coach-dot" hidden></span></button>
+      <button type="button" class="cbtn" data-sheet="stats" aria-label="统计" aria-controls="sheet" aria-expanded="false"><span class="ic" aria-hidden="true">📊</span><span class="lb">统计</span></button>
+      <button type="button" class="cbtn" data-sheet="rules" aria-label="规则" aria-controls="sheet" aria-expanded="false"><span class="ic" aria-hidden="true">📖</span><span class="lb">规则</span></button>
+      <span id="corner-fs"></span>
+    </div>
+    <div class="corner tr" id="corner-r"></div>
+    <div class="dd-cpop" id="dd-cpop" hidden></div>
     <details class="panel drawer"><summary>规则速查</summary><div data-home="rules"><div class="rules" id="rules-2"></div></div></details>
     <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
       <div class="sheet-head">
@@ -185,6 +189,7 @@
         <button type="button" class="btn sm" data-act="sheet-close">关闭</button>
       </div>
       <div class="sheet-body">
+        <div data-pane="menu" role="tabpanel"><div class="panel" id="menu"></div></div>
         <div data-pane="coach-main" role="tabpanel"></div>
         <div data-pane="coach-opp" role="tabpanel"></div>
         <div data-pane="coach-room" role="tabpanel"></div>
@@ -211,6 +216,7 @@
 <script src="js/vendor/peerjs.min.js"></script>
 <script src="js/vendor/nacl.min.js"></script>
 <script src="js/common.js"></script>
+<script src="js/assets.js"></script>
 <script src="js/games/holdem.js"></script>
 <script src="js/games/zjh.js"></script>
 <script src="js/games/doudizhu.js"></script>
@@ -221,6 +227,7 @@
 <script src="js/net-online.enc.js"></script>
 <script src="js/state.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/table-layout.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/wheel.js"></script>
 <script src="js/main.js"></script>

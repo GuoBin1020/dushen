@@ -260,16 +260,17 @@ function zRenderActions(el,m){
   const cost=zCost(V,m),canCall=m.stack>cost;
   const lv=zLevels(V).filter(v=>m.stack>(m.seen?2:1)*v);
   const opps=V.players.filter(q=>q.id!==m.id&&alive(q)),canCmp=V.round>=2&&m.stack>=cost;
-  el.innerHTML=`
-   <div class="act-row">
-     ${m.seen?'':`<button class="btn${mark('look')}" data-act="zlook">看牌</button>`}
-     <button class="btn${mark('fold')}" data-act="fold">弃牌</button>
-     ${canCall?`<button class="btn primary${mark('call')}" data-act="call">${m.seen?'跟注':'闷跟'} ${fmt(cost)}</button>`:`<button class="btn primary${mark('allin')}" data-act="allin">全下 ${fmt(m.stack)}</button>`}
-   </div>
-   ${lv.length?`<div class="act-row"><span class="rec-hint">加注到单注：</span>${lv.map(v=>`<button class="btn sm${mark('raise',v)}" data-act="zraise" data-v="${v}">${fmt(v)}（付 ${fmt((m.seen?2:1)*v)}）</button>`).join('')}</div>`:''}
-   <div class="act-row"><span class="rec-hint">比牌：</span>${canCmp?opps.map(q=>`<button class="btn sm${mark('compare',q.id)}" data-act="zcmp" data-t="${q.id}">和 ${esc(q.name)} 比（付 ${fmt(cost)}）</button>`).join(''):`<span class="rec-hint">${V.round<2?'第 2 轮起才能比牌':'筹码不够比牌'}</span>`}</div>
-   ${live?`<div class="rec-hint">教练建议：<b>${zRecLabel(a.rec,a)}</b></div>`:coachOn()?'<div class="rec-hint">练习模式：先自己决定，行动后右侧会显示分析。</div>':''}
-   <div class="rec-hint">闷牌跟注付 1 倍单注，看牌后付 2 倍；比牌时牌小或一样大的发起方出局。</div>`;
+  if(ACTPOP==='raise'&&!lv.length||ACTPOP==='cmp'&&!canCmp)ACTPOP=null;
+  /* raise and compare open a panel above the row with the amounts or the opponents */
+  const bar=`${m.seen?'':`<button class="btn b-yellow${mark('look')}" data-act="zlook">看牌</button>`}
+     <button class="btn b-gray${mark('fold')}" data-act="fold">弃牌</button>
+     ${canCall?`<button class="btn b-green${mark('call')}" data-act="call">${m.seen?'跟注':'闷跟'} ${fmt(cost)}</button>`:`<button class="btn b-red${mark('allin')}" data-act="allin">全下 ${fmt(m.stack)}</button>`}
+     ${lv.length?`<button class="btn b-red${mark('raise')}" data-act="zpop" data-pop="raise" aria-haspopup="true">加注</button>`:''}
+     <button class="btn b-red${mark('compare')}" data-act="zpop" data-pop="cmp" aria-haspopup="true"${canCmp?'':` disabled title="${V.round<2?'第 2 轮起才能比牌':'筹码不够比牌'}"`}>比牌</button>`;
+  const pop=ACTPOP==='raise'?`<div class="pop-t">加注到单注（闷牌付 1 倍单注，看牌后付 2 倍）：</div><div class="pop-row">${lv.map(v=>`<button class="btn b-red${mark('raise',v)}" data-act="zraise" data-v="${v}">${fmt(v)}（付 ${fmt((m.seen?2:1)*v)}）</button>`).join('')}</div>`
+    :ACTPOP==='cmp'?`<div class="pop-t">比牌（付 ${fmt(cost)}）：牌小或一样大的发起方出局。</div><div class="pop-row">${opps.map(q=>`<button class="btn b-red${mark('compare',q.id)}" data-act="zcmp" data-t="${q.id}">和 ${esc(q.name)} 比</button>`).join('')}</div>`:'';
+  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
+  el.innerHTML=actHTML(hint,bar,pop,ACTPOP);
 }
 function zRulesHTML(){
   const ex=[[[48,49,50],'豹子','三张一样'],[[47,43,39],'同花顺','同花色的顺子'],[[51,35,19],'金花','三张同花色'],[[46,40,33],'顺子','三张连续，A-2-3 最小'],[[44,45,22],'对子','两张一样'],[[51,38,17],'单张','以上都不是，比最大的一张'],[[0,5,14],'235','不同花色的 2、3、5：最小的单张，但开启规则时能吃豹子']];

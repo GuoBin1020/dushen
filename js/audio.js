@@ -1,14 +1,36 @@
 /* 赌神智慧树 · sound effects, spoken actions and push-to-talk voice messages */
 'use strict';
 
-/* ---------- sound: synthesized with Web Audio, no audio files ---------- */
-const SND={ctx:null};
+/* ---------- sound: sampled effects (assets/sfx), synthesized with Web Audio as fallback ---------- */
+const SND={ctx:null,buf:{}};
 function actx(){
   if(!SND.ctx){try{SND.ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}
   if(SND.ctx.state==='suspended')SND.ctx.resume();
   return SND.ctx;
 }
-document.addEventListener('pointerdown',()=>{if(LOCAL.sfx)actx()},{passive:true});
+document.addEventListener('pointerdown',()=>{if(LOCAL.sfx){actx();sfxLoad()}},{passive:true});
+/* decode every SFX_FILES entry once; a file that fails to load or decode is skipped */
+let sfxLoading=null;
+function sfxLoad(){
+  if(sfxLoading)return sfxLoading;
+  const c=actx();if(!c)return Promise.resolve();
+  sfxLoading=Promise.all(Object.keys(SFX_FILES).map(async key=>{
+    const list=await Promise.all(SFX_FILES[key].map(async f=>{
+      try{const r=await fetch(assetURL(f));if(!r.ok)return null;return await c.decodeAudioData(await r.arrayBuffer())}catch(e){return null}
+    }));
+    const ok=list.filter(Boolean);if(ok.length)SND.buf[key]=ok;
+  })).then(()=>{},()=>{});
+  return sfxLoading;
+}
+/* play a random sample of this kind; false means nothing played, so the caller synthesizes instead */
+function sample(key,at=0,vol=1){
+  const c=LOCAL.sfx&&actx(),l=SND.buf[key];if(!c||!l||!l.length)return false;
+  try{
+    const s=c.createBufferSource(),g=c.createGain();
+    s.buffer=l[Math.floor(Math.random()*l.length)];g.gain.value=vol;
+    s.connect(g).connect(c.destination);s.start(c.currentTime+at);return true;
+  }catch(e){return false}
+}
 function tone(f,dur,o={}){
   const c=LOCAL.sfx&&actx();if(!c)return;
   const t=c.currentTime+(o.at||0),osc=c.createOscillator(),g=c.createGain();
@@ -26,15 +48,15 @@ function noise(dur,o={}){
   s.connect(f).connect(g).connect(c.destination);s.start(t);
 }
 const SFX={
-  chips(n=3,at=0){for(let i=0;i<n;i++){noise(.05,{at:at+i*.045,freq:4200+Math.random()*1500,q:8,vol:.35});tone(2600+Math.random()*600,.05,{at:at+i*.045,vol:.05,type:'triangle'})}},
+  chips(n=3,at=0){if(sample(n<=3?'chipLay':'chipStack',at))return;for(let i=0;i<n;i++){noise(.05,{at:at+i*.045,freq:4200+Math.random()*1500,q:8,vol:.35});tone(2600+Math.random()*600,.05,{at:at+i*.045,vol:.05,type:'triangle'})}},
   check(){tone(150,.09,{vol:.35});tone(125,.09,{at:.12,vol:.3})},
-  fold(){noise(.22,{freq:1800,sweep:500,type:'lowpass',vol:.22})},
-  deal(n=4){for(let i=0;i<n;i++)noise(.06,{at:i*.09,freq:2500,q:2,vol:.25})},
-  flip(){noise(.07,{freq:2000,q:1.5,vol:.3});tone(700,.05,{at:.02,vol:.04})},
+  fold(){if(sample('shove'))return;noise(.22,{freq:1800,sweep:500,type:'lowpass',vol:.22})},
+  deal(n=4,shuffle=true){if(SND.buf.slide&&SND.buf.slide.length){if(shuffle)sample('shuffle');for(let i=0;i<n;i++)sample('slide',i*.09);return}for(let i=0;i<n;i++)noise(.06,{at:i*.09,freq:2500,q:2,vol:.25})},
+  flip(){if(sample('place'))return;noise(.07,{freq:2000,q:1.5,vol:.3});tone(700,.05,{at:.02,vol:.04})},
   ding(){tone(880,.25,{vol:.12});tone(1320,.3,{at:.08,vol:.08})},
-  allin(){tone(180,.6,{type:'sawtooth',vol:.08,slide:900});tone(60,.7,{at:.55,vol:.5,slide:38});noise(.5,{at:.55,freq:900,type:'lowpass',vol:.3});SFX.chips(8,.6)},
-  win(){[523,659,784,1047].forEach((f,i)=>tone(f,.25,{at:i*.09,type:'triangle',vol:.15}));SFX.chips(6,.1)},
-  pot(){SFX.chips(5)},
+  allin(){tone(180,.6,{type:'sawtooth',vol:.08,slide:900});tone(60,.7,{at:.55,vol:.5,slide:38});noise(.5,{at:.55,freq:900,type:'lowpass',vol:.3});SFX.chips(8,.6);sample('collide',.6)},
+  win(){[523,659,784,1047].forEach((f,i)=>tone(f,.25,{at:i*.09,type:'triangle',vol:.15}));if(!sample('handle',.1))SFX.chips(6,.1)},
+  pot(){if(sample('handle'))return;SFX.chips(5)},
   clash(){tone(520,.12,{type:'square',vol:.07});tone(260,.28,{at:.12,type:'square',vol:.07});noise(.22,{at:.06,freq:1500,vol:.22})},
   fanfare(good){
     const seq=good?[523,659,784,1047,1319]:[440,392,349,330];
