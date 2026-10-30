@@ -35,5 +35,19 @@ const cr=fs.existsSync(path.join(AS,'CREDITS.txt'))?fs.readFileSync(path.join(AS
 for(const w of ['Byron Knoll','Kenney','CC0','Noto Emoji','Apache'])ok(cr.includes(w),'CREDITS 缺 '+w);
 eq(run("assetURL('cards/KS.webp')"),'data:x');
 eq(run("assetURL('cards/AS.webp')"),'assets/cards/AS.webp');
+/* card faces: cardImgFor (holdem/zjh) and ddCardHTML (斗地主) */
+{const ctx2=vm.createContext({console,Math,JSON,Object,Array,Number,String,Boolean,Set,Map,window:{}});
+ const noop=()=>{};
+ for(const k of ['$','$$','on','toast'])ctx2[k]=noop;
+ for(const f of ['js/common.js','js/assets.js','js/games/doudizhu.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx2,{filename:f});
+ const r2=s=>vm.runInContext(s,ctx2);
+ eq(r2('cardImgFor(0)'),'cards/2S.webp');eq(r2('cardImgFor(51)'),'cards/AC.webp');eq(r2('cardImgFor(4*8+1)'),'cards/10H.webp');
+ const has=(s,t,m)=>ok(String(r2(s)).includes(t),(m||s)+' 应含 '+t);
+ has('ddCardHTML(0)','cards/3S.webp');has('ddCardHTML(51)','cards/2C.webp');
+ has('ddCardHTML(52)','joker-small.webp');has('ddCardHTML(53)','joker-big.webp');
+ has('ddCardHTML(null)','back.webp');has('ddCardHTML(5,{lz:1})','class="lzt"');
+ has('ddCardHTML(0)','aria-label="黑桃3"');has('ddCardHTML(53)','aria-label="大王"');
+ has('ddCardHTML(0)','<span class="vh">');has('ddCardHTML(0,{pick:1})','data-dd="0"');
+ has('ddCardHTML(4*10+1)','class="card red');}
 console.log(`assets: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);

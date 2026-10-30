@@ -271,7 +271,7 @@ function positionChatPop(){
 
 /* ---------- rendering ---------- */
 function cardTxt(c){return RL[c>>2]+SU[c&3]}
-function cardHTML(c){if(c==null)return '<div class="card back"></div>';const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}"><span>${RL[c>>2]}</span><span class="s">${SU[c&3]}</span></div>`}
+function cardHTML(c){if(c==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}" ${faceStyle(cardImgFor(c))} aria-label="${SUIT_NAME[c&3]}${RL[c>>2]}"><span class="vh">${cardTxt(c)}</span></div>`}
 function show(v){
   ['setup','lobby','game','settle'].forEach(x=>{$('#'+x+'-view').hidden=x!==v});window.scrollTo(0,0);
   /* one floating chat for the waiting room and the table */

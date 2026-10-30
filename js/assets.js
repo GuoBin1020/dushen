@@ -3,6 +3,9 @@
 
 const SUIT_LETTER=['S','H','D','C'];
 const cardFaceFile=(rank,suit)=>'cards/'+rank+SUIT_LETTER[suit]+'.webp';
+const SUIT_NAME=['黑桃','红桃','方块','梅花'];
+/* holdem / zjh card code (rank*4+suit) -> face file */
+const cardImgFor=c=>cardFaceFile(RL[c>>2],c&3);
 const jokerFile=big=>big?'cards/joker-big.webp':'cards/joker-small.webp';
 const BACK_FILE='cards/back.webp';
 const CHIP_COLORS=['red','blue','green','black','white'];
@@ -18,5 +21,7 @@ const SFX_FILES={
   collide:sfxList('chips-collide',2),
   handle:sfxList('chips-handle',3)
 };
+/* inline style carrying a card image; a url() inside a custom property resolves against the stylesheet, so make it absolute first */
+const faceStyle=f=>{let u=assetURL(f);if(typeof document!=='undefined'&&document.baseURI&&!/^(data:|blob:|[a-z]+:)/i.test(u))u=new URL(u,document.baseURI).href;return `style="--face:url('${u}')"`};
 /* A bundled single-file build puts every asset into window.ASSET_DATA as a data URI. */
 const assetURL=path=>{const d=typeof window!=='undefined'&&window.ASSET_DATA;return d&&d[path]?d[path]:'assets/'+path};

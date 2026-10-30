@@ -619,13 +619,13 @@ function ddPublic(d){
 /* cards this device has picked in its own hand; cleared on a new hand, after a play and on 重选 */
 let DSEL=new Set(),DSEL_KEY='';
 function ddCardHTML(id,o={}){
-  if(id==null)return '<div class="card back"></div>';
+  if(id==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;
   const r=ddRank(id),wild=o.lz>=0&&id<52&&r===o.lz,sel=(o.sel?' sel':'')+(o.rec?' rec':'')+(wild?' lz':''),data=o.pick?` data-dd="${id}"`:'';
   /* a 赖子 card: a 「赖」 tag, or 「→K」 once played as another rank; bottom-left, so it shows on stacked cards */
   const tag=o.stand!=null?`<i class="lzt ast">→${DR[o.stand]}</i>`:wild?'<i class="lzt">赖</i>':'';
-  if(r>=13)return `<div class="card joker${r===14?' red':''}${sel}"${data}><span>${r===14?'大':'小'}</span><span class="s">王</span></div>`;
+  if(r>=13)return `<div class="card joker${r===14?' red':''}${sel}"${data} ${faceStyle(jokerFile(r===14))} aria-label="${DR[r]}"><span class="vh">${DR[r]}</span></div>`;
   const red=(id&3)===1||(id&3)===2;
-  return `<div class="card${red?' red':''}${sel}"${data}><span>${DR[r]}</span><span class="s">${SU[id&3]}</span>${tag}</div>`;
+  return `<div class="card${red?' red':''}${sel}"${data} ${faceStyle(cardFaceFile(DR[r],id&3))} aria-label="${SUIT_NAME[id&3]}${DR[r]}"><span class="vh">${DR[r]}${SU[id&3]}</span>${tag}</div>`;
 }
 /* a row of cards; `cls` (a played reading) marks the wild cards it used as other ranks */
 const ddCardsHTML=(ids,lz=-1,cls=null)=>{const st=new Map(((cls&&cls.as)||[]).map(a=>[a.id,a.rank]));return ids.map(id=>ddCardHTML(id,{lz,stand:st.has(id)?st.get(id):null})).join('')};
