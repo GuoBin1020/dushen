@@ -488,6 +488,8 @@ const MEASURE=`(()=>{
     seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
     bets:all('#table .bet'),actions:all('#actions'),btns:[...document.querySelectorAll('#actions button')].filter(vis).map(b=>({t:b.textContent.trim().slice(0,12),h:b.getBoundingClientRect().height})),
     hand,ddStage:document.querySelector('#table .dd-center')?vis(document.querySelector('#table .dd-center .street')):null,
+    /* 斗地主 is counter-clockwise: the player after me sits on my right */
+    ddNext:V&&isD(V)?(()=>{const n=V.players.length,s=document.querySelector('#table .seat[data-pid="'+((V.me+1)%n)+'"]');if(!s)return null;const r=s.getBoundingClientRect();return r.left+r.width/2>innerWidth/2})():null,
     /* rendered text size on each seat: computed font size times the seat's scale */
     fonts:[...document.querySelectorAll('#table .seat')].flatMap((s,i)=>{const k=s.offsetWidth?s.getBoundingClientRect().width/s.offsetWidth:1;
       return [...s.querySelectorAll('.pname,.pstack,.pact')].filter(vis).map(e=>({i,c:e.className,px:parseFloat(getComputedStyle(e).fontSize)*k}))})};
@@ -505,6 +507,7 @@ function check(m,sc){
   for(const [k,list] of Object.entries(m.others))list.forEach(r=>m.seats.forEach((s,i)=>{if(hit(s,r))f.push(`座位 ${i} 压住 ${k}`)}));
   for(const t of m.fonts)if(t.px<9.95){f.push(`座位 ${t.i} 的 .${t.c} 只有 ${t.px.toFixed(1)}px`);break}
   if(m.ddStage===false)f.push('斗地主的阶段文字（叫地主 / 加倍 / 出牌中）不可见');
+  if(m.ddNext===false)f.push('斗地主是逆时针：下家应该坐在右边');
   m.bets.forEach((b,i)=>m.actions.forEach(a=>{if(hit(b,a))f.push(`下注筹码 ${i} 压住 #actions`)}));
   if(sc.mobile){const b=m.btns.find(b=>b.h<39.5);if(b)f.push(`按钮「${b.t}」只有 ${b.h.toFixed(1)}px 高`)}
   m.others['dd-play'].forEach((r,i)=>m.others['dd-center'].forEach(c=>{if(hit(r,c))f.push(`出的牌 ${i} 压住底牌区`)}));

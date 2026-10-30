@@ -653,7 +653,7 @@ function ddRenderTable(){
   tableFrame(o,'ddz');
   let html='';
   V.players.forEach((p,i)=>{
-    const slot=(i-V.me+n)%n,s=seatXY(slot,n,o);
+    const slot=slotOf(i),s=seatXY(slot,n,o);
     const cls=['seat',i===V.me?'me':'',V.toAct===i&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
     /* a dropped player's turns are played by the bot until they reconnect */
     const tg=(p.kind==='remote'&&!p.connected||p.trust)&&p.inHand;

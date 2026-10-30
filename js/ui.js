@@ -8,9 +8,11 @@ const isLandPhone=()=>window.matchMedia('(orientation:landscape) and (max-height
 /* the old oval table's bet ring; kept for callers outside this file, the table itself now uses js/table-layout.js */
 const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,22]:[30,28];
 /* a seat, its bet chips or the middle of the table, in px inside .table-wrap (where #fx draws) */
+/* where a player sits, counted from me: 德州/炸金花 go clockwise, 斗地主 counter-clockwise (the next player sits on my right) */
+const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
-  const n=V.players.length,slot=(pid-V.me+n)%n,o=tableOrient();
+  const n=V.players.length,slot=slotOf(pid),o=tableOrient();
   const p=kind==='center'?centerXY(o):kind==='bet'?BETPT[pid]||betXY(slot,n,o):seatXY(slot,n,o);
   const tr=tbl.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
   return {x:tr.left-wr.left+tbl.clientLeft+tbl.clientWidth*p.x/100,y:tr.top-wr.top+tbl.clientTop+tbl.clientHeight*p.y/100};
