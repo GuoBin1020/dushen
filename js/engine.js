@@ -36,6 +36,15 @@ function hostBack(p){
   if(was&&(S.phase==='waiting'||S.phase==='busted'))return startHand();
   sync();
 }
+/* a dropped player who sat out (暂时离桌) is dealt in again once they reconnect. The sealed online code only sets
+   p.connected (and syncs), so the change is noticed here: from sync() and from the next deal. True if someone came back. */
+function backOnline(){
+  let back=false;
+  P().forEach(p=>{if(p.kind!=='remote')return;if(!p.connected){p.wasOff=true;return}
+    if(!p.wasOff)return;p.wasOff=false;
+    if(p.away){p.away=false;back=true;log(`${p.name} 重连，下一手入座`,'board-l')}});
+  return back;
+}
 function delay(){
   const base={slow:950,normal:600,fast:220}[S.cfg.speed]||600;
   if(S.cfg.ff&&!P().some(p=>!isBot(p)&&alive(p)&&present(p)))return 60;
@@ -92,6 +101,7 @@ function startHand(){
   clearTimeout(timer);
   const cfg=S.cfg;
   if(isD(S))ddSeatChanges();
+  backOnline();
   for(const p of P()){
     if(p.stack>0||p.out)continue;
     if(isBot(p)){
@@ -199,6 +209,8 @@ function viewFor(seat){
 }
 function sync(){
   if(!S)return;
+  /* everyone left had sat out: the one who is back starts the next hand */
+  if(backOnline()&&S.phase==='waiting'){clearTimeout(timer);timer=setTimeout(()=>{if(S&&S.phase==='waiting')startHand()},0)}
   /* the host's card travels with each state, so a guest joining mid-game can check it */
   const hostCard=NET.role==='host'&&typeof myCard==='function'?myCard():null;
   for(const [seat,c] of NET.conns)if(P()[seat]&&P()[seat].connected)c.send({t:'state',v:viewFor(seat),hostCard});

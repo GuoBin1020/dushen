@@ -121,6 +121,19 @@ function tests(){
     const left=R.discAt+DISC_GRACE-CLOCK.t;ok(pending().includes(Math.max(400,left)),'掉线等重连，不用出牌限时');eq(viewFor(0).turnLeft,0,'掉线时不显示倒计时');
     const owe=S.currentBet>R.bet;out(1);ok(!R.trust,'掉线超时不算托管');ok(R.folded===owe,'掉线照旧：过牌或弃牌');
     finish();startHand();ok(!R.inHand&&!R.away,'掉线的人照旧不发牌（直到重连）');}
+  /* a dropped player who had sat out (暂时离桌) is dealt in again from the next hand once they reconnect; the sealed online
+     code only flips p.connected and syncs, so the engine notices the change itself. A connected player stays away. */
+  game('holdem',{turnSec:0},[{name:'你',kind:'local',gender:'m'},{name:'乙',kind:'remote',gender:'m'},{name:'丙',kind:'remote',gender:'m'}]);
+  {const R=P()[1],Q=P()[2];finish();R.away=true;Q.away=true;R.connected=false;sync();startHand();
+    ok(!R.inHand&&R.away,'掉线又离桌：不发牌');
+    R.connected=true;sync();ok(!R.away,'重连后不再暂时离桌');ok(Q.away,'没掉线的离桌玩家仍然暂时离桌');
+    ok(!R.inHand,'重连不插进这一手');finish();startHand();ok(R.inHand&&!Q.inHand,'重连的人下一手发牌，没掉线的离桌玩家不发');
+    /* dropped and back between two hands, with no sync while away: the next deal still notices */
+    finish();R.away=true;R.connected=false;R.discAt=CLOCK.t;startHand();R.connected=true;finish();startHand();ok(R.inHand&&!R.away,'两手之间掉线又重连：下一手发牌');}
+  /* everyone left at the table sat out: the one who reconnects starts the next hand */
+  game('holdem',{turnSec:0},[{name:'你',kind:'local',gender:'m'},{name:'乙',kind:'remote',gender:'m'}]);
+  {const R=P()[1];finish();ME().away=true;R.away=true;R.connected=false;startHand();eq(S.phase,'waiting','都离桌：暂停');
+    R.connected=true;sync();for(let i=0;i<5&&S.phase==='waiting';i++)tick();eq(S.phase,'playing','重连的人回来后接着发牌');ok(R.inHand&&!ME().inHand,'只给重连的人和电脑发牌');}
 
   /* ---------- 不限时 and bots ---------- */
   game('holdem',{turnSec:0});ok(meTurn(),'轮到我');eq(pending(),[],'不限时：没有计时器');eq(viewFor(0).turnLeft,0);eq(viewFor(0).turnMs,0);
