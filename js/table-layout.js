@@ -12,7 +12,7 @@ const SEAT_PATH={
 const ME_XY={land:{x:8,y:84},port:{x:12,y:75}};
 /* the middle (德州 board and pot, 炸金花 pot) sits lower than the old 36 / 34, further from the far seats; upright it is below the
    side seats too, so their bet chips (on the line to the middle) run down past the board instead of into it */
-const CENTER_XY={land:{x:50,y:42},port:{x:50,y:60}};
+const CENTER_XY={land:{x:50,y:42},port:{x:50,y:64}};
 /* lengths are measured with y squashed by 0.6, the same way seat spacing is judged, so the far edge and the sides share the seats fairly */
 const SQ=0.6;
 function pathAt(o,t){
@@ -37,7 +37,8 @@ function seatXY(slot,n,o){
 const centerXY=o=>({...CENTER_XY[o||tableOrient()]});
 /* 斗地主's three bottom cards (with the stage line and 倍数): centred at the far edge of the table; sideways a little lower,
    in one row below the card counter strip */
-const BOTTOM_XY={land:{x:50,y:29},port:{x:50,y:19}};
+/* upright the bottom cards are too big to sit between the two far seats, so they lie just below that row */
+const BOTTOM_XY={land:{x:50,y:31},port:{x:50,y:31}};
 const bottomXY=o=>({...BOTTOM_XY[o||tableOrient()]});
 /* bet chips: 35% of the way from the seat to the middle of the table (the starting guess; betClear puts them just clear of the seat) */
 function betXY(slot,n,o){const s=seatXY(slot,n,o),c=centerXY(o);return {x:s.x+(c.x-s.x)*0.35,y:s.y+(c.y-s.y)*0.35}}
@@ -52,7 +53,7 @@ function betClear(s,c,box,w,h,m){
   return t===Infinity?{x:s.x,y:s.y,t:0}:{x:s.x+dx*t,y:s.y+dy*t,t};
 }
 /* 斗地主's side plays start no higher than this (the old middle plus a gap), so moving the 德州 middle leaves them alone */
-const DD_MID={land:44,port:46};
+const DD_MID={land:47,port:46};
 /* 斗地主 plays lie on the felt in front of the seat: mine above the button row; a side seat's run out toward the middle
    (al: which end the row is anchored by), a far seat's drop toward me */
 function playXY(slot,n,o){

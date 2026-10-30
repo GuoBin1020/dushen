@@ -261,7 +261,8 @@ const BOARD_CARDS=`(async()=>{${PG}
   const seats=all('#table .seat'),bets=all('#table .bet').map(R),bar=[...all('#actions .act-bar'),...all('#actions .act-hint')].map(R);
   const mid=[...all('#table .board'),...all('#table .center .pot')].map(R);
   const bd=Q('#table .board');
-  if(bd&&OLD_TOP[key]){const top=R(bd).y,want=OLD_TOP[key]+innerHeight*0.04;if(top<want-0.5)f.push('公共牌上沿 '+top.toFixed(1)+'px，没有比原来 '+OLD_TOP[key]+' 低屏幕高度的 4%（'+want.toFixed(1)+'）')}
+  /* the cards grew, so compare the board's middle (not its top edge) with the old top edge */
+  if(bd&&OLD_TOP[key]){const r=R(bd),mid=r.y+r.h/2,want=OLD_TOP[key]+innerHeight*0.04;if(mid<want-0.5)f.push('公共牌中线 '+mid.toFixed(1)+'px，没有比原来上沿 '+OLD_TOP[key]+' 低屏幕高度的 4%（'+want.toFixed(1)+'）')}
   mid.forEach((m,i)=>{seats.forEach((s,j)=>{if(hit(m,R(s)))f.push('桌面中间 '+i+' 压住座位 '+j)});bets.forEach((b,j)=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住下注 '+j)});bar.forEach(b=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住按钮区')})});
   /* bet chips never touch any seat, plate or seat cards, their own included */
   bets.forEach((b,i)=>seats.forEach((s,j)=>{const pl=s.querySelector('.plate'),cs=s.querySelector('.cards');
