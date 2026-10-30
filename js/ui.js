@@ -426,54 +426,57 @@ function renderTable(){
   $('#table').classList.toggle('zjh',isZ(V));$('#table').classList.remove('ddz');
   $('#table').dataset.n=String(n);
 }
+/* the action area: a hint label (coach advice or a tip, may be empty), one fixed-height row of buttons or one line of
+   text, and an optional pop-up panel above the row. ACTPOP names the open panel ('raise', 'cmp'); it closes when the turn ends. */
+let ACTPOP=null;
+const actHTML=(hint,bar,pop,kind)=>`<div class="act-hint">${hint||''}</div><div class="act-bar">${bar}</div>${pop?`<div class="act-pop" data-pop="${kind||''}"${ACTPOP&&ACTPOP===kind?'':' hidden'}>${pop}</div>`:''}`;
+const actWait=(txt,btns)=>actHTML('',`<span class="act-wait">${txt}</span>${btns||''}`);
+function closeActPop(){ACTPOP=null;document.querySelectorAll('#actions .act-pop').forEach(p=>{p.hidden=true})}
 function renderActions(){
   const el=$('#actions'),m=me(),isHost=NET.role!=='guest';
-  const settleBtn=isHost?'<button class="btn danger" data-act="settle">结束并结算</button>':'';
+  if(!myTurn())ACTPOP=null;
   if(m.stack<=0&&!m.inHand){
-    el.innerHTML=`<div class="status">你的筹码输光了。可以补码 ${fmt(V.cfg.stack)} 继续（补码会计入成本）${isHost?'，或者直接结算':'，下一手入座'}。</div>
-      <div class="act-row"><button class="btn primary" data-act="rebuy">补码 ${fmt(V.cfg.stack)}</button>${settleBtn}</div>`;return;
+    el.innerHTML=actWait(`你的筹码输光了。可以补码 ${fmt(V.cfg.stack)} 继续（补码会计入成本）${isHost?'，或者在菜单里结算':'，下一手入座'}。`,
+      `<button class="btn b-green" data-act="rebuy">补码 ${fmt(V.cfg.stack)}</button>`);return;
   }
   if(V.phase==='busted'||V.phase==='waiting'){
     /* 斗地主 online: the host may let a bot take the seat of a player who is out of chips */
-    const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
-    el.innerHTML=`<div class="status">${esc(V.msg)}</div><div class="act-row">${take}${settleBtn}</div>`;return;
+    const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn b-green" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
+    el.innerHTML=actWait(esc(V.msg),take);return;
   }
   if(V.phase==='handover'){
     const last=T.hist[T.hist.length-1];const d=last&&last.hand===V.handNo?last.delta:0;
-    el.innerHTML=`<div class="status">这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}</div>
-      ${isHost?`<div class="act-row">${V.cfg.auto?'':'<button class="btn primary" data-act="next">下一手 ▶</button>'}${settleBtn}</div>`:''}`;return;
+    el.innerHTML=actWait(`这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}`,
+      isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一手 ▶</button>':'');return;
   }
-  if(!myTurn()&&isD(V)){el.innerHTML=`<div class="status">${!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText()}</div>`;return}
+  if(!myTurn()&&isD(V)){el.innerHTML=actWait(!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText());return}
   if(!myTurn()){
     const p=V.players[V.toAct];
     const waitTxt=p&&p.kind==='remote'&&!p.connected?`${esc(p.name)} 掉线了，等他重连，最多等 15 秒，之后自动过牌或弃牌…`:p?`等待 ${esc(p.name)} 行动…`:'…';
-    el.innerHTML=`<div class="status">${V.phase==='runout'?'正在发完公共牌…':!m.inHand?'你这手没有入座，下一手开始参与。':!alive(m)?'你已弃牌，等待本手结束…':waitTxt}</div>
-      <div class="act-row"><button class="btn" disabled>弃牌</button><button class="btn" disabled>过牌 / 跟注</button><button class="btn" disabled>加注</button></div>`;return;
+    el.innerHTML=actWait(V.phase==='runout'?'正在发完公共牌…':!m.inHand?'你这手没有入座，下一手开始参与。':!alive(m)?'你已弃牌，等待本手结束…':waitTxt);return;
   }
   if(isZ(V))return zRenderActions(el,m);
   if(isD(V))return ddRenderActions(el,m);
   const live=coachOn()&&LOCAL.mode==='live';
   const a=live?getAdvice():null;
   const toCall=Math.min(V.currentBet-m.bet,m.stack),maxTo=m.bet+m.stack,pot=potOf(V);
-  const minTo=Math.min(maxTo,V.currentBet+V.minRaise),canRaise=maxTo>V.currentBet;
+  const minTo=Math.min(maxTo,V.currentBet+V.minRaise),canRaise=maxTo>V.currentBet,slide=canRaise&&maxTo>minTo;
   const rt=a?a.rec.type:'';
   const mark=t=>live&&rt===t?' is-rec':'';
-  const def=live&&rt==='raise'?a.rec.to:minTo;
+  const def=live&&rt==='raise'?a.rec.to:minTo,verb=V.currentBet===0?'下注':'加注到';
   const presets=[['最小',0],['½ 池',0.5],['⅔ 池',0.66],['1 池',1]].map(([l,f])=>{
     const v=f===0?minTo:Math.min(maxTo,V.currentBet+Math.max(V.minRaise,roundU(V,f*(pot+toCall))));
-    return `<button type="button" class="btn sm" data-preset="${v}">${l} · ${fmt(v)}</button>`}).join('');
-  el.innerHTML=`
-   <div class="act-row">
-     <button class="btn${mark('fold')}" data-act="fold">弃牌</button>
-     ${toCall>0?`<button class="btn${mark('call')}" data-act="call">跟注 ${fmt(toCall)}${toCall>=m.stack?'（全下）':''}</button>`:`<button class="btn${mark('check')}" data-act="check">过牌</button>`}
-     ${canRaise?`<button class="btn primary${mark('raise')}" data-act="raise" id="raise-btn">${V.currentBet===0?'下注':'加注到'} ${fmt(def)}</button>
-     <button class="btn" data-act="allin">全下 ${fmt(maxTo)}</button>`:''}
-   </div>
-   ${canRaise&&maxTo>minTo?`<div class="raise-box">
-     <label for="raise-amt" class="rec-hint">${V.currentBet===0?'下注':'加注到'}金额（总注额，最小 ${fmt(minTo)}，最多 ${fmt(maxTo)}）</label>
-     <input type="range" id="raise-amt" min="${minTo}" max="${maxTo}" step="${V.cfg.sb}" value="${def}">
-     <div class="presets">${presets}</div></div>`:''}
-   ${live?`<div class="rec-hint">教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}</div>`:coachOn()?'<div class="rec-hint">练习模式：先自己决定，行动后右侧会显示分析。</div>':''}`;
+    return `<button type="button" class="btn b-gray" data-preset="${v}">${l} · ${fmt(v)}</button>`}).join('');
+  const bar=`<button class="btn b-gray${mark('fold')}" data-act="fold">弃牌</button>
+     ${toCall>0?`<button class="btn b-green${mark('call')}" data-act="call">${toCall>=m.stack?'全下':'跟注'} ${fmt(toCall)}</button>`:`<button class="btn b-gray${mark('check')}" data-act="check">过牌</button>`}
+     ${slide?`<button class="btn b-red${mark('raise')}" data-act="raise-open" aria-haspopup="true">${V.currentBet===0?'下注':'加注'}</button>`
+       :canRaise?`<button class="btn b-red${mark('raise')}" data-act="allin">全下 ${fmt(maxTo)}</button>`:''}`;
+  /* the raise panel: slider, all-in and the confirm button, then the quick amounts */
+  const pop=slide?`<label for="raise-amt" class="pop-t raise-t">${verb}金额（总注额，最小 ${fmt(minTo)}，最多 ${fmt(maxTo)}）</label>
+     <div class="pop-row pop-slide"><input type="range" id="raise-amt" min="${minTo}" max="${maxTo}" step="${V.cfg.sb}" value="${def}" aria-label="${verb}金额"><button class="btn b-red" data-act="allin">全下 ${fmt(maxTo)}</button><button class="btn b-green${mark('raise')}" data-act="raise" id="raise-btn">${verb} ${fmt(def)}</button></div>
+     <div class="pop-row">${presets}</div>`:'';
+  const hint=live?`教练建议：<b>${recLabel(a.rec,toCall,V.currentBet)}</b>${a.ex&&a.ex.rec&&a.ex.rec.type!==a.rec.type?` · 剥削建议：<b>${recLabel(a.ex.rec,toCall,V.currentBet)}</b>`:''}`:coachOn()?'练习模式：先自己决定，行动后右侧会显示分析。':'';
+  el.innerHTML=actHTML(hint,bar,pop,'raise');
 }
 function meter(e,po){return `<div class="meter"><i style="width:${Math.min(100,e*100)}%"></i>${po>0?`<b style="left:${Math.min(99,po*100)}%"></b>`:''}</div><div class="legend"><span class="l1">你的胜率</span>${po>0?'<span class="l2">跟注所需胜率</span>':''}</div>`}
 function preHead(){return '<div class="gto-tag"><span class="pill brass">GTO 翻前范围</span><span class="muted">6 人桌 · 100BB 近似</span></div>'}
@@ -754,7 +757,7 @@ function rulesHTML(game){
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
 function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
-function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('[data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
+function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
 const playersHint=()=>GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
   solo:'选德州扑克、炸金花或斗地主，和电脑对手同桌。轮到你时教练会给出建议，并给每个决定打分。打完点「结束并结算」查看收益和问题点。',
@@ -896,8 +899,10 @@ document.addEventListener('click',async e=>{
     return;
   }
   const tab=e.target.closest('.tabs [data-mode]');if(tab){setMode(tab.dataset.mode);return}
-  const gb=e.target.closest('[data-game]');if(gb){setGame(gb.dataset.game);return}
+  const gb=e.target.closest('#f-game [data-game]');if(gb){setGame(gb.dataset.game);return}
   const pb=e.target.closest('[data-players]');if(pb){seatsDraft=+pb.dataset.players;renderSeg();return}
+  /* a tap outside the open action panel closes it */
+  if(ACTPOP&&!e.target.closest('#actions .act-pop,[data-act="raise-open"],[data-act="zpop"]'))closeActPop();
   const pr=e.target.closest('[data-preset]');if(pr){const r=$('#raise-amt');if(r){r.value=pr.dataset.preset;syncRaise()}return}
   if(chatPopOpen()&&!e.target.closest('#chat-slot,#chat-bubble'))setChatPop(false);
   const bt=e.target.closest('#table .bet[data-pid],#table .seat[data-pid]');if(bt){peekBet(+bt.dataset.pid);return}
@@ -928,6 +933,8 @@ document.addEventListener('click',async e=>{
   if(a==='fold')humanAct('fold');
   else if(a==='check')humanAct('check');
   else if(a==='call')humanAct('call');
+  else if(a==='raise-open'){if(ACTPOP==='raise')closeActPop();else{ACTPOP='raise';const p=$('#actions .act-pop');if(p)p.hidden=false}}
+  else if(a==='zpop'){ACTPOP=ACTPOP===b.dataset.pop?null:b.dataset.pop;renderActions()}
   else if(a==='raise'){const r=$('#raise-amt'),m=me();let v;if(r)v=+r.value;else{const ad=coachOn()&&LOCAL.mode==='live'?getAdvice():null;v=ad&&ad.rec.type==='raise'?ad.rec.to:Math.min(m.bet+m.stack,V.currentBet+V.minRaise)}humanAct('raise',v)}
   else if(a==='allin'){const m=me();if(isZ(V))humanAct('allin');else humanAct('raise',m.bet+m.stack)}
   else if(a==='zlook')humanAct('look');

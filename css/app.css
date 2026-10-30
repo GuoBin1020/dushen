@@ -127,12 +127,6 @@ input[type=number]{width:140px;font-family:var(--f-mono)}
 .card.best{outline:2px solid var(--good);outline-offset:1px}
 
 .actions{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px}
-.actions .status{color:var(--muted)}
-.act-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.act-row .btn{padding:10px 16px;font-size:15px}
-.raise-box{display:grid;gap:8px;grid-template-columns:minmax(0,1fr);padding-top:10px;border-top:1px solid var(--line)}
-.raise-box input[type=range]{width:100%;accent-color:var(--brass)}
-.presets{display:flex;flex-wrap:wrap;gap:6px}
 .rec-hint{font-size:12.5px;color:var(--muted)}
 .rec-hint b{color:var(--brass)}
 .btn.is-rec{border-color:var(--good);box-shadow:0 0 0 1px var(--good),0 0 10px rgba(94,197,143,.35)}
@@ -391,7 +385,6 @@ body.m-sheets .rail,body.m-sheets .drawer{display:none}
 .dd-counter span b{font-size:11px;color:var(--muted)}
 .dd-counter span.zero{opacity:.38}
 .dd-warn{margin:0 0 8px;color:var(--bad);font-weight:700;font-size:13px}
-.actions .dd-warn{margin:0}
 .dd-alts{margin:8px 0 0;padding-left:20px;font-size:12.5px;display:grid;gap:4px}
 
 /* 斗地主 online: a dropped player's seat, played by the bot */
@@ -478,24 +471,49 @@ body.in-game .dbtn{width:18px;height:18px;font-size:10px;line-height:18px;top:-7
 .table.zjh .my-hand .card:nth-child(2):not(:last-child){transform:translateY(-4px)}
 /* 斗地主 hand: one row at the bottom, clear of my seat when sideways */
 body.in-game .dd-hand{position:absolute;left:var(--hand-l);right:var(--hand-r);bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:4}
-/* the action panel sits on the table above the hand (sideways: in the middle; upright: right of my seat) */
-body.in-game .actions{position:absolute;z-index:6;left:50%;transform:translateX(-50%);bottom:calc(var(--hand-h) + env(safe-area-inset-bottom,0px));
-  width:min(600px,62vw);max-height:calc(100% - var(--hand-h) - var(--act-top));overflow-y:auto;overscroll-behavior:contain;
-  display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:6px 10px;padding:8px 10px;
-  background:rgba(4,12,8,.72);border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
-body.in-game .actions>*{flex:1 1 100%}
-body.in-game .actions>.rec-hint{flex:0 1 auto}
+/* the action area on the felt above my hand: one fixed-height row of pill buttons (or one line of text), a small hint label
+   floating just above it and a pop-up panel above that. The box is only the row, so the felt and the chips around it stay free. */
+body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 16px);padding:0;background:none;border:0;border-radius:0;
+  bottom:calc(var(--hand-h) + 4px + env(safe-area-inset-bottom,0px));--bar-h:48px}
+@media (min-width:1000px) and (min-height:600px){body.in-game .actions{--bar-h:52px}}
+.act-hint{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);width:max-content;max-width:min(520px,calc(100vw - 16px));padding:3px 12px;border-radius:12px;background:rgba(0,0,0,.6);color:var(--text);font-size:12.5px;line-height:1.4;text-align:center;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.act-hint:empty{display:none}
+/* upright my seat sits just above the row on the left: the label stays narrower than the gap beside it */
+#game-view[data-orient="port"] .act-hint{max-width:calc(76vw - var(--seat-w) - 12px)}
+.act-hint b{color:var(--brass)}
+.act-hint .dd-warn{display:inline;margin:0 6px 0 0;font-size:inherit}
+.act-bar{height:var(--bar-h);max-width:100%;display:flex;flex-wrap:nowrap;align-items:center;justify-content:center;gap:8px}
+.act-wait{max-width:min(520px,calc(100vw - 16px));padding:4px 14px;border-radius:14px;background:rgba(0,0,0,.6);color:var(--text);font-size:13px;line-height:1.35;text-align:center;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.act-wait b.pos{color:var(--good)}.act-wait b.neg{color:var(--bad)}
+/* pill buttons: a gradient face and a solid shadow underneath, like a chip on the felt */
+.act-bar .btn,.act-pop .btn{flex:0 1 auto;min-width:0;height:40px;padding:0 16px;border:none;border-radius:20px;font-size:14px;font-weight:800;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55);transition:transform .08s,filter .15s}
+@media (min-width:1000px) and (min-height:600px){.act-bar .btn{height:44px;padding:0 20px;font-size:15px;border-radius:22px}}
+.act-bar .btn:active:not(:disabled),.act-pop .btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55)}
+.act-bar .btn:hover:not(:disabled),.act-pop .btn:hover:not(:disabled){filter:brightness(1.07)}
+.btn.b-gray{background:linear-gradient(#f4f4f4,#b5b5b5);color:#333}
+.btn.b-yellow{background:linear-gradient(#ffe07a,#e3a11b);color:#5a3500}
+.btn.b-green{background:linear-gradient(#9be895,#38a036);color:#0d3a0d}
+.btn.b-red{background:linear-gradient(#ffa394,#d8432f);color:#4a0d06}
+.act-bar .btn.is-rec,.act-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
+/* the pop-up panel: above the row, clear of my seat when upright */
+.act-pop{position:fixed;z-index:7;left:50%;transform:translateX(-50%);width:min(460px,calc(100% - 16px));
+  bottom:calc(var(--hand-h) + 4px + env(safe-area-inset-bottom,0px) + var(--bar-h) + 8px);
+  display:grid;gap:8px;padding:10px 12px;border-radius:14px;background:rgba(6,14,10,.88);border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 28px rgba(0,0,0,.55)}
+.act-pop[hidden]{display:none}
+#game-view[data-orient="port"] .act-pop{left:calc(12% + var(--seat-w)/2 + 6px);right:8px;width:auto;transform:none}
+.act-pop .pop-t{font-size:12.5px;color:var(--muted);line-height:1.4}
+.act-pop .pop-row{display:flex;flex-wrap:wrap;gap:8px}
+.act-pop .pop-row .btn{flex:1 1 auto;padding:0 12px;font-size:13.5px}
+.act-pop>*{min-width:0}
+.act-pop .pop-slide{align-items:center}
+.act-pop input[type=range]{flex:1 1 140px;min-width:0;height:28px;accent-color:var(--brass)}
+/* short sideways screens: the confirm button already shows the amount, so the panel drops its title to stay clear of the far seats */
+@media (max-height:500px){.act-pop .raise-t{display:none}}
 /* upright the seats are narrow: hole cards overlap beside the avatar */
 #game-view[data-orient="port"] .seat .cards .card+.card{margin-left:calc(var(--cw)*-.35)}
-#game-view[data-orient="port"] .actions{left:calc(12% + var(--seat-w)/2 + 6px);right:8px;width:auto;transform:none}
-body.in-game .actions .status{font-size:13px;line-height:1.4}
-body.in-game .act-row{gap:6px}
-body.in-game .act-row .btn{padding:7px 12px;font-size:14px}
-body.in-game .act-row .btn.sm{padding:4px 9px;font-size:12.5px}
-body.in-game .raise-box{padding-top:6px;gap:5px}
-body.in-game .presets{gap:5px}
-body.in-game .presets .btn{padding:4px 8px;font-size:12px}
-body.in-game .rec-hint{font-size:12px;line-height:1.4}
 /* 斗地主 on the felt */
 .dd-center{gap:4px}
 .dd-pass{background:rgba(0,0,0,.6)}

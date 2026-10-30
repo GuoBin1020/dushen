@@ -718,32 +718,29 @@ function ddWaitText(){
 }
 function ddRenderActions(el,m){
   const d=V.dd,live=coachOn()&&LOCAL.mode==='live',a=live?ddGetAdvice():null;
-  /* the coach's pick gets the usual highlight */
+  /* the coach's pick gets the usual highlight; the advice and short tips go in the label above the row */
   const mark=(t,yes)=>a&&a.rec.type===t&&(yes==null||a.rec.yes===yes)?' is-rec':'';
-  const tip=a?`<div class="rec-hint">教练建议：<b>${esc(ddRecLabel(a.rec))}</b></div>`:coachOn()?'<div class="rec-hint">练习模式：先自己决定，行动后教练面板显示点评。</div>':'';
+  const tip=a?`教练建议：<b>${esc(ddRecLabel(a.rec))}</b>`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评':'';
+  const hint=(...xs)=>xs.filter(Boolean).join(' · ');
   if(d.stage==='bid'){
     const rob=d.ask&&d.ask.kind==='rob';
-    el.innerHTML=`<div class="status">${rob?'有人叫了地主，你要抢吗？每抢一次倍数 ×2。':'轮到你叫地主。叫了就当地主，一个人对两个农民。'}</div>
-      <div class="act-row"><button class="btn primary${mark('bid',true)}" data-act="ddbid" data-v="1">${rob?'抢地主':'叫地主'}</button><button class="btn${mark('bid',false)}" data-act="ddbid" data-v="0">${rob?'不抢':'不叫'}</button></div>
-      ${tip}<div class="rec-hint">当前倍数 ×${d.mult} · 底分 ${V.cfg.base}</div>`;return;
+    el.innerHTML=actHTML(hint(tip,rob?'有人叫了地主，每抢一次倍数 ×2':'叫了就当地主，一个人对两个农民'),
+      `<button class="btn b-gray${mark('bid',false)}" data-act="ddbid" data-v="0">${rob?'不抢':'不叫'}</button><button class="btn b-green${mark('bid',true)}" data-act="ddbid" data-v="1">${rob?'抢地主':'叫地主'}</button>`);return;
   }
   if(d.stage==='double'){
     const lord=d.landlord===V.me;
-    el.innerHTML=`<div class="status">${lord?'你是地主。':'你是农民。'}要加倍吗？${lord?'地主加倍对两个农民都生效。':'农民加倍只影响你和地主之间的输赢。'}</div>
-      <div class="act-row"><button class="btn primary${mark('double',true)}" data-act="dddbl" data-v="1">加倍</button><button class="btn${mark('double',false)}" data-act="dddbl" data-v="0">不加倍</button></div>
-      ${tip}<div class="rec-hint">当前倍数 ×${d.mult} · 底分 ${V.cfg.base}</div>`;return;
+    el.innerHTML=actHTML(hint(tip,lord?'你是地主，加倍对两个农民都生效':'你是农民，加倍只影响你和地主之间的输赢'),
+      `<button class="btn b-gray${mark('double',false)}" data-act="dddbl" data-v="0">不加倍</button><button class="btn b-green${mark('double',true)}" data-act="dddbl" data-v="1">加倍</button>`);return;
   }
   const st=ddPickState(),who=st.prev?V.players[d.lead.pid]:null,hints=coachOn()?ddHintList().length:0;
   const recPlay=a&&a.rec.type==='play'&&ddSameCards([...DSEL],a.rec.cards)?' is-rec':'';
-  el.innerHTML=`${coachOn()?ddWarnHTML(V):''}<div class="status">${st.prev?`${esc(who.name)} 出了 <b>${ddPlayText(st.prev)}</b>，压得过就出，压不过就「不要」。`:'轮到你出牌，可以出任意牌型。'}</div>
-    <div class="act-row">
-      ${st.readings&&st.readings.length>1?st.readings.map((r,i)=>`<button class="btn primary" data-act="ddplay" data-as="${i}">出牌 · ${esc(ddChoiceLabel(r))}</button>`).join(''):
-        `<button class="btn primary${recPlay}" data-act="ddplay"${st.cls?'':' disabled'}>出牌${st.cls?' · '+ddTypeName(st.cls):''}</button>`}
-      <button class="btn${mark('pass')}" data-act="ddpass"${st.prev?'':' disabled'}>不要</button>
-      ${coachOn()?`<button class="btn" data-act="ddhint"${hints?'':' disabled'} title="${hints?'每按一次换一手能出的牌':'没有能压过上家的牌'}">提示</button>`:''}
-      <button class="btn" data-act="ddreset"${DSEL.size?'':' disabled'}>重选</button>
-    </div>
-    ${tip}${coachOn()&&!hints?'<div class="rec-hint">没有能压过上家的牌，只能「不要」。</div>':''}<div class="rec-hint">${st.why?esc(st.why):'可以出'}${st.prev?'':' · 你先出牌，不能「不要」'} · 倍数 ×${d.mult}</div>`;
+  const info=st.prev?`${esc(who.name)} 出了 <b>${ddPlayText(st.prev)}</b>`:'你先出，可以出任意牌型';
+  el.innerHTML=actHTML(`${coachOn()?ddWarnHTML(V).replace(/<p /g,'<span ').replace(/<\/p>/g,'</span>'):''}${hint(tip,info,coachOn()&&!hints?'没有能压过上家的牌，只能「不要」':st.why?esc(st.why):'')}`,
+    `<button class="btn b-gray${mark('pass')}" data-act="ddpass"${st.prev?'':' disabled'}>不要</button>
+      <button class="btn b-yellow" data-act="ddreset"${DSEL.size?'':' disabled'}>重选</button>
+      ${coachOn()?`<button class="btn b-yellow" data-act="ddhint"${hints?'':' disabled'} title="${hints?'每按一次换一手能出的牌':'没有能压过上家的牌'}">提示</button>`:''}
+      ${st.readings&&st.readings.length>1?st.readings.map((r,i)=>`<button class="btn b-green" data-act="ddplay" data-as="${i}">出牌 · ${esc(ddChoiceLabel(r))}</button>`).join(''):
+        `<button class="btn b-green${recPlay}" data-act="ddplay"${st.cls?'':' disabled'}>出牌${st.cls?' · '+ddTypeName(st.cls):''}</button>`}`);
 }
 /* sounds and voices for one event of the view */
 function ddFx(v,ev){
