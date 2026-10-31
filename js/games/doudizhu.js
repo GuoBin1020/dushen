@@ -570,7 +570,7 @@ function ddReplaceHuman(p){
   log(`${p.name} ${p.left?'离开了':'离开座位'}，${bp.name}（电脑）顶上`,'board-l');
 }
 /* someone joining mid-game waits for the next hand. The connection is kept off JSON (the host save serialises S). */
-const ddWaitMsg=extra=>({t:'lobby',hostCard:typeof myCard==='function'?myCard():null,cards:[],game:'ddz',laizi:!!S.cfg.laizi,players:P().filter(p=>p.kind!=='ai').map(p=>p.name),seats:3,aiFill:S.cfg.aiFill,coach:S.cfg.coach,host:P()[0].name,wait:true,...extra});
+const ddWaitMsg=extra=>({t:'lobby',hostCard:typeof myCard==='function'?myCard():null,cards:[],game:S.cfg.game,laizi:!!S.cfg.laizi,players:P().filter(p=>p.kind!=='ai').map(p=>p.name),seats:S.cfg.players,aiFill:S.cfg.aiFill,coach:S.cfg.coach,host:P()[0].name,wait:true,...extra});
 function ddSeatWaiting(w,{name,gender,cid}){
   /* the same person again (a reconnect while waiting): keep one place in the queue, on the new connection */
   const same=cid&&S.ddWait.find(x=>x.cid===cid);

@@ -12,7 +12,7 @@ vm.runInContext(`var TQ=[],TID=0;
   var clearTimeout=id=>{TQ=TQ.filter(x=>x.id!==id)};
   var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}function onSettle(){}
   function cardTxt(c){return '⟨'+c+'⟩'}`,ctx);
-for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
 
 function tests(){
   let passed=0,failed=0;

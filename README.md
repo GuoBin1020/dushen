@@ -50,7 +50,7 @@ python3 tools/bundle.py
 
 ## 素材来源
 
-牌面、大小王、筹码、牌背和音效来自公共领域或 CC0 / Apache-2.0 素材，作者、网址、许可证和本项目所做的修改都写在 [assets/CREDITS.txt](assets/CREDITS.txt)。素材由 `tools/make-assets.mjs` 从原始文件生成。
+扑克牌面、大小王、麻将牌、筹码、牌背和音效来自公共领域或 CC0 / Apache-2.0 素材，作者、网址、许可证和本项目所做的修改都写在 [assets/CREDITS.txt](assets/CREDITS.txt)。素材由 `tools/make-assets.mjs` 从原始文件生成。
 
 ## 使用声明
 

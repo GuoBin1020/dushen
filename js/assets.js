@@ -8,6 +8,9 @@ const SUIT_NAME=['黑桃','红桃','方块','梅花'];
 const cardImgFor=c=>cardFaceFile(RL[c>>2],c&3);
 const jokerFile=big=>big?'cards/joker-big.webp':'cards/joker-small.webp';
 const BACK_FILE='cards/back.webp';
+/* 红中麻将 tiles by kind: 0-8 万, 9-17 条, 18-26 筒, 27 红中 */
+const mjFile=k=>'mj/'+(k===27?'hz':'msp'[Math.floor(k/9)]+(k%9+1))+'.webp';
+const MJ_BACK='mj/back.webp';
 const CHIP_COLORS=['red','blue','green','black','white'];
 const chipFile=i=>'chips/'+CHIP_COLORS[((i%CHIP_COLORS.length)+CHIP_COLORS.length)%CHIP_COLORS.length]+'.png';
 const sfxList=(name,n)=>Array.from({length:n},(_,i)=>'sfx/'+name+'-'+(i+1)+'.mp3');

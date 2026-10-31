@@ -9,7 +9,7 @@ const isLandPhone=()=>window.matchMedia('(orientation:landscape) and (max-height
 const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,22]:[30,28];
 /* a seat, its bet chips or the middle of the table, in px inside .table-wrap (where #fx draws) */
 /* where a player sits, counted from me: 德州/炸金花 go clockwise, 斗地主 counter-clockwise (the next player sits on my right) */
-const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
+const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)||isM(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
   const n=V.players.length,slot=slotOf(pid),o=tableOrient();
@@ -78,7 +78,8 @@ function fxDiff(prev,v){
   const ev=v.ev;
   if(ev&&(!prev||!prev.ev||prev.ev.seq!==ev.seq)){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
-    if(isD(v))ddFx(v,ev);
+    if(isM(v))hzFx(v,ev);
+    else if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
     else if(ev.type==='compare'){say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
     else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6,0,ev.pid)}
@@ -170,6 +171,8 @@ function exploitHTML(a){
     <p class="why">${ex.text}${ex.rec&&!differs?' 和上面的建议一致。':''}</p></div>`;
 }
 function humanAct(type,to){
+  /* 红中麻将: a discard on my turn, or an answer to a claim on someone else's */
+  if(isM(V)){if(NET.role==='guest'){NET.host.send({t:'act',type,to,hand:V.handNo});render()}else act(P()[0],type,to);return}
   if(!myTurn())return;
   if(isD(V)){ddRecord(type,to);
     /* a play goes out as {cards, as}: the cards, and which 赖子 reading was picked */
@@ -324,6 +327,7 @@ function profileRows(list,vsOf){
 const PROFILE_HEAD='<thead><tr><th>玩家</th><th class="r">手</th><th class="r">入池</th><th class="r">加注</th><th class="r">激进</th><th class="r">弃牌</th><th>类型</th><th class="r">对你</th></tr></thead>';
 function renderProfiles(){
   const others=V.players.filter(p=>p.id!==V.me);
+  if(isM(V)){$('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">胡牌</th><th class="r">点炮</th></tr></thead><tbody>${others.map(p=>`<tr><td>${esc(p.name)}</td>${hzProfileRow(p)}</tr>`).join('')}</tbody></table></div>`;return}
   if(isD(V)){
     $('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">当地主</th><th class="r">赢</th><th class="r">对你</th></tr></thead><tbody>${others.map(p=>{const s=p.st||{},v=p.vs||0;return `<tr><td>${esc(p.name)}</td><td class="r num">${s.dd||0}</td><td class="r num">${s.ddL||0}</td><td class="r num">${s.ddW||0}</td><td class="r num ${v>0?'pos':v<0?'neg':''}">${sgn(v)}</td></tr>`}).join('')}</tbody></table></div>
      <p class="note">对你 = 你在他身上赢或输的筹码。更详细的斗地主画像会和教练一起在下一版加入。</p>`;
@@ -351,17 +355,18 @@ function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
   $('#corner-fs').innerHTML=fsCorner();
-  const info=isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
-  const cnt=isD(V)&&coachOn()&&!!V.dd;
-  $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
+  const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
+  const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&tableOrient()==='port';
+  $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
   /* data-cnt moves the table down below the strip (CSS) */
-  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?ddCounterStripHTML(V):'';
+  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?(isM(V)?hzCounterStripHTML(V):ddCounterStripHTML(V)):'';
   if(on)$('#game-view').dataset.cnt='1';else delete $('#game-view').dataset.cnt;
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
     <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>
-    <div class="kv"><span class="k">${isD(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
-    <div class="kv"><span class="k">${isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
+    <div class="kv"><span class="k">${isD(V)||isM(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
+    <div class="kv"><span class="k">${isM(V)?'红中麻将 · 底分':isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)||isM(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
     <div class="kv"><span class="k">我的盈亏</span><span class="v num ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
    </div>
    <div class="menu-row"><span class="k">声音</span><span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span></div>
@@ -398,8 +403,8 @@ async function toggleFS(){
 }
 ['fullscreenchange','webkitfullscreenchange'].forEach(t=>document.addEventListener(t,()=>{if(!fsEl())LAND_LOCK=false;renderMeta();if(V&&!$('#game-view').hidden)renderTable()}));
 function seatTag(p){
-  const pos=isD(V)?ddRole(V,p.id):isZ(V)?(p.inHand&&!p.folded?(p.seen?'已看牌':'闷牌'):''):posName(V,p);
-  const who=p.away?'暂时离桌':p.trust?'托管中':p.kind==='ai'?'电脑':p.kind==='remote'?(p.connected?'玩家':isD(V)?'托管中':'掉线'):(NET.role==='solo'?'':'房主');
+  const pos=isM(V)?(V.hz&&V.hz.dealer===p.id?'庄家':''):isD(V)?ddRole(V,p.id):isZ(V)?(p.inHand&&!p.folded?(p.seen?'已看牌':'闷牌'):''):posName(V,p);
+  const who=p.away?'暂时离桌':p.trust?'托管中':p.kind==='ai'?'电脑':p.kind==='remote'?(p.connected?'玩家':isD(V)||isM(V)?'托管中':'掉线'):(NET.role==='solo'?'':'房主');
   return [who,pos].filter(Boolean).join(' · ');
 }
 /* tapping a bet chip, or (德州) the seat it belongs to, lifts that chip above the cards for a moment; a 炸金花 seat opens its panel instead */
@@ -442,6 +447,7 @@ function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset
 /* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
 const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
+  if(isM(V)){BETPT={};return hzRenderTable()}
   if(isD(V)){BETPT={};return ddRenderTable()}
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
   const n=V.players.length,o=tableOrient();
@@ -566,6 +572,8 @@ function renderActions(){
     el.innerHTML=actWait(`这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}`,
       isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一手 ▶</button>':'');return;
   }
+  /* 红中麻将 asks for 吃 / 碰 / 杠 / 胡 on other players' turns too */
+  if(isM(V))return hzRenderActions(el,m);
   if(!myTurn()&&isD(V)){el.innerHTML=actWait(!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText());return}
   if(!myTurn()){
     const p=V.players[V.toAct];
@@ -626,6 +634,7 @@ function renderCoach(){
     el.innerHTML=`<div class="coach-head"><h2>教练</h2></div><p class="muted">房主关闭了本局的教练建议。结算时你仍会看到自己的决策复盘。</p>`;return;
   }
   if(isD(V)){el.innerHTML=ddCoachHTML(V,toggle);return}
+  if(isM(V)){el.innerHTML=typeof hzCoachHTML==='function'?hzCoachHTML(V,toggle):`<div class="coach-head"><h2>教练</h2>${toggle}</div><p class="muted">轮到你时，手牌里会标出教练推荐打的牌。</p>`;return}
   let body='';
   const turn=myTurn();
   if(turn&&LOCAL.mode==='live'){
@@ -697,6 +706,7 @@ function spark(w,h,pad){
 }
 function renderSession(){
   const s=sessionStats();
+  if(isM(V)){$('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${hzStatsHTML(me().st,s)}</div><svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="累计盈亏走势">${spark(300,70,6).svg}</svg>`;return}
   if(isD(V)){
     $('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${ddStatsHTML(me().st,s)}</div>
      <svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="累计盈亏走势">${spark(300,70,6).svg}</svg>`;
@@ -726,7 +736,7 @@ function renderLobby(){
     else rows.push(`<div class="seatrow empty"><span>座位 ${i+1}</span><span>${c.aiFill?'开局时由电脑补位':'空位'}</span></div>`);
   }
   $('#lobby-main').innerHTML=`<h2>房间大厅</h2>
-    <p class="lead">${c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
+    <p class="lead">${c.game==='hz'?`红中麻将 · 底分 ${c.base} · 固定 4 个座位，${hs.length} 名真人已就座`:c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
     <div class="seats">${rows.join('')}</div>
     <div class="setup-actions" style="margin-top:16px"><button class="btn primary" data-act="host-start">开始对局</button><button class="btn" data-act="leave">解散房间</button></div>
     <p class="note">底牌只发给本人，其他玩家的设备收不到你的底牌。牌局在房主的浏览器里运行，房主关闭页面牌局就会结束。仅限虚拟筹码，不涉及真钱。</p>`;
@@ -736,7 +746,7 @@ function renderLobby(){
 function renderGuestLobby(){
   const g=GL;
   $('#lobby-main').innerHTML=g?`<h2>已加入房间</h2>
-    <p class="lead">${g.game==='ddz'?`斗地主${g.laizi?'（赖子模式）':''} · 固定 3 个座位`:g.game==='zjh'?'炸金花':'德州扑克'} · 房主 ${esc(g.host)} · ${g.players.length} 名真人 / ${g.seats} 个座位 · 教练建议${g.coach?'已开启（只有你能看到你的建议）':'已关闭'}</p>
+    <p class="lead">${g.game==='hz'?'红中麻将 · 固定 4 个座位':g.game==='ddz'?`斗地主${g.laizi?'（赖子模式）':''} · 固定 3 个座位`:g.game==='zjh'?'炸金花':'德州扑克'} · 房主 ${esc(g.host)} · ${g.players.length} 名真人 / ${g.seats} 个座位 · 教练建议${g.coach?'已开启（只有你能看到你的建议）':'已关闭'}</p>
     <div class="seats">${g.players.map((n,i)=>`<div class="seatrow"><span class="n"><span class="dot"></span>${esc(n)}${g.cards&&g.cards[i]?` <span class="muted">· ${esc(g.cards[i])}</span>`:''}</span><span class="muted">${i===0?'房主':'已加入'}</span></div>`).join('')}</div>
     <p class="note">${g.ended?'这一场已经结束，等房主回到大厅开新一场。':g.wait?'对局进行中，下一局开始时你会替换一个电脑入座。':'等待房主开始对局…'}</p>
     <div class="setup-actions" style="margin-top:12px"><button class="btn" data-act="leave">离开房间</button></div>`
@@ -752,7 +762,7 @@ function onSettle(m,seat){
   renderSettle();show('settle');showBanner('');
 }
 function renderSettle(){
-  const m=SETTLE,bb=m.cfg.bb,ds=T.decisions,s=sessionStats(),z=m.cfg.game==='zjh',dz=m.cfg.game==='ddz',U=dz?'倍底分':z?'倍底注':'BB';
+  const m=SETTLE,bb=m.cfg.bb,ds=T.decisions,s=sessionStats(),z=m.cfg.game==='zjh',dz=m.cfg.game==='ddz'||m.cfg.game==='hz',U=dz?'倍底分':z?'倍底注':'BB';
   const ddParts=dz?ddSettleParts(m,ds,s):null;
   const mine=m.standings.find(x=>x.id===m.seat);
   const pr=mine?mine.net:s.pr;
@@ -858,6 +868,7 @@ function renderSettle(){
 function rulesHTML(game){
   if(game==='zjh')return zRulesHTML();
   if(game==='ddz')return ddRulesHTML();
+  if(game==='hz')return hzRulesHTML();
   const ex=[[[51,47,43,39,35],'皇家同花顺'],[[33,29,25,21,17],'同花顺'],[[44,45,46,47,6],'四条'],[[40,41,42,13,14],'葫芦'],[[49,37,25,13,5],'同花'],[[35,30,27,20,18],'顺子'],[[28,29,30,51,5],'三条'],[[48,49,20,21,1],'两对'],[[44,45,51,26,9],'一对'],[[51,42,31,22,13],'高牌']];
   return `<h2>规则速查</h2><p class="lead">每人 2 张底牌，桌面最多 5 张公共牌，用其中任意 5 张组成最好的牌。</p>
   <h3>一手牌的流程</h3>
@@ -874,8 +885,8 @@ function rulesHTML(game){
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
 function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
-function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
-const playersHint=()=>GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
+function setGame(g){GAME=['zjh','ddz','hz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
+const playersHint=()=>GAME==='hz'?'红中麻将固定 4 人。':GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
   solo:'选德州扑克、炸金花或斗地主，和电脑对手同桌。轮到你时教练会给出建议，并给每个决定打分。打完点「结束并结算」查看收益和问题点。',
   host:'你当房主：选好规则后创建房间，把邀请码（互联网）或连接码（局域网）发给朋友。底牌只发给本人，教练建议也只显示在各自设备上。',
@@ -898,7 +909,7 @@ function syncJoinNet(){
   if(MODE==='join'){$('#join-internet').hidden=lan;$('#join-lan').hidden=!lan;$('#start-btn').textContent=lan?'生成回复码':'加入房间'}
 }
 function renderSeg(){$('#f-players').innerHTML=[2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-players="${n}" aria-pressed="${seatsDraft===n}">${n}</button>`).join('')}
-function updateBB(){const st=+$('#f-stack').value||0;if(GAME==='ddz'){const b=+$('#f-ddbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='zjh'){const a=+$('#f-ante').value;$('#stack-bb').textContent=st?`= ${Math.round(st/a)} 倍底注`:''}else{const bb=+$('#f-blinds').value.split('/')[1];$('#stack-bb').textContent=st?`= ${Math.round(st/bb)} 个大盲`:''}}
+function updateBB(){const st=+$('#f-stack').value||0;if(GAME==='hz'){const b=+$('#f-hzbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='ddz'){const b=+$('#f-ddbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='zjh'){const a=+$('#f-ante').value;$('#stack-bb').textContent=st?`= ${Math.round(st/a)} 倍底注`:''}else{const bb=+$('#f-blinds').value.split('/')[1];$('#stack-bb').textContent=st?`= ${Math.round(st/bb)} 个大盲`:''}}
 /* a select only takes a value it has an option for; anything else (old prefs, the other game's numbers) keeps the default */
 const hasOption=(el,v)=>[...el.options].some(o=>o.value===String(v));
 function setSelect(sel,v){const el=$(sel);if(v!=null&&hasOption(el,v))el.value=String(v)}
@@ -906,17 +917,18 @@ const selVal=(sel,fallback)=>{const el=$(sel);return el.value&&hasOption(el,el.v
 function readCfg(){
   const z=GAME==='zjh',ante=+selVal('#f-ante','20');
   const [sb,bb]=z?[ante,ante]:selVal('#f-blinds','10/20').split('/').map(Number);
-  const dz=GAME==='ddz',base=+selVal('#f-ddbase','20');
+  const hz=GAME==='hz',dz=GAME==='ddz'||hz,base=hz?+selVal('#f-hzbase','20'):+selVal('#f-ddbase','20');
   let stack=Math.round(+$('#f-stack').value)||2000;stack=Math.max(dz?base*20:z?ante*20:bb*10,stack);
   const solo=MODE==='solo';
-  return normalizeCfg({game:GAME,base,ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
+  return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
     coach:solo?true:$('#f-coach').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
 }
 function fillForm(c){
   if(!c||typeof c!=='object')return;
   const n=Math.round(+c.players);seatsDraft=n>=2&&n<=MAX_SEATS?n:6;
-  GAME=['zjh','ddz'].includes(c.game)?c.game:'holdem';
-  setSelect('#f-ddbase',c.base);setSelect('#f-ddcap',c.ddcap);$('#f-laizi').checked=!!c.laizi;
+  GAME=['zjh','ddz','hz'].includes(c.game)?c.game:'holdem';
+  setSelect(c.game==='hz'?'#f-hzbase':'#f-ddbase',c.base);setSelect('#f-hzbirds',c.hzBirds);
+  $('#f-hzdp').checked=!!c.hzDianpao;$('#f-hzredself').checked=c.hzRedSelf!==false;$('#f-hzqiang').checked=c.hzQiangGang!==false;$('#f-hznored').checked=!!c.hzNoRed;setSelect('#f-ddcap',c.ddcap);$('#f-laizi').checked=!!c.laizi;
   setSelect('#f-ante',c.ante);setSelect('#f-zcap',c.zcap);setSelect('#f-zrounds',c.zrounds);$('#f-z235').checked=c.z235!==false;
   const st=Math.round(+c.stack);$('#f-stack').value=st>0?st:2000;
   /* hold'em blinds are saved on their own: a 炸金花 session stores sb=bb=ante, which is not a blinds option */
@@ -960,7 +972,7 @@ async function submitSetup(){
   NET.needHostCard=MODE==='join';
   const cfg=readCfg();
   /* 斗地主 forces 3 seats and ante = 底分; keep the form's own values so the other games' defaults survive */
-  const keep=cfg.game==='ddz'?{players:seatsDraft,ante:+selVal('#f-ante','20')}:{};
+  const keep=cfg.game==='ddz'||cfg.game==='hz'?{players:seatsDraft,ante:+selVal('#f-ante','20')}:{};
   savePrefs({...cfg,...keep,blinds:selVal('#f-blinds','10/20'),name:$('#f-name').value.trim(),gender});
   const btn=$('#start-btn');btn.disabled=true;
   try{
@@ -1060,6 +1072,13 @@ document.addEventListener('click',async e=>{
   else if(a==='zraise')humanAct('raise',+b.dataset.v);
   else if(a==='zcmp'){closeSeatPop();humanAct('compare',+b.dataset.t)}
   else if(a==='ddbid')humanAct('bid',+b.dataset.v);
+  else if(a==='hzdiscard'){if(HSEL!=null){const id=HSEL;HSEL=null;humanAct('discard',id)}}
+  else if(a==='hzhu')humanAct('hu');
+  else if(a==='hzpeng')humanAct('peng');
+  else if(a==='hzmgang')humanAct('mgang');
+  else if(a==='hzchi')humanAct('chi',+b.dataset.i);
+  else if(a==='hzpass')humanAct('pass');
+  else if(a==='hzgang')humanAct(b.dataset.t,+b.dataset.k);
   else if(a==='dddbl')humanAct('double',+b.dataset.v);
   else if(a==='ddplay'){const st=ddPickState();if(st.cls){const r=st.readings[+b.dataset.as||0]||st.cls,ids=[...DSEL];DSEL=new Set();humanAct('play',{cards:ids,as:{type:r.type,main:r.main,len:r.len}})}}
   else if(a==='ddpass'){DSEL=new Set();humanAct('pass')}
@@ -1079,6 +1098,7 @@ document.addEventListener('click',async e=>{
   }
   else if(a==='host-start')hostStart();
   else if(a==='fs')toggleFS();
+  else if(a==='ddcounter'&&V&&isM(V)&&tableOrient()!=='port')openSheet('coach','coach-main');
   else if(a==='ddcounter'){DCOUNT=!DCOUNT;try{localStorage.setItem('dushen-counter',DCOUNT?'1':'0')}catch(x){}renderMeta()}
   else if(a==='wheel')openWheel();
   else if(a==='lan-new')lanNewSlot();
@@ -1086,6 +1106,8 @@ document.addEventListener('click',async e=>{
   else if(a==='menu-home'&&NET.role!=='guest'&&!confirm('还没有结算，确定直接回到主页吗？本局记录不会保存。')){}
   else if(a==='leave'||a==='home'||a==='menu-home'){leaveAll();resetT();showBanner('');show('setup')}
 });
+/* 红中麻将 hand: a tap picks a tile, a second tap on it discards */
+document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('#dd-hand [data-hz]');if(t&&V&&isM(V))hzTap(+t.dataset.hz)});
 /* 斗地主 hand: a tap picks or unpicks a card; pressing and sliding across cards sets each one like the first */
 let DDRAG=null;
 document.addEventListener('pointerdown',e=>{
