@@ -279,10 +279,14 @@ input.code{font-family:var(--f-mono);letter-spacing:.2em;text-transform:uppercas
 .banner:empty{display:none}
 .exploit{border:1px dashed var(--brass);border-radius:10px;padding:8px 10px;margin-top:10px}
 .exploit .t{font-size:11px;color:var(--brass);letter-spacing:.06em}
-#fx{position:absolute;inset:0;pointer-events:none;z-index:5}
+/* above the corner buttons and the counter strip: chat bubbles and effects may cover them for the few seconds they last */
+#fx{position:absolute;inset:0;pointer-events:none;z-index:9}
 .fly-chip{position:absolute;width:14px;height:14px;background:center/contain no-repeat;transform:translate(-50%,-50%);transition:left .38s cubic-bezier(.3,.7,.4,1),top .38s cubic-bezier(.3,.7,.4,1);box-shadow:0 1px 3px var(--shade)}
 .bubble{position:absolute;transform:translate(-50%,-100%);background:var(--card);color:var(--card-ink);font-size:12.5px;font-weight:500;padding:6px 10px;border-radius:12px;max-width:180px;width:max-content;line-height:1.35;box-shadow:0 4px 14px var(--shade);animation:bub 3.8s ease forwards;z-index:6}
-.bubble::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--card);border-bottom:0}
+.bubble::after{content:"";position:absolute;left:var(--ax,50%);bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--card);border-bottom:0}
+.bubble.dn{animation-name:bubdn}
+.bubble.dn::after{bottom:auto;top:-6px;border:6px solid transparent;border-bottom-color:var(--card);border-top:0}
+@keyframes bubdn{0%{opacity:0;transform:translate(-50%,-20%) scale(.6)}8%{opacity:1;transform:translate(-50%,0) scale(1.06)}12%{transform:translate(-50%,0) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,15%)}}
 @keyframes bub{0%{opacity:0;transform:translate(-50%,-80%) scale(.6)}8%{opacity:1;transform:translate(-50%,-100%) scale(1.06)}12%{transform:translate(-50%,-100%) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,-115%)}}
 .allin-banner{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;animation:allin 1.6s ease forwards;z-index:7;white-space:nowrap}
 .allin-banner b{display:block;font:800 clamp(40px,9vw,88px)/.9 var(--f-display);letter-spacing:.06em;color:var(--brass);text-shadow:0 0 18px rgba(217,168,76,.8),0 4px 0 var(--brass-ink)}
@@ -563,7 +567,7 @@ body.in-game .actions{position:absolute;z-index:6;left:0;right:0;margin:0 auto;w
 .btn.b-red{background:linear-gradient(#ffa394,#d8432f);color:#4a0d06}
 .act-bar .btn.is-rec,.act-pop .btn.is-rec{box-shadow:0 4px 0 rgba(0,0,0,.5),0 0 0 3px var(--good),0 0 14px rgba(94,197,143,.7)}
 /* 炸金花: the panel by a tapped seat (js/ui.js renderSeatPop places it) */
-.seat-pop{position:absolute;z-index:9;width:max-content;min-width:150px;max-width:min(260px,calc(100vw - 16px));display:grid;gap:6px;padding:9px 12px;border-radius:14px;
+.seat-pop{position:absolute;z-index:10;width:max-content;min-width:150px;max-width:min(260px,calc(100vw - 16px));display:grid;gap:6px;padding:9px 12px;border-radius:14px;
   background:rgba(6,14,10,.92);border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 28px rgba(0,0,0,.6);color:var(--text)}
 .seat-pop[hidden]{display:none}
 .seat-pop .sp-name{font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

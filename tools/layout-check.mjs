@@ -181,6 +181,34 @@ SCEN.push(
   {name:'coach-rec-zjh',game:'zjh',n:6,extra:COACH_REC,sizes:PH},
   {name:'coach-rec-ddz',game:'ddz',n:3,extra:COACH_REC,sizes:PH}
 );
+/* the 记牌器 switch: its own option for 斗地主 and 红中 (on by default), apart from the coach */
+const COUNTER_CFG=`(async()=>{${PG}
+  const cells=()=>[...document.querySelectorAll('#dd-strip .dd-scells,#dd-strip .hz-counter')].filter(vis).length;
+  const btn=()=>vis(Q('.corner [data-act="ddcounter"]'));
+  const inSheet=()=>{openSheet('coach','coach-main');const t=(Q('#coach')||{}).innerHTML||'';closeSheet();return /hz-counter|dd-cnt|记牌器/.test(t)};
+  const port=innerHeight>innerWidth,strip=port||isD(V);
+  S.cfg.counter=true;S.cfg.coach=true;sync();await sleep(100);
+  if(strip&&!cells())f.push('记牌器默认应显示');if(!btn())f.push('没有记牌器按钮');if(!inSheet())f.push('教练面板里没有记牌器');
+  S.cfg.coach=false;sync();await sleep(100);
+  if(strip&&!cells())f.push('关掉教练后记牌器也没了');if(!btn())f.push('关掉教练后没有记牌器按钮');if(!inSheet())f.push('关掉教练后面板里看不到记牌器');
+  S.cfg.counter=false;S.cfg.coach=true;sync();await sleep(100);
+  if(cells())f.push('关掉记牌器后还显示');if(btn())f.push('关掉记牌器后还有记牌器按钮');if(inSheet())f.push('关掉记牌器后教练面板里还有记牌器');
+  S.cfg.counter=true;sync();
+  show('setup');setMode('solo');
+  for(const g of ['holdem','zjh','ddz','hz']){document.querySelector('#f-game [data-game="'+g+'"]').click();await sleep(50);const c=document.getElementById('f-counter');
+    if(vis(c)!==(g==='ddz'||g==='hz'))f.push(g+' 的「显示记牌器」显示不对');}
+  const c=document.getElementById('f-counter');if(c){if(!c.checked)f.push('「显示记牌器」默认应勾选');c.checked=false;if(readCfg().counter!==false)f.push('取消勾选后 counter 不是 false');c.checked=true}
+  show('game');render();return f})()`;
+/* chat bubbles: every seat's bubble stays on screen and above everything (it may cover other things, it is gone in 4 s) */
+const BUBBLE_ON=`(async()=>{${PG}
+  const fx=Q('#fx');
+  for(let pid=0;pid<V.players.length;pid++){
+    fx.innerHTML='';showBubble(pid,'你好你好你好，打快点');await sleep(450);
+    const b=fx.querySelector('.bubble');if(!vis(b)){f.push('座位 '+pid+' 没有气泡');continue}
+    const a=R(b);if(a.x<-0.5||a.y<-0.5||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('座位 '+pid+' 的气泡超出屏幕');
+    fx.style.pointerEvents=b.style.pointerEvents='auto';const top=document.elementFromPoint(a.x+a.w/2,a.y+a.h/2);fx.style.pointerEvents=b.style.pointerEvents='';if(top&&!b.contains(top))f.push('座位 '+pid+' 的气泡被 '+((top.className||top.id)+'').split(' ')[0]+' 盖住');
+  }
+  fx.innerHTML='';return f})()`;
 /* fx-points: the start of every animation sits within 20px of the seat it belongs to, and #fx lies over #table */
 const FX_POINTS=`(async()=>{${PG}
   const fx=Q('#fx'),fr=R(fx),tr=R(Q('#table'));
@@ -201,6 +229,8 @@ const FX_POINTS=`(async()=>{${PG}
   fx.innerHTML='';
   return f})()`;
 SCEN.push(
+  {name:'counter-cfg-ddz',game:'ddz',n:3,extra:COUNTER_CFG,sizes:PH},{name:'counter-cfg-hz',game:'hz',n:4,extra:COUNTER_CFG,sizes:PH},
+  {name:'bubble-on',game:'holdem',n:6,extra:BUBBLE_ON},{name:'bubble-on-9',game:'holdem',n:9,extra:BUBBLE_ON},{name:'bubble-on-zjh',game:'zjh',n:6,extra:BUBBLE_ON},{name:'bubble-on-ddz',game:'ddz',n:3,extra:BUBBLE_ON},{name:'bubble-on-hz',game:'hz',n:4,extra:BUBBLE_ON},
   {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},
   {name:'fx-points-ddz',game:'ddz',n:3,extra:FX_POINTS,sizes:PH}

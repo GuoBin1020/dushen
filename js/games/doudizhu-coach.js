@@ -238,6 +238,7 @@ function ddCounterCells(v,br){
 }
 /* the strip under the table's top corners */
 const ddCounterStripHTML=v=>`<div class="dd-scells" role="table" aria-label="记牌器：每个点数还剩几张在别人手里">${ddCounterCells(v,'<i class="br" aria-hidden="true"></i>')}</div>`;
+const ddCounterSectionHTML=v=>`<h3 class="dd-sub">记牌器</h3>${ddCounterHTML(v)}`;
 function ddCounterHTML(v){
   const lb=ddLordBottom(v);
   return `<div class="dd-counter" role="table" aria-label="记牌器：每个点数还剩几张在别人手里">${ddCounterCells(v)}</div>
@@ -267,7 +268,7 @@ function ddCoachHTML(v,toggle){
       <div class="verdict" style="margin-top:2px"><span class="pill ${gc}">${gl}</span><span>你：<b>${esc(f.action)}</b></span><span class="muted">建议：${esc(f.recText)}</span></div>
       <p class="why">${esc(f.note)}</p>${LOCAL.mode==='after'?`<p class="why muted">${esc(f.why)}</p>`:''}</div>`;
   }
-  return `<div class="coach-head"><h2>教练</h2>${toggle}</div>${body}<h3 class="dd-sub">记牌器</h3>${ddCounterHTML(v)}
+  return `<div class="coach-head"><h2>教练</h2>${toggle}</div>${body}${counterOn()?ddCounterSectionHTML(v):''}
     <p class="disclaim">斗地主没有公认的最优解。教练按「拆完的手数、别人压不压得住、队友和对手剩几张」打分，是学习用的简化模型。</p>`;
 }
 /* my 斗地主 numbers, for the stats panel and the settlement */
