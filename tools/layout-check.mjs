@@ -561,7 +561,14 @@ async function run(sc,[w,h,mobile],then){
   return res;
 }
 try{
-  for(const sc of SCEN)for(const sz of sc.sizes||SIZES)out.results.push(...await run(sc,sz));
+  /* progress on stderr, one line per scenario × size: [12/348] holdem-6 412x915 ✅ (stdout keeps the JSON) */
+  const jobs=SCEN.flatMap(sc=>(sc.sizes||SIZES).map(sz=>[sc,sz])),t0=Date.now();let k=0,bad=0;
+  for(const [sc,sz] of jobs){
+    const r=await run(sc,sz),f=r.flatMap(x=>x.fails);k++;if(f.length)bad++;
+    const left=Math.round((Date.now()-t0)/k*(jobs.length-k)/1000);
+    process.stderr.write(`[${k}/${jobs.length}] ${sc.name} ${sz[0]}x${sz[1]} ${f.length?'❌ '+f[0].slice(0,60):'✅'}  （已失败 ${bad}，预计还剩 ${Math.floor(left/60)} 分 ${left%60} 秒）\n`);
+    out.results.push(...r);
+  }
   /* keep-raise: a phone's address bar shrinks the height a little; the table must not rebuild and reset the raise slider */
   if(!process.env.LC_ONLY||process.env.LC_ONLY==='keep-raise'){
     let kept=null;
