@@ -28,7 +28,7 @@ function hzAdvise(v){
     return {claim:'pass',why:'吃碰都不能让牌更快听，过'};
   }
   if(v.toAct!==v.me||h.stage!=='turn')return null;
-  if(hzWin(mine,melds,{first:!!h.first}))return {hu:true,why:'已经可以胡了'};
+  if(h.drawn!=null&&hzWin(mine,melds,{first:!!h.first}))return {hu:true,why:'已经可以胡了'};
   const d=hzBestDiscard(mine,melds),rest=hzMinus1(mine,d),s=hzShanten(rest,melds);
   const waits=s===0?hzWaits(rest,melds):[];
   const lw=Object.fromEntries(waits.map(k=>[k,left[k]]));

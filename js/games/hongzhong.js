@@ -116,6 +116,8 @@ const HZ_N=4;
 const hzNext=id=>(id+1)%HZ_N;
 const hzRed=p=>p.cards.some(id=>hzKind(id)===HZ_RED);
 /* a 红中 never goes out, except when the hand holds nothing else */
+/* 自摸 only on a tile just drawn: after a 吃 / 碰 there is none (that would dodge 「只能自摸」); the dealer's 14th counts */
+const hzCanZimo=p=>S.hz.drawn!=null&&p.cards.includes(S.hz.drawn);
 const hzCanDiscard=(p,id)=>p.cards.includes(id)&&(hzKind(id)!==HZ_RED||p.cards.every(x=>hzKind(x)===HZ_RED));
 let HZ_TIMERS=[];
 const hzClear=()=>{HZ_TIMERS.forEach(t=>clearTimeout(t));HZ_TIMERS=[]};
@@ -218,6 +220,8 @@ function hzAct(p,type,arg){
     const c=h.claim,o=c.opts[p.id];
     if(!o||c.ans[p.id]!=null)return sync();
     if(type!=='pass'&&!o.includes(type))return sync();
+    /* 吃 names one of the options by index; anything else is not an answer */
+    if(type==='chi'){const n=+arg;if(!Number.isInteger(n)||n<0||n>=hzChiOpts(p.cards,c.tile).length)return sync()}
     c.ans[p.id]={type,arg};
     if(type==='pass'){p.lastAction='过'}
     if(Object.keys(c.opts).every(k=>c.ans[k]!=null))return hzResolve();
@@ -226,6 +230,7 @@ function hzAct(p,type,arg){
   if(h.stage!=='turn'||S.toAct!==p.id)return;
   const first=h.first[p.id];
   if(type==='hu'){
+    if(!hzCanZimo(p))return sync();
     const r=hzWin(p.cards,h.melds[p.id],{first});
     if(!r)return sync();
     return hzEnd(p.id,null,'zimo');
@@ -295,7 +300,7 @@ function hzBestDiscard(hand,melds){
 function hzBotTurn(p){
   const h=S.hz,seq=h.seq;
   if(h.stage==='claim')return hzBotClaim(p);
-  if(hzWin(p.cards,h.melds[p.id],{first:h.first[p.id]}))return hzAct(p,'hu');
+  if(hzCanZimo(p)&&hzWin(p.cards,h.melds[p.id],{first:h.first[p.id]}))return hzAct(p,'hu');
   const s0=hzShanten(hzMinus1(p.cards,hzBestDiscard(p.cards,h.melds[p.id])),h.melds[p.id]);
   for(const k of hzAGangKinds(p.cards)){const rest=p.cards.filter(x=>hzKind(x)!==k);if(h.wall.length&&hzShanten(rest,[...h.melds[p.id],{t:'agang',ids:[]}])<=s0)return hzAct(p,'agang',k)}
   for(const k of hzBGangKinds(p.cards,h.melds[p.id]))if(h.wall.length)return hzAct(p,'bgang',k);
@@ -319,7 +324,7 @@ function hzBotClaim(p){
 function hzAutoMove(p,coach){
   const h=S.hz;
   if(h.stage==='claim'){const o=h.claim.opts[p.id]||[];if(o.includes('hu'))return hzAct(p,'hu');return coach&&typeof hzAdvise==='function'?hzAdviseClaim(p):hzAct(p,'pass')}
-  if(hzWin(p.cards,h.melds[p.id],{first:h.first[p.id]}))return hzAct(p,'hu');
+  if(hzCanZimo(p)&&hzWin(p.cards,h.melds[p.id],{first:h.first[p.id]}))return hzAct(p,'hu');
   if(coach&&typeof hzAdvise==='function'){const a=hzAdvise(viewFor(p.id));if(a&&a.discard!=null)return hzAct(p,'discard',a.discard);return hzBotTurn(p)}
   if(coach)return hzBotTurn(p);
   const d=h.drawn!=null&&hzCanDiscard(p,h.drawn)?h.drawn:[...p.cards].reverse().find(x=>hzCanDiscard(p,x));
@@ -433,7 +438,7 @@ function hzRenderActions(el,m){
     const p=V.players[V.toAct];
     return el.innerHTML=actWait(h.stage==='claim'?'等待其他人选择吃、碰、杠、胡…':p?(p.kind==='remote'&&!p.connected?`${esc(p.name)} 掉线了，稍后由电脑代打…`:`等待 ${esc(p.name)} 出牌…`):'…');
   }
-  const mine=hzMine(),melds=h.melds[V.me]||[],win=hzWin(mine,melds,{first:h.first});
+  const mine=hzMine(),melds=h.melds[V.me]||[],win=h.drawn!=null&&hzWin(mine,melds,{first:h.first});
   const gangs=h.wallLeft?[...hzAGangKinds(mine).map(k=>['agang',k]),...hzBGangKinds(mine,melds).map(k=>['bgang',k])]:[];
   const sel=HSEL!=null&&mine.includes(HSEL)&&hzCanDiscard({cards:mine},HSEL);
   el.innerHTML=actHTML(tip||(sel?`打出 ${hzName(hzKind(HSEL))}？再点一次这张牌也可以打出`:'点一张牌选中，再点一次打出'),
