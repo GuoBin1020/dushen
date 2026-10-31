@@ -9,6 +9,8 @@ import vm from 'node:vm';
 import {startChrome,openPage,sleep} from './cdp.mjs';
 
 const [SRC,OUT]=process.argv.slice(2);
+/* --mj <dir>: only render the 红中麻将 tiles from the riichi-mahjong-tiles SVGs in <dir> (Front.svg + symbol), keep the rest */
+const MJ=process.argv.includes('--mj')?process.argv[process.argv.indexOf('--mj')+1]:null;
 if(!SRC||!OUT){console.error('usage: make-assets.mjs <src-dir> <out-dir>');process.exit(2)}
 const FFMPEG=fs.existsSync('/opt/homebrew/bin/ffmpeg')?'/opt/homebrew/bin/ffmpeg':'ffmpeg';
 const RANKS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'],SUITS=['S','H','D','C'];
@@ -22,6 +24,7 @@ const out=(...p)=>{const f=path.join(OUT,...p);fs.mkdirSync(path.dirname(f),{rec
 const b64=(buf,mime)=>`data:${mime};base64,${Buffer.from(buf).toString('base64')}`;
 const page_=html=>`<!doctype html><meta charset=utf-8><body style="margin:0;background:transparent">${html}`;
 
+if(MJ){await mahjong();process.exit(0)}
 const chrome=await startChrome(9347);
 let pg;
 try{
@@ -104,3 +107,31 @@ fs.writeFileSync(out('CREDITS.txt'),`Asset credits / 素材来源
    Also made for this project: the ace of spades (cards/AS.webp) is redrawn in the style of the other aces.
 `);
 console.log('assets written to',OUT);
+
+/* 红中麻将 tiles: the face plate and the symbol stacked, 120px wide WebP; a light diagonal pattern over the plain back */
+async function mahjong(){
+  const TW=120,TH=Math.round(TW*400/300),svg=f=>b64(fs.readFileSync(path.join(MJ,f+'.svg')),'image/svg+xml');
+  const names=[...['Man','Sou','Pin'].flatMap((s,i)=>Array.from({length:9},(_,n)=>[s+(n+1),'msp'[i]+(n+1)])),['Chun','hz']];
+  const chrome=await startChrome(9349);let pg;
+  try{
+    pg=await openPage(chrome.port,{w:TW,h:TH,transparent:true});
+    const render=async(html,file)=>{
+      await pg.send('Emulation.setDeviceMetricsOverride',{width:TW,height:TH,deviceScaleFactor:1,mobile:false});
+      await pg.ev(`document.open();document.write(${JSON.stringify(page_(html))});document.close();Promise.all([...document.images].map(i=>i.decode?i.decode().catch(()=>{}):0))`);
+      await sleep(120);await pg.shot(file,{clip:{x:0,y:0,width:TW,height:TH},quality:82});
+    };
+    const box=`position:absolute;left:0;top:0;width:${TW}px;height:${TH}px`;
+    for(const [src,dst] of names)await render(`<div style="position:relative;width:${TW}px;height:${TH}px"><img src="${svg('Front')}" style="${box}"><img src="${svg(src)}" style="${box}"></div>`,out('mj',dst+'.webp'));
+    await render(`<div style="position:relative;width:${TW}px;height:${TH}px;border-radius:${TW*.1}px;overflow:hidden"><img src="${svg('Back')}" style="${box}"><div style="${box};background:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 3px,transparent 3px 9px),repeating-linear-gradient(-45deg,rgba(0,0,0,.12) 0 3px,transparent 3px 9px);mix-blend-mode:overlay"></div><div style="position:absolute;inset:10%;border:2px solid rgba(255,240,220,.7);border-radius:${TW*.06}px"></div></div>`,out('mj','back.webp'));
+  }finally{if(pg)pg.close();chrome.kill()}
+  const cf=out('CREDITS.txt'),cur=fs.existsSync(cf)?fs.readFileSync(cf,'utf8'):'';
+  if(!cur.includes('riichi-mahjong-tiles'))fs.writeFileSync(cf,cur.trimEnd()+`
+
+5. Mahjong tiles (mj/*.webp)
+   Author: FluffyStuff, "riichi-mahjong-tiles"
+   Source: https://github.com/FluffyStuff/riichi-mahjong-tiles
+   License: Public domain, Creative Commons CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+   Changes in this project: each tile's face plate and symbol stacked and rasterised to 120px wide WebP; only 万 / 条 / 筒 1-9 and 红中 are used; a diagonal pattern and an inner frame were added over the back.
+`);
+  console.log('mahjong tiles written to',path.join(OUT,'mj'));
+}

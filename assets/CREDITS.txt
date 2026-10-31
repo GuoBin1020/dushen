@@ -24,3 +24,9 @@ Asset credits / 素材来源
    License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
    Changes in this project: composed into a new joker card design with the corner text 大王 / 小王; the small joker is rendered in greyscale.
    Also made for this project: the ace of spades (cards/AS.webp) is redrawn in the style of the other aces.
+
+5. Mahjong tiles (mj/*.webp)
+   Author: FluffyStuff, "riichi-mahjong-tiles"
+   Source: https://github.com/FluffyStuff/riichi-mahjong-tiles
+   License: Public domain, Creative Commons CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+   Changes in this project: each tile's face plate and symbol stacked and rasterised to 120px wide WebP; only 万 / 条 / 筒 1-9 and 红中 are used; a diagonal pattern and an inner frame were added over the back.

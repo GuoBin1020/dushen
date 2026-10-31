@@ -25,7 +25,11 @@ for(let i=0;i<7;i++){const f=run(`chipFile(${i})`);ok(sz(f)>0,'筹码缺失 '+f)
 ok(run('chipFile(0)')!==run('chipFile(1)'),'筹码颜色不同');
 eq(run('chipFile(0)'),run('chipFile(5)'),'筹码循环');
 let total=0;if(fs.existsSync(AS))for(const f of walk(AS))total+=fs.statSync(f).size;
-ok(total>0&&total<=1.6*1024*1024,'素材总体积 '+total);
+ok(total>0&&total<=1.9*1024*1024,'素材总体积 '+total);
+/* 红中麻将：万条筒 1-9 和红中 (kind 0..27) plus the back */
+eq(run('mjFile(0)'),'mj/m1.webp');eq(run('mjFile(9)'),'mj/s1.webp');eq(run('mjFile(26)'),'mj/p9.webp');eq(run('mjFile(27)'),'mj/hz.webp');eq(run('MJ_BACK'),'mj/back.webp');
+for(let k=0;k<28;k++){const f=run(`mjFile(${k})`);ok(sz(f)>1024,'麻将牌缺失或太小 '+f)}
+ok(sz(run('MJ_BACK'))>1024,'麻将牌背缺失');
 const sfx=run('SFX_FILES');
 eq(Object.keys(sfx).sort(),['chipLay','chipStack','collide','handle','place','shove','shuffle','slide'],'SFX 键');
 for(const k of Object.keys(sfx)){ok(sfx[k].length>0,'SFX 空 '+k);for(const f of sfx[k])ok(sz(f)>0,'音效缺失 '+f)}
@@ -60,5 +64,6 @@ eq(run("avatarChar('张三')"),'张','avatarChar 普通名字');
 ok(/chips\/red\.png/.test(run('chipURL(0)')),'chipURL(0) 是 red.png');
 ok(/chips\/blue\.png/.test(run('chipURL(1)')),'chipURL(1) 是 blue.png');
 ok(/url\('[^']*chips\/green\.png'\)/.test(run('chipStyle(2)')),'chipStyle 含 url');
+ok(/riichi-mahjong-tiles/.test(cr)&&/CC0/.test(cr.slice(cr.indexOf('riichi-mahjong-tiles'))),'CREDITS 缺麻将牌来源');
 console.log(`assets: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);
