@@ -274,8 +274,10 @@ function zRenderActions(el,m){
      ${lv.length?`<button class="btn b-red${mark('raise')}" data-act="zpop" data-pop="raise" aria-haspopup="true">加注</button>`:''}`;
   const pop=ACTPOP==='raise'?`<div class="pop-t">加注到单注（闷牌付 1 倍单注，看牌后付 2 倍）：</div><div class="pop-row">${lv.map(v=>`<button class="btn b-red${mark('raise',v)}" data-act="zraise" data-v="${v}">${fmt(v)}（付 ${fmt((m.seen?2:1)*v)}）</button>`).join('')}</div>`
     :'';
-  const hint=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>${rt==='compare'?'（点 TA 的头像）':''}`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
-  el.innerHTML=actHTML(hint,bar,pop,ACTPOP);
+  const coach=live?`教练建议：<b>${zRecLabel(a.rec,a)}</b>${rt==='compare'?'（点 TA 的头像）':''}`:coachOn()?'练习模式：先自己决定，行动后教练面板显示点评。':'';
+  /* compare has no button: from round 2 a small line says where it is */
+  const cmp=V.round>=2&&m.stack>=cost?'<span class="cmp-tip">点对手头像可比牌</span>':'';
+  el.innerHTML=actHTML([coach,cmp].filter(Boolean).join(' · '),bar,pop,ACTPOP);
 }
 function zRulesHTML(){
   const ex=[[[48,49,50],'豹子','三张一样'],[[47,43,39],'同花顺','同花色的顺子'],[[51,35,19],'金花','三张同花色'],[[46,40,33],'顺子','三张连续，A-2-3 最小'],[[44,45,22],'对子','两张一样'],[[51,38,17],'单张','以上都不是，比最大的一张'],[[0,5,14],'235','不同花色的 2、3、5：最小的单张，但开启规则时能吃豹子']];

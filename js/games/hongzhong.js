@@ -122,7 +122,7 @@ function hzDeal(live){
   for(let k=0;k<13;k++)order.forEach(i=>P()[i].cards.push(wall.shift()));
   P()[dl].cards.push(wall.shift());
   P().forEach(p=>{p.cards=hzSort(p.cards)});
-  S.hz={wall,stage:'turn',drawn:P()[dl].cards[P()[dl].cards.length-1],discards:{0:[],1:[],2:[],3:[]},melds:{0:[],1:[],2:[],3:[]},
+  S.hz={wall,stage:'turn',drawn:P()[dl].cards[P()[dl].cards.length-1],discards:{0:[],1:[],2:[],3:[]},river:[],melds:{0:[],1:[],2:[],3:[]},
     claim:null,first:{0:true,1:true,2:true,3:true},delta:{0:0,1:0,2:0,3:0},gangs:[],birds:[],result:null,last:null,seq:0};
   Object.assign(S,{phase:'playing',toAct:dl,street:'hz',currentBet:0,minRaise:0,raises:0,preRaisers:[],sbId:-1,bbId:-1});
   log(`第 ${S.handNo} 局，${P()[dl].name} 坐庄`,'sep');
@@ -185,7 +185,7 @@ function hzResolve(){
   if(c.qiang){const g=c.qiang;h.claim=null;return hzFinishBGang(P()[g.by],g.kind)}
   for(const t of ['mgang','peng']){i=got(t);if(i==null)continue;
     const p=P()[i],a=c.ans[i],from=P()[c.from];
-    from.lastAction='';h.discards[c.from]=h.discards[c.from].filter(x=>x!==c.tile);h.claim=null;h.first[i]=false;
+    from.lastAction='';h.discards[c.from]=h.discards[c.from].filter(x=>x!==c.tile);h.river=h.river.filter(x=>x!==c.tile);h.claim=null;h.first[i]=false;
     const ids=hzOf(p.cards,hzKind(c.tile),t==='mgang'?3:2);
     p.cards=p.cards.filter(x=>!ids.includes(x));
     h.melds[i].push({t,ids:hzSort([...ids,c.tile]),from:c.from});
@@ -239,7 +239,7 @@ function hzAct(p,type,arg){
   }
   if(type!=='discard')return sync();
   const id=+arg;if(!hzCanDiscard(p,id))return sync();
-  p.cards=p.cards.filter(x=>x!==id);h.discards[p.id].push(id);h.first[p.id]=false;h.last={pid:p.id,id};h.drawn=null;
+  p.cards=p.cards.filter(x=>x!==id);h.discards[p.id].push(id);h.river.push(id);h.first[p.id]=false;h.last={pid:p.id,id};h.drawn=null;
   p.lastAction='';log(`${p.name}：打 ${hzName(hzKind(id))}`);hzEv(p,{type:'discard',tile:id});
   const opts=hzClaimOpts(id,p.id,false);
   if(Object.keys(opts).length){h.stage='claim';h.claim={tile:id,from:p.id,opts,ans:{},qiang:null};return hzProceed()}
@@ -267,7 +267,7 @@ function hzEnd(w,from=null,how=''){
 }
 /* what each seat may see: no wall (only how many are left), other hands as counts; the winner's hand once it is over */
 function hzPublic(h,seat){
-  return {stage:h.stage,wallLeft:h.wall.length,drawn:S.toAct===seat?h.drawn:null,discards:JSON.parse(JSON.stringify(h.discards)),
+  return {stage:h.stage,wallLeft:h.wall.length,drawn:S.toAct===seat?h.drawn:null,discards:JSON.parse(JSON.stringify(h.discards)),river:h.river.slice(),
     melds:Object.fromEntries(Object.entries(h.melds).map(([k,ms])=>[k,ms.map(m=>({t:m.t,from:m.from,ids:m.t==='agang'&&+k!==seat&&h.stage!=='over'?m.ids.map((x,i)=>i===1||i===2?x:null):m.ids.slice()}))])),
     claim:h.claim?{tile:h.claim.tile,from:h.claim.from,mine:h.claim.opts[seat]||null,answered:h.claim.ans[seat]!=null,qiang:!!h.claim.qiang}:null,
     first:!!h.first[seat],last:h.last?{...h.last}:null,birds:h.stage==='over'?h.birds.slice():[],result:h.result?{...h.result}:null,delta:{...h.delta},dealer:S.dealer};
@@ -353,28 +353,19 @@ function hzTileHTML(id,o={}){
   return `<div class="mj${cls}"${o.pick?` data-hz="${id}"`:''} ${faceStyle(mjFile(k))} aria-label="${hzName(k)}"><span class="vh">${hzName(k)}</span>${k===HZ_RED&&o.pick?'<i class="lzt">赖</i>':''}</div>`;
 }
 const hzMeldHTML=m=>`<div class="hz-meld">${m.ids.map(id=>hzTileHTML(id)).join('')}</div>`;
-/* each seat's discards fill their own box on the felt (table %: x0, y0, x1, y1), in rows: sideways a band under the far
-   seat, a band above my hand and a column beside each side seat; upright a band under the top seats, the two side seats
-   share the middle half and half, and mine is above my hand. One tile size for all four: the biggest that fits the
-   fullest river (at least 24 tiles) in every box, so the rows never run into each other or the seats. */
-const HZ_RIVER={land:{far:[30,24.5,70,40.5],me:[30,41.5,70,57],l:[17,10,29.5,57],r:[70.5,10,83,57]},
-  port:{far:[2,31.5,98,47],l:[2,47.5,49.5,68.5],r:[50.5,47.5,98,68.5],me:[22,69,98,85.3]}};
+/* a 碰 or 杠 on the table is one tile of its kind with 碰 / 杠 on it (another's 暗杠 shows one face, so its kind is known) */
+const HZ_MTAG={peng:'碰',mgang:'杠',bgang:'杠',agang:'暗杠',chi:'吃'};
+const hzMeld1HTML=m=>`<div class="hz-m1" aria-label="${HZ_MTAG[m.t]||''}${hzName(hzKind(m.ids.find(x=>x!=null)))}">${hzTileHTML(m.ids.find(x=>x!=null))}<i aria-hidden="true">${HZ_MTAG[m.t]||''}</i></div>`;
+/* every discard lies in one river in the middle of the felt, in the order played; the rows are as wide as the box
+   (table %: x0, y0, x1, y1) allows. Sideways the box sits between the side seats' melds and below the far seat's;
+   upright it is the felt between the top seats and mine. The tile is the biggest that fits the river (at least 48 tiles). */
+const HZ_RIVER={land:[23,31,77,57],port:[2,31.5,98,68.5]};
 const HZ_GAP=2;
-const hzRiverKey=(slot,n,o)=>{const s=seatXY(slot,n,o);return !slot?'me':s.x<35?'l':s.x>65?'r':'far'};
-/* the tile width (px) for n tiles a river */
-function hzRiverW(o,n){
-  const T=$('#table').getBoundingClientRect();let w=o==='land'?40:30;
-  Object.values(HZ_RIVER[o]).forEach(([x0,y0,x1,y1])=>{
-    const W=(x1-x0)*T.width/100,H=(y1-y0)*T.height/100;let b=0;
-    for(let c=1;c<=n;c++)b=Math.max(b,Math.min((W+HZ_GAP)/c-HZ_GAP,((H+HZ_GAP)/Math.ceil(n/c)-HZ_GAP)*.75));
-    w=Math.min(w,b)});
-  return Math.max(12,Math.floor(w));
-}
-/* where one river goes: the far and my band centred, the side columns against their own edge, all filled from the top */
-function hzRiverStyle(k,o,w){
-  const [x0,y0,x1]=HZ_RIVER[o][k],W=(x1-x0)*$('#table').getBoundingClientRect().width/100,cols=Math.max(1,Math.floor((W+HZ_GAP)/(w+HZ_GAP)));
-  const at=k==='l'?`left:${x0}%`:k==='r'?`right:${100-x1}%`:`left:${(x0+x1)/2}%;transform:translateX(-50%)`;
-  return `${at};top:${y0}%;--cols:${cols};--mjr:${w}px`;
+function hzRiverStyle(o,n){
+  const [x0,y0,x1,y1]=HZ_RIVER[o],T=$('#table').getBoundingClientRect(),W=(x1-x0)*T.width/100,H=(y1-y0)*T.height/100;let b=0;
+  for(let c=1;c<=n;c++)b=Math.max(b,Math.min((W+HZ_GAP)/c-HZ_GAP,((H+HZ_GAP)/Math.ceil(n/c)-HZ_GAP)*.75));
+  const w=Math.max(12,Math.floor(Math.min(o==='land'?40:30,b))),cols=Math.max(1,Math.floor((W+HZ_GAP)/(w+HZ_GAP)));
+  return `left:${(x0+x1)/2}%;top:${y0}%;transform:translateX(-50%);--cols:${cols};--mjr:${w}px`;
 }
 /* this device's picked tile in its own hand */
 let HSEL=null;
@@ -382,7 +373,6 @@ function hzRenderTable(){
   const h=V.hz,n=V.players.length,o=tableOrient(),over=V.phase!=='playing';
   tableFrame(o,'hz');
   let html='';
-  const rw=h?hzRiverW(o,Math.max(24,...Object.values(h.discards).map(d=>d.length))):0;
   V.players.forEach((p,i)=>{
     const slot=slotOf(i),s=seatXY(slot,n,o);
     const cls=['seat',i===V.me?'me':'',(V.toAct===i||h&&h.stage==='claim'&&h.claim&&h.claim.from===i)&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
@@ -390,19 +380,21 @@ function hzRenderTable(){
     const status=[tg?'托管中':'',p.lastAction||''].filter(Boolean).join(' · ');
     const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)}${p.handName?' · '+p.handName:''}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
     const ms=h?(h.melds[i]||[]):[],left=p.cards.length;
-    /* others: a back with the count, then their melds; my own melds sit beside my hand */
-    const cards=i===V.me||!p.inHand?'':`<div class="dd-count">${hzTileHTML(null)}<b>${left}</b></div>${ms.length?`<div class="hz-melds">${ms.map(hzMeldHTML).join('')}</div>`:''}`;
+    /* others: a back with the count; their melds beside the seat on the felt side (CSS: right of a left seat, left of a
+       right seat, under the far one); my own melds sit above my hand */
+    const cards=i===V.me||!p.inHand?'':`<div class="dd-count">${hzTileHTML(null)}<b>${left}</b></div>`;
+    const mx=i!==V.me&&p.inHand&&ms.length?`<div class="hz-melds">${ms.map(hzMeld1HTML).join('')}</div>`:'';
     html+=`<div class="${cls}${seatCls(s,i===V.me,i)}" data-pid="${i}" style="${seatStyle(s)}">
       <div class="stop">${avatarHTML(p)}<div class="cards">${cards}</div></div>
       <div class="plate">${h&&h.dealer===i?'<span class="dd-lord" title="庄家">庄</span>':''}
         <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
         <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
         <div class="pstack">${fmt(p.stack)}</div>${act}
-      </div></div>`;
-    /* the discards lie on the felt in front of the seat, newest last and lit; the winner's whole hand at the end */
-    const ds=h?h.discards[i]||[]:[],last=h&&h.last&&h.last.pid===i?h.last.id:null;
-    if(ds.length)html+=`<div class="hz-river" style="${hzRiverStyle(hzRiverKey(slot,n,o),o,rw)}">${ds.map(id=>hzTileHTML(id,{hi:id===last&&h.stage==='claim'})).join('')}</div>`;
+      </div>${mx}</div>`;
   });
+  /* the river, newest last and lit */
+  const rv=h?(h.river||Object.values(h.discards).flat()):[],last=h&&h.last?h.last.id:null;
+  if(rv.length)html+=`<div class="hz-river" style="${hzRiverStyle(o,Math.max(48,rv.length))}">${rv.map(id=>hzTileHTML(id,{hi:id===last})).join('')}</div>`;
   /* the middle box only at the end: who won and how, their hand, the birds; the wall count rides in the corner */
   if(h&&over){
     const c=centerXY(o),r=h.result,w=r&&r.w>=0?V.players[r.w]:null;
@@ -412,7 +404,6 @@ function hzRenderTable(){
   }
   $('#table').innerHTML=html;
   $('#table').classList.add('ddz','hz');$('#table').classList.remove('zjh');
-  ddLandTip();
   $('#table').dataset.n=String(n);
   hzRenderHand();
 }
@@ -425,7 +416,10 @@ function hzRenderHand(){
   const drawn=h&&h.drawn!=null&&ids.includes(h.drawn)?h.drawn:null,rest=hzSort(ids.filter(id=>id!==drawn));
   const rec=hzRecTile(),tile=id=>hzTileHTML(id,{pick:true,sel:id===HSEL,rec:id===rec});
   const ms=h?(h.melds[V.me]||[]):[];
-  el.innerHTML=`<div class="hz-row" role="group" aria-label="我的手牌，点一张选中，再点一次打出">${ms.length?`<div class="hz-melds mine">${ms.map(hzMeldHTML).join('')}</div>`:''}${rest.map(tile).join('')}${drawn!=null?`<span class="hz-gap"></span>${tile(drawn)}`:''}</div>${ids.length?trustVeil():''}`;
+  el.innerHTML=`<div class="hz-row" role="group" aria-label="我的手牌，点一张选中，再点一次打出">${ms.length?`<div class="hz-melds mine" aria-label="我的碰杠">${ms.map(hzMeld1HTML).join('')}</div>`:''}${rest.map(tile).join('')}${drawn!=null?`<span class="hz-gap"></span>${tile(drawn)}`:''}</div>${ids.length?trustVeil():''}`;
+  /* --mjh holds a percentage, which an absolutely placed box can't resolve: the melds take 0.8 of a hand tile in px */
+  const mx=el.querySelector('.hz-melds.mine'),t=el.querySelector('.hz-row > .mj');
+  if(mx&&t)mx.style.setProperty('--mjw',Math.round(t.getBoundingClientRect().width*.8)+'px');
 }
 /* the coach's discard to mark in my hand (hzAdvise comes with the coach) */
 function hzRecTile(){if(!(coachOn()&&LOCAL.mode==='live'&&myTurn()&&typeof hzAdvise==='function'))return null;const a=hzAdvise(V);return a&&a.discard!=null?a.discard:null}

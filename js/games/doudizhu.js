@@ -685,17 +685,10 @@ function ddRenderTable(){
   }
   $('#table').innerHTML=html;
   $('#table').classList.add('ddz');$('#table').classList.remove('zjh');
-  ddLandTip();
   $('#table').dataset.n=String(n);
   ddRenderHand();
 }
 /* once per device: 斗地主 holds up to 20 cards, which read better sideways */
-function ddLandTip(){
-  if(!isNarrow()||!isTouch())return;
-  let seen=false;try{seen=!!localStorage.getItem('dushen-ddz-tip');localStorage.setItem('dushen-ddz-tip','1')}catch(e){seen=true}
-  /* a floating toast, not the banner: the banner would push the one-screen upright layout down */
-  if(!seen)toast('横屏体验更好：把手机横过来，或者点上方的「横屏全屏」。',6000);
-}
 function ddRenderHand(){
   const el=$('#dd-hand');if(!el)return;
   const m=V.players[V.me],ids=m&&m.inHand?m.cards.filter(c=>c!=null):[];
