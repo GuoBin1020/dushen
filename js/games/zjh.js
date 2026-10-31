@@ -146,7 +146,7 @@ function zShowdown(reason){
   al.forEach(p=>{p.score=zEval(p.cards);p.shown=true;p.handName=S.cfg.z235&&z235(p.cards)?'235':zName(p.score)});
   distributePots(al,S.cfg.sb,elig=>zWinners(elig,S.cfg));
   const top=P().filter(p=>p.won>0).sort((a,b)=>b.won-a.won);
-  S.msg=(reason?reason+'。':'')+top.map(w=>`${w.name} 以${w.handName}赢得 ${fmt(w.won)}`).join('；');
+  S.msg=(reason?reason+'。':'')+[...top.map(w=>`${w.name} 以${w.handName}赢得 ${fmt(w.won)}`),...refundNote()].join('；');
   al.forEach(p=>log(`${p.name} 亮牌 ${p.cards.map(cardTxt).join(' ')}：${p.handName}`));
   log(S.msg,'win-l');
   P().forEach(p=>{p.bet=0;delete p.score});
@@ -285,7 +285,8 @@ function zRulesHTML(){
   <h3>一手牌的流程</h3>
   <ol><li>每人先下底注，发 3 张牌，都扣着。</li><li>从庄位（D）下家开始轮流行动，一圈算一轮。</li><li>只剩一个人时他赢走底池；到轮数上限还剩多人，就全部亮牌比大小。</li></ol>
   <h3>每次轮到你，可以</h3>
-  <dl class="terms"><div><dt>看牌：</dt><dd style="display:inline">免费，看完还要继续选下面的动作。看牌后跟注要付双倍。</dd></div><div><dt>跟注：</dt><dd style="display:inline">闷牌付 1 倍单注，看牌后付 2 倍。</dd></div><div><dt>加注：</dt><dd style="display:inline">把单注提高到更高档位，之后所有人按新单注跟。</dd></div><div><dt>比牌：</dt><dd style="display:inline">第 2 轮起可用。付一次跟注的钱，和指定的人私下比大小，小的出局；一样大时发起比牌的人输。</dd></div><div><dt>弃牌：</dt><dd style="display:inline">放弃这手，已下的钱不退。</dd></div></dl>
+  <dl class="terms"><div><dt>看牌：</dt><dd style="display:inline">免费，看完还要继续选下面的动作。看牌后跟注要付双倍。</dd></div><div><dt>跟注：</dt><dd style="display:inline">闷牌付 1 倍单注，看牌后付 2 倍。</dd></div><div><dt>加注：</dt><dd style="display:inline">把单注提高到更高档位，之后所有人按新单注跟。</dd></div><div><dt>比牌：</dt><dd style="display:inline">第 2 轮起可用。付一次跟注的钱，和指定的人私下比大小，小的出局；一样大时发起比牌的人输。</dd></div><div><dt>弃牌：</dt><dd style="display:inline">放弃这手，已下的钱不退。</dd></div><div><dt>全下：</dt><dd style="display:inline">钱不够跟注时押上全部。全下的人最多只能从每人那里赢到和自己投入一样多的钱；别人比他多投、又没有第三个人能争的部分，一手结束时退回，不算赢。</dd></div></dl>
+  <p class="muted" style="margin:0 0 8px;font-size:12.5px">比牌的钱（一次跟注）放进底池，不退。底池最后归剩下的人或亮牌最大的人，闷牌和看牌下注的倍数不同，但都可以赢走整个底池。</p>
   <h3>牌型从大到小</h3>
   <p class="muted" style="margin:0 0 8px;font-size:12.5px">开启「2-3-5 吃豹子」时：两人比牌，235 遇到豹子算 235 赢；多人亮牌出现循环（235、豹子和其他牌同时在场）时，按普通大小比较。</p>
   <div class="ranks">${ex.map(([cs,n,d],i)=>`<div class="rank-row"><span class="i">${i+1}</span><span>${n}</span><span class="mini">${cs.map(c=>cardHTML(c)).join('')} <span class="muted" style="font-size:12px;margin-left:6px">${d}</span></span></div>`).join('')}</div>

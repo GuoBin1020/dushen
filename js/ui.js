@@ -491,7 +491,7 @@ function renderTable(){
     const status=p.folded&&hn?(p.lostCmp?'比牌输了 · 已弃牌':'已弃牌'):p.out?'已离桌':p.away&&!p.inHand?'暂时离桌':p.busted&&!p.inHand?'筹码输光':!p.inHand&&V.phase==='playing'?'下一手入座':p.lastAction||(p.shown&&p.handName?p.handName:'');
     /* 托管 shows on the status line too: the tag line is hidden on phones */
     const tg=p.trust&&p.inHand&&!done;
-    const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName&&!hn?' · '+p.handName:''}</div>`:`<div class="pact${tg?' tg':''}">${esc(tg?['托管中',status].filter(Boolean).join(' · '):status)}</div>`;
+    const act=p.won>0&&done?`<div class="pact won">+${fmt(p.won)}${p.handName&&!hn?' · '+p.handName:''}</div>`:p.refund>0&&done?`<div class="pact">退回 ${fmt(p.refund)}</div>`:`<div class="pact${tg?' tg':''}">${esc(tg?['托管中',status].filter(Boolean).join(' · '):status)}</div>`;
     if(mine&&cards)html+=`<div class="my-hand" aria-label="我的底牌">${cards}${hn}${trustVeil()}</div>`;
     /* seats on the right keep their cards on the inner side of the avatar, so they stay on screen */
     html+=`<div class="${cls}${hn&&p.folded?' reveal':''}${seatCls(s,mine,i)}" data-pid="${i}"${isZ(V)?` role="button" tabindex="0" aria-label="${esc(p.name)}，点击查看信息和比牌"`:''} style="${seatStyle(s)}">
@@ -904,7 +904,7 @@ function rulesHTML(game){
   <h3>一手牌的流程</h3>
   <ol><li>庄位（D）左边两人下小盲、大盲。</li><li>每人发 2 张底牌，从大盲左边开始第一轮下注（翻牌前）。</li><li>发 3 张公共牌（翻牌），第二轮下注。</li><li>发第 4 张（转牌），第三轮下注。</li><li>发第 5 张（河牌），最后一轮下注。</li><li>还剩多人就亮牌比大小，牌大者赢底池。中途其他人都弃牌，剩下的人直接赢。</li></ol>
   <h3>每次轮到你，可以</h3>
-  <dl class="terms"><div><dt>过牌：</dt><dd style="display:inline">没人下注时不花钱，把行动交给下一位。</dd></div><div><dt>跟注：</dt><dd style="display:inline">补齐到当前最高注额。</dd></div><div><dt>下注 / 加注：</dt><dd style="display:inline">投入更多，其他人必须跟上或弃牌。加注至少要加上一次的加注幅度。</dd></div><div><dt>弃牌：</dt><dd style="display:inline">放弃这手牌，已投入的筹码不退。</dd></div><div><dt>全下：</dt><dd style="display:inline">押上所有筹码。只能赢别人跟你同等数额的部分（边池）。</dd></div></dl>
+  <dl class="terms"><div><dt>过牌：</dt><dd style="display:inline">没人下注时不花钱，把行动交给下一位。</dd></div><div><dt>跟注：</dt><dd style="display:inline">补齐到当前最高注额。</dd></div><div><dt>下注 / 加注：</dt><dd style="display:inline">投入更多，其他人必须跟上或弃牌。加注至少要加上一次的加注幅度。</dd></div><div><dt>弃牌：</dt><dd style="display:inline">放弃这手牌，已投入的筹码不退。</dd></div><div><dt>全下：</dt><dd style="display:inline">押上所有筹码。只能赢别人跟你同等数额的部分（边池）。</dd></div><div><dt>退回：</dt><dd style="display:inline">没有人跟到的多压筹码（比如大家都弃牌时你最后那次多下的部分，或者你全下比对手多出的部分）原样退给你，不算赢。</dd></div></dl>
   <h3>牌型从大到小</h3>
   <div class="ranks">${ex.map(([cs,n],i)=>`<div class="rank-row"><span class="i">${i+1}</span><span>${n}</span><span class="mini">${cs.map(c=>cardHTML(c)).join('')}</span></div>`).join('')}</div>
   <h3>教练用到的概念</h3>
