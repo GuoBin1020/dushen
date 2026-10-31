@@ -13,7 +13,7 @@ function hzCounter(v){
   const h=v.hz;Object.values(h.discards||{}).forEach(ds=>ds.forEach(see));Object.values(h.melds||{}).forEach(ms=>ms.forEach(m=>m.ids.forEach(see)));
   return c.map(x=>Math.max(0,x));
 }
-/* the advice for this seat now: {discard, why, waits, left} on my turn, {claim, chi, why} on a claim, {hu} when it wins */
+/* the advice for this seat now: {discard, why, waits, left} on my turn, {claim, why} on a claim, {hu} when it wins */
 function hzAdvise(v){
   const h=v.hz;if(!h||v.phase!=='playing')return null;
   const mine=hzMineOf(v),melds=(h.melds&&h.melds[v.me])||[],left=hzCounter(v);
@@ -24,8 +24,7 @@ function hzAdvise(v){
     const after=(ids,t)=>{const rest=mine.filter(x=>!ids.includes(x)),m=[...melds,{t,ids:[]}];return hzShanten(hzMinus1(rest,hzBestDiscard(rest,m)),m)};
     if(o.includes('mgang')&&after(hzOf(mine,hzKind(c.tile),3),'mgang')<=now)return {claim:'gang',why:'杠了不影响听牌，还能收杠分'};
     if(o.includes('peng')){const s=after(hzOf(mine,hzKind(c.tile),2),'peng');if(s<now)return {claim:'peng',why:`碰了离听牌还差 ${Math.max(0,s)} 步`}}
-    if(o.includes('chi')){const opts=hzChiOpts(mine,c.tile);for(let i=0;i<opts.length;i++){const s=after(opts[i],'chi');if(s<now)return {claim:'chi',chi:i,why:`吃了离听牌还差 ${Math.max(0,s)} 步`}}}
-    return {claim:'pass',why:'吃碰都不能让牌更快听，过'};
+    return {claim:'pass',why:'碰了不能让牌更快听，过'};
   }
   if(v.toAct!==v.me||h.stage!=='turn')return null;
   if(h.drawn!=null&&hzWin(mine,melds,{first:!!h.first}))return {hu:true,why:'已经可以胡了'};
@@ -39,16 +38,16 @@ function hzAdvise(v){
 function hzAdviseClaim(p){
   const a=hzAdvise(viewFor(p.id));
   if(!a||!a.claim||a.claim==='pass')return hzAct(p,'pass');
-  hzAct(p,a.claim==='gang'?'mgang':a.claim,a.claim==='chi'?a.chi:undefined);
+  hzAct(p,a.claim==='gang'?'mgang':a.claim);
 }
 /* the coach panel */
 function hzCoachHTML(v,toggle){
   const a=myTurn()||v.hz&&v.hz.claim&&v.hz.claim.mine?hzAdvise(v):null,live=LOCAL.mode==='live';
   const body=!a?'<p class="muted">轮到你，或者别人打出的牌你能吃、碰、杠、胡时，这里给出建议。</p>'
     :!live?'<p class="muted">练习模式：先自己决定，打完再看这里的建议。</p>'
-    :`<div class="dd-advice"><b>${a.hu?'胡牌':a.claim?{hu:'胡',peng:'碰',chi:'吃',gang:'杠',pass:'过'}[a.claim]:'打 '+esc(hzName(hzKind(a.discard)))}</b><p>${esc(a.why)}</p></div>`;
+    :`<div class="dd-advice"><b>${a.hu?'胡牌':a.claim?{hu:'胡',peng:'碰',gang:'杠',pass:'过'}[a.claim]:'打 '+esc(hzName(hzKind(a.discard)))}</b><p>${esc(a.why)}</p></div>`;
   return `<div class="coach-head"><h2>教练</h2>${toggle}</div>${body}<h3 class="dd-sub">记牌器</h3>${hzCounterHTML(v)}
-    <p class="note">记牌器只算公开的信息：你的手牌、所有人打出的牌和亮出的吃碰杠，数字是还没出现过的张数。</p>`;
+    <p class="note">记牌器只算公开的信息：你的手牌、所有人打出的牌和亮出的碰杠，数字是还没出现过的张数。</p>`;
 }
 const HZ_SHORT=k=>k===HZ_RED?'中':HZ_NUM[k%9];
 function hzCounterHTML(v){

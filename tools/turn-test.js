@@ -97,15 +97,11 @@ function tests(){
   /* 看牌 does not restart the clock */
   game('zjh',{turnSec:10,coachAuto:true});ok(meTurn(),'轮到我');CLOCK.t+=3000;zAct(ME(),'look');eq(viewFor(0).turnLeft,7000,'看牌后时间接着走');
 
-  /* ---------- 斗地主: 托管 with either choice; it lasts across hands until 取消托管 ---------- */
+  /* ---------- 斗地主: 托管 always plays the coach's move, whatever 超时后采用教练方案 says; it lasts across hands until 取消托管 ---------- */
   game('ddz',{turnSec:10,coachAuto:false});
-  ok(meTurn(),'斗地主轮到我');eq(S.dd.stage,'bid');eq(viewFor(0).turnLeft,10000);
-  out();ok(ME().trust,'超时托管');ok(/^你：(不叫|不抢)$/.test((S.log.filter(x=>/^你：/.test(x.t)).pop()||{}).t),'没勾选：叫地主阶段不叫不抢');
-  /* play stage, my lead: the smallest single; facing a play: 不要 */
-  {const d=S.dd;S.phase='playing';d.stage='play';d.landlord=1;d.lead=null;d.passes=0;d.shown={};S.toAct=0;
-    const low=ddSort(ME().cards).pop(),n0=ME().cards.length;clearTimeout(timer);autoMove(ME());
-    eq(ME().cards.length,n0-1,'先出：出一张');ok(!ME().cards.includes(low)&&S.dd.lead&&S.dd.lead.cls.type==='single','出的是最小的单张');
-    d.lead={pid:2,cls:{type:'single',main:12,len:1},cards:[48]};d.passes=0;S.toAct=0;clearTimeout(timer);autoMove(ME());eq(ME().lastAction,'不要','跟牌：不要');}
+  {const keep=ddAdvise;let seen=null;ddAdvise=v=>{seen=v;return keep(v)};
+    ok(meTurn(),'斗地主轮到我');eq(S.dd.stage,'bid');eq(viewFor(0).turnLeft,10000);
+    out();ok(ME().trust,'超时托管');ok(seen&&seen.me===0,'没勾选也按教练建议');ddAdvise=keep;}
   game('ddz',{turnSec:10,coachAuto:true});
   {const keep=ddAdvise;let seen=null;ddAdvise=v=>{seen=v;return keep(v)};
     ok(meTurn(),'轮到我');out();ok(seen&&seen.me===0,'勾选：按我这一座的教练建议');ok(ME().trust,'托管');ddAdvise=keep;}

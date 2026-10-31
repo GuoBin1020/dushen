@@ -685,13 +685,13 @@ body.in-game #game-view[data-game="hz"][data-orient="port"]{--mjh:clamp(22px,cal
 .hz-melds{display:flex;gap:3px;flex-wrap:wrap;--mjw:var(--mjm)}
 .hz-melds.mine{--mjw:calc(var(--mjh)*.72);margin-right:calc(var(--mjh)*.3);align-self:flex-end}
 .hz-meld{display:flex;gap:0}
-.hz-river{position:absolute;display:grid;grid-template-columns:repeat(6,var(--mjr));gap:1px;--mjw:var(--mjr);z-index:3;transform:translate(-50%,-50%) perspective(600px) rotateX(var(--tilt,0deg));pointer-events:none}
-.hz-river.l{transform:translate(0,-50%) perspective(600px) rotateX(var(--tilt,0deg))}
-.hz-river.r{transform:translate(-100%,-50%) perspective(600px) rotateX(var(--tilt,0deg))}
+.hz-river{position:absolute;display:grid;grid-template-columns:repeat(var(--cols,6),var(--mjr));gap:2px;--mjw:var(--mjr);z-index:3;pointer-events:none}
 .hz-river .mj.hi{outline:2px solid var(--brass);outline-offset:-1px;transform:translateY(-3px)}
-.hz-river.hz-shown{grid-template-columns:repeat(14,var(--mjr))}
-.hz-center .pot{font-size:15px}
-.hz-birds{display:flex;gap:2px;justify-content:center;margin-top:4px;--mjw:var(--mjr)}
+.hz-center{z-index:6;background:rgba(6,14,11,.86);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 12px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:calc(100% - 24px)}
+.hz-whand{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;margin:6px 0;--mjw:var(--mjr)}
+.hz-whand .hz-meld{margin-right:4px}
+.hz-birds{display:flex;gap:2px;justify-content:center;align-items:center;margin-top:4px;--mjw:var(--mjr)}
+.hz-birds span{font-size:12px;color:var(--muted);margin-right:4px}
 .hz-birds .mj.bird{outline:2px solid var(--good);outline-offset:-1px}
 .table.hz .seat .dd-count .mj{--mjw:calc(var(--av)*.62)}
 /* 红中麻将 tile counter: three rows (万 条 筒, 红中 after 万); upright it sits under the top corners like 斗地主's and the

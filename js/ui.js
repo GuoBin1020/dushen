@@ -355,7 +355,7 @@ function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
   $('#corner-fs').innerHTML=fsCorner();
-  const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}${V.hz&&V.phase==='playing'?` · 剩 ${V.hz.wallLeft} 张`:''}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
   const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&tableOrient()==='port';
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
@@ -921,7 +921,7 @@ function readCfg(){
   let stack=Math.round(+$('#f-stack').value)||2000;stack=Math.max(dz?base*20:z?ante*20:bb*10,stack);
   const solo=MODE==='solo';
   return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
-    coach:solo?true:$('#f-coach').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
+    coach:$('#f-coach').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
 }
 function fillForm(c){
   if(!c||typeof c!=='object')return;
@@ -1076,7 +1076,6 @@ document.addEventListener('click',async e=>{
   else if(a==='hzhu')humanAct('hu');
   else if(a==='hzpeng')humanAct('peng');
   else if(a==='hzmgang')humanAct('mgang');
-  else if(a==='hzchi')humanAct('chi',+b.dataset.i);
   else if(a==='hzpass')humanAct('pass');
   else if(a==='hzgang')humanAct(b.dataset.t,+b.dataset.k);
   else if(a==='dddbl')humanAct('double',+b.dataset.v);

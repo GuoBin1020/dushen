@@ -35,6 +35,15 @@ function serve(port){
 const SIZES=[[393,873,true],[360,780,true],[873,393,true],[768,1024,true],[1280,800,false],[430,932,true],[412,915,true],[932,430,true],[915,412,true]];
 const LONG='一二三四五六七八九十甲乙';
 /* 红中麻将 on the setup form: its own options with their defaults, 4 seats, and 开始 opens a 红中麻将 table */
+/* the coach switch on the setup page: every game, alone or hosting; 超时后采用教练方案 only for 德州 and 炸金花 */
+const COACH_SETUP=`(async()=>{const f=[];const vis=el=>!!el&&!el.closest('[hidden]')&&el.getBoundingClientRect().width>0;
+  clearTimeout(timer);show('setup');
+  for(const m of ['solo','host'])for(const g of ['holdem','zjh','ddz','hz']){setMode(m);document.querySelector('#f-game [data-game="'+g+'"]').click();await new Promise(r=>setTimeout(r,60));
+    if(!vis(document.getElementById('f-coach')))f.push(m+' '+g+' 没有教练开关');
+    if(vis(document.getElementById('f-coachauto'))!==(g==='holdem'||g==='zjh'))f.push(m+' '+g+' 「超时后采用教练方案」显示不对');}
+  setMode('solo');document.querySelector('#f-game [data-game="hz"]').click();const c=document.getElementById('f-coach');c.checked=false;
+  if(readCfg().coach!==false)f.push('单机关掉教练开关后 coach 不是 false');c.checked=true;
+  return f})()`;
 const HZ_SETUP=`(async()=>{const f=[];const vis=el=>!!el&&!el.closest('[hidden]')&&el.getBoundingClientRect().width>0;
   clearTimeout(timer);show('setup');setMode('solo');
   const b=document.querySelector('#f-game [data-game="hz"]');if(!b)return ['首页没有「红中麻将」按钮'];
@@ -162,6 +171,7 @@ const PH=[[393,873,true],[873,393,true]];
 SCEN.push(
   {name:'bar-stable',game:'holdem',n:6,extra:BAR_STABLE},
   {name:'hz-setup',game:'holdem',n:6,extra:HZ_SETUP,sizes:PH},
+  {name:'coach-setup',game:'holdem',n:6,extra:COACH_SETUP,sizes:PH},
   {name:'raise-pop',game:'holdem',n:6,extra:RAISE_POP,sizes:[...PH,[360,780,true],[1280,800,false]]},
   {name:'raise-pop-9',game:'holdem',n:9,extra:RAISE_POP,sizes:[...PH,[1280,800,false]]},
   {name:'zjh-pop',game:'zjh',n:6,extra:ZJH_POP,sizes:[...PH,[412,915,true],[915,412,true],[1280,800,false]]},
@@ -484,6 +494,23 @@ const HZ_COUNTER=`(async()=>{${PG}
     if(document.querySelectorAll('#dd-strip .hz-crow').length!==3)f.push('竖屏记牌器应为 3 行')}}
   else{if(vis(st))f.push('横屏不该显示记牌器条');const b=Q('[data-act="ddcounter"]');if(!b)f.push('横屏没有 🃏 按钮');else{b.click();await sleep(150);if(!vis(Q('#sheet .hz-counter')))f.push('横屏点 🃏 没有打开记牌器');closeSheet()}}
   return f})()`;
+/* 红中麻将 discards: 24 each (about the most a hand sees), in rows inside each seat's own area — no area over another,
+   over a seat, the buttons or my hand; the winner's hand at the end sits in the middle box, not on a river */
+const HZ_RIVER=`(async()=>{${PG}
+  const h=S.hz;clearTimeout(timer);hzClear();
+  const pool=hzDeck().filter(id=>id<108);for(let i=0;i<4;i++)h.discards[i]=pool.splice(0,24);h.last={pid:1,id:h.discards[1][23]};sync();await sleep(120);
+  const ov=(a,b)=>a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5&&a.y<b.y+b.h-0.5&&b.y<a.y+a.h-0.5;
+  const rv=[...document.querySelectorAll('#table .hz-river')].filter(vis);
+  if(rv.length!==4)f.push('应有 4 个牌河，实际 '+rv.length);
+  rv.forEach((r,i)=>{const a=R(r);if(a.x<0||a.y<0||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('牌河 '+i+' 超出屏幕');
+    rv.forEach((q,j)=>{if(j>i&&ov(a,R(q)))f.push('牌河 '+i+' 和 '+j+' 重叠')});
+    document.querySelectorAll('#table .seat,#actions .act-bar,#dd-hand .hz-row,.corner > *,#dd-strip').forEach(e=>{if(vis(e)&&ov(a,R(e)))f.push('牌河 '+i+' 压住 '+((e.className||e.id)+'').split(' ')[0])});
+    const ts=[...r.querySelectorAll('.mj')].map(R);for(let k=1;k<ts.length;k++){const p=ts[k-1],c=ts[k];if(ov(p,c)){f.push('牌河 '+i+' 里的牌叠在一起');break}}});
+  /* the end of the hand: the winner's tiles go in the middle box */
+  const w=1;S.players[w].cards=hzSort([...pool.slice(0,10),108,109,110,111]);S.players[w].shown=true;h.result={w,from:null,how:'zimo',type:'ping',red:0,pts:2,hits:0};h.stage='over';S.phase='handover';S.msg='测试：自摸';sync();await sleep(120);
+  const c=Q('#table .hz-center');if(!vis(c))f.push('结束时中间没有结果框');else if(c.querySelectorAll('.mj').length<14)f.push('结果框里没有胡牌人的牌');
+  if([...document.querySelectorAll('#table .hz-river.hz-shown')].length)f.push('胡牌人的牌还画在牌河位置');
+  return f})()`;
 const HZ_TURN=`(async()=>{${PG}
   const h=S.hz;clearTimeout(timer);hzClear();S.cfg.turnSec=15;h.stage='turn';h.claim=null;S.toAct=0;hzProceed();await sleep(150);clearTimeout(timer);
   if(!vis(Q('#table .seat.me .tring')))f.push('轮到我时没有倒计时');
@@ -505,7 +532,7 @@ SCEN.push(
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
   {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
   {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
-  {name:'hz-counter',game:'hz',n:4,extra:HZ_COUNTER},  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
+  {name:'hz-river',game:'hz',n:4,extra:HZ_RIVER},  {name:'hz-counter',game:'hz',n:4,extra:HZ_COUNTER},  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},

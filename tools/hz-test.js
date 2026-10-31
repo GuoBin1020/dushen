@@ -44,7 +44,7 @@ eq(win('hz hz hz hz 1m1m 2m2m 3s3s 4s4s 5p5p','[]','{first:true}'),'qidui','四�
 eq(win('1m2m4m 4m5m6m 7s8s9s 2p2p2p 5p5p'),null,'差一张');
 eq(win('1m2m3m 4m5m6m 7s8s9s 2p2p 5p5p5p 1s'),null,'14 张但拆不开');
 /* with melds: 4 tiles in hand + 3 melds */
-eq(win('5p5p 7s8s9s',`[{t:'peng',ids:H('1m1m1m')},{t:'chi',ids:H('2s3s4s')},{t:'agang',ids:H('9m9m9m9m')}]`),'ping','副露后的平胡');
+eq(win('5p5p 7s8s9s',`[{t:'peng',ids:H('1m1m1m')},{t:'peng',ids:H('2s2s2s')},{t:'agang',ids:H('9m9m9m9m')}]`),'ping','副露后的平胡');
 eq(run(`hzWin(H('1m2m hz 4s5s6s 7p7p7p 1s1s1s 3m3m'),[]).red`),1,'red 是手里红中张数');
 
 /* 向听数 and waits */
@@ -57,10 +57,8 @@ eq(run(`hzWaits(H('5m6m 1s2s3s 4s5s6s 7p8p9p 2p2p'),[])`),[3,6],'两面听 四�
 eq(run(`hzWaits(H('1m2m3m 4m5m6m 7s8s9s 2p2p2p 5p'),[])`),[22],'单钓五筒');
 eq(run(`hzWaits(H('1m3m5m 7m9m 1s 3s5s7s 9s 1p 3p 5p'),[])`),[],'不听牌没有可胡的牌');
 
-/* 吃 / 碰 / 杠: 红中 never takes part */
-eq(run(`hzChiOpts(H('3m4m 6m 1s'),H('5m')[0]).map(o=>o.map(hzKind))`),[[2,3],[3,5]],'吃五万：三四、四六');
-eq(run(`hzChiOpts(H('hz 4m 1s'),H('5m')[0])`),[],'红中不能用来吃');
-eq(run(`hzChiOpts(H('8m9m'),H('1s')[0])`),[],'不同花色不能连');
+/* 碰 / 杠: 红中 never takes part; there is no 吃 in this game */
+eq(run(`typeof hzChiOpts`),'undefined','没有吃牌');
 eq(run(`hzCanPeng(H('7s7s 1m'),H('7s')[0])`),true,'碰');
 eq(run(`hzCanPeng(H('7s hz 1m'),H('7s')[0])`),false,'红中不能凑碰');
 eq(run(`hzCanPeng(H('hz hz 1m'),109)`),false,'红中不能被碰');
@@ -136,9 +134,9 @@ eq(E('S.hz.result&&S.hz.result.w'),1,'离打牌人最近的座位 1 胡');eq(E('
 
 E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','5p5p 1m1m 2s3s4s 6s7s8s 9p9p 3p','1p 2p 3p 4p 5p 6p 7p 8p 9p 3s 4s 2s 6s'],'1p 2p 3p 4p 5p 6p 7p 8p')`);
 E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
-ok(E('S.hz.claim.opts[1].includes("chi")')&&E('S.hz.claim.opts[2].includes("peng")'),'座位 1 能吃、座位 2 能碰');
+ok(!E('S.hz.claim.opts[1]')&&E('S.hz.claim.opts[2].includes("peng")'),'下家不能吃，座位 2 能碰');
 E(`hzAct(P()[1],'chi',0);hzAct(P()[2],'peng');hzAct(P()[3],'pass')`);
-eq(E('S.toAct'),2,'碰优先于吃');eq(E('S.hz.melds[2].length&&S.hz.melds[2][0].t'),'peng');
+eq(E('S.toAct'),2,'碰了，吃被忽略');eq(E('S.hz.melds[2].length&&S.hz.melds[2][0].t'),'peng');
 
 /* hz-claim-red: with 「手里有红中只能自摸」 a hand holding 红中 gets no 胡 on a discard, nor on a 抢杠 */
 E(`SETUP(${CFG({hzDianpao:true,hzRedSelf:true})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p hz 7s8s9s 1p2p3p 4s5s6s 2m2m','1m 2m','1m 2m'],'1p 2p 3p')`);
@@ -158,10 +156,10 @@ E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===9))`);E('RUN()');
 eq(E('S.phase'),'handover','牌摸完流局');eq(E('S.hz.result.w'),-1,'流局没人胡');
 
 /* hz-claim-timeout: an unanswered claim passes when the clock runs out, but a winning claim wins */
-E(`SETUP(${CFG({turnSec:10})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','1m','1m'],'1p 2p 3p')`);
+E(`SETUP(${CFG({turnSec:10})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','5p5p 7s8s9s 1p2p3p 4s5s6s 2m','1m','1m'],'1p 2p 3p')`);
 E(`P()[1].kind='local';P()[0].kind='ai'`);
 E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
-ok((E('S.hz.claim&&S.hz.claim.opts[1]')||[]).includes('chi'),'座位 1 可以吃');
+ok((E('S.hz.claim&&S.hz.claim.opts[1]')||[]).includes('peng'),'座位 1 可以碰');
 E('RUN()');ok(E('!S.hz.claim'),'询问超时后算过，牌局继续');
 
 /* hz-view: a guest sees counts only, never the wall */
@@ -211,6 +209,9 @@ E(`SETUP(${CFG({coachAuto:false})},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p hz','1m','1
 E(`hzAutoMove(P()[0],false)`);ok(E('S.hz.discards[0].length===1&&hzKind(S.hz.discards[0][0])!==27'),'摸到红中时打最右边的非红中');
 E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m','1m','1m','1m'],'1p 2p 3p')`);
 E(`hzAutoMove(P()[0],true)`);eq(E('hzKind(S.hz.discards[0][0])'),8,'用教练：打教练推荐的九万');
+/* the engine's timeout always takes the coach's way for 红中, even with 超时后采用教练方案 off */
+E(`SETUP(${CFG({coachAuto:false})},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m','1m','1m','1m'],'1p 2p 3p')`);E(`S.hz.drawn=P()[0].cards.find(id=>hzKind(id)===22)`);
+E(`autoMove(P()[0])`);eq(E('hzKind(S.hz.discards[0][0])'),8,'没勾选也按教练：打九万');
 
 /* ---------- final review fixes ---------- */
 /* after a 碰 / 吃 there is no drawn tile: no 自摸 then (that would dodge 「只能自摸」), and the bot still discards */
@@ -221,15 +222,11 @@ eq(E('S.toAct'),2,'座位 2 碰了五筒');
 E(`hzAct(P()[2],'hu')`);eq(E('S.phase'),'playing','碰完没摸牌不能自摸');ok(E('!S.hz.result'),'没有胡');
 ok(!E(`hzCanZimo(P()[2])`),'碰完 hzCanZimo 为假');
 E(`hzBotTurn(P()[2])`);eq(E('S.hz.discards[2].length'),1,'电脑碰完照常打一张，不会卡住');
-E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','3p4p 2s3s4s 6s7s8s 1p1p1p 9m9m','1m','1m'],'1p 2p 3p 4p')`);
-E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
-E(`Object.keys(S.hz.claim.opts).forEach(k=>hzAct(P()[+k],S.hz.claim.opts[k].includes('chi')?'chi':'pass',0))`);
-eq(E('S.toAct'),1,'座位 1 吃了五筒');E(`hzAct(P()[1],'hu')`);ok(E('!S.hz.result'),'吃完没摸牌不能自摸');
-/* a bad 吃 choice is ignored instead of breaking the claim */
+/* a 吃 sent from outside (an old or modified client) is no answer: nothing happens */
 E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','1m','1m'],'1p 2p 3p')`);
 E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
-for(const bad of ['0.5','5','-1','"x"'])E(`hzAct(P()[1],'chi',${bad})`);
-ok(E('S.hz.claim&&S.hz.claim.ans[1]==null'),'非法的吃法编号不算回答');
+for(const bad of ['0','0.5','5','-1','"x"'])E(`hzAct(P()[1],'chi',${bad})`);
+ok(!E('S.hz.claim')||E('S.hz.claim.ans[1]==null'),'吃不算回答');eq(E('S.hz.melds[1].length'),0,'没有吃出副露');
 E(`hzAct(P()[1],'pass')`);ok(E('!S.hz.claim'),'之后正常回答，牌局继续');
 
 console.log(`hz: ${passed} passed, ${failed} failed`);
