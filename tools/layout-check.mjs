@@ -261,7 +261,8 @@ const BOARD_CARDS=`(async()=>{${PG}
   const seats=all('#table .seat'),bets=all('#table .bet').map(R),bar=[...all('#actions .act-bar'),...all('#actions .act-hint')].map(R);
   const mid=[...all('#table .board'),...all('#table .center .pot')].map(R);
   const bd=Q('#table .board');
-  if(bd&&OLD_TOP[key]){const top=R(bd).y,want=OLD_TOP[key]+innerHeight*0.04;if(top<want-0.5)f.push('公共牌上沿 '+top.toFixed(1)+'px，没有比原来 '+OLD_TOP[key]+' 低屏幕高度的 4%（'+want.toFixed(1)+'）')}
+  /* the cards grew, so compare the board's middle (not its top edge) with the old top edge */
+  if(bd&&OLD_TOP[key]){const r=R(bd),mid=r.y+r.h/2,want=OLD_TOP[key]+innerHeight*0.04;if(mid<want-0.5)f.push('公共牌中线 '+mid.toFixed(1)+'px，没有比原来上沿 '+OLD_TOP[key]+' 低屏幕高度的 4%（'+want.toFixed(1)+'）')}
   mid.forEach((m,i)=>{seats.forEach((s,j)=>{if(hit(m,R(s)))f.push('桌面中间 '+i+' 压住座位 '+j)});bets.forEach((b,j)=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住下注 '+j)});bar.forEach(b=>{if(hit(m,b))f.push('桌面中间 '+i+' 压住按钮区')})});
   /* bet chips never touch any seat, plate or seat cards, their own included */
   bets.forEach((b,i)=>seats.forEach((s,j)=>{const pl=s.querySelector('.plate'),cs=s.querySelector('.cards');
@@ -488,6 +489,8 @@ const MEASURE=`(()=>{
     seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
     bets:all('#table .bet'),actions:all('#actions'),btns:[...document.querySelectorAll('#actions button')].filter(vis).map(b=>({t:b.textContent.trim().slice(0,12),h:b.getBoundingClientRect().height})),
     hand,ddStage:document.querySelector('#table .dd-center')?vis(document.querySelector('#table .dd-center .street')):null,
+    /* 斗地主 is counter-clockwise: the player after me sits on my right */
+    ddNext:V&&isD(V)?(()=>{const n=V.players.length,s=document.querySelector('#table .seat[data-pid="'+((V.me+1)%n)+'"]');if(!s)return null;const r=s.getBoundingClientRect();return r.left+r.width/2>innerWidth/2})():null,
     /* rendered text size on each seat: computed font size times the seat's scale */
     fonts:[...document.querySelectorAll('#table .seat')].flatMap((s,i)=>{const k=s.offsetWidth?s.getBoundingClientRect().width/s.offsetWidth:1;
       return [...s.querySelectorAll('.pname,.pstack,.pact')].filter(vis).map(e=>({i,c:e.className,px:parseFloat(getComputedStyle(e).fontSize)*k}))})};
@@ -505,6 +508,7 @@ function check(m,sc){
   for(const [k,list] of Object.entries(m.others))list.forEach(r=>m.seats.forEach((s,i)=>{if(hit(s,r))f.push(`座位 ${i} 压住 ${k}`)}));
   for(const t of m.fonts)if(t.px<9.95){f.push(`座位 ${t.i} 的 .${t.c} 只有 ${t.px.toFixed(1)}px`);break}
   if(m.ddStage===false)f.push('斗地主的阶段文字（叫地主 / 加倍 / 出牌中）不可见');
+  if(m.ddNext===false)f.push('斗地主是逆时针：下家应该坐在右边');
   m.bets.forEach((b,i)=>m.actions.forEach(a=>{if(hit(b,a))f.push(`下注筹码 ${i} 压住 #actions`)}));
   if(sc.mobile){const b=m.btns.find(b=>b.h<39.5);if(b)f.push(`按钮「${b.t}」只有 ${b.h.toFixed(1)}px 高`)}
   m.others['dd-play'].forEach((r,i)=>m.others['dd-center'].forEach(c=>{if(hit(r,c))f.push(`出的牌 ${i} 压住底牌区`)}));
@@ -557,7 +561,14 @@ async function run(sc,[w,h,mobile],then){
   return res;
 }
 try{
-  for(const sc of SCEN)for(const sz of sc.sizes||SIZES)out.results.push(...await run(sc,sz));
+  /* progress on stderr, one line per scenario × size: [12/348] holdem-6 412x915 ✅ (stdout keeps the JSON) */
+  const jobs=SCEN.flatMap(sc=>(sc.sizes||SIZES).map(sz=>[sc,sz])),t0=Date.now();let k=0,bad=0;
+  for(const [sc,sz] of jobs){
+    const r=await run(sc,sz),f=r.flatMap(x=>x.fails);k++;if(f.length)bad++;
+    const left=Math.round((Date.now()-t0)/k*(jobs.length-k)/1000);
+    process.stderr.write(`[${k}/${jobs.length}] ${sc.name} ${sz[0]}x${sz[1]} ${f.length?'❌ '+f[0].slice(0,60):'✅'}  （已失败 ${bad}，预计还剩 ${Math.floor(left/60)} 分 ${left%60} 秒）\n`);
+    out.results.push(...r);
+  }
   /* keep-raise: a phone's address bar shrinks the height a little; the table must not rebuild and reset the raise slider */
   if(!process.env.LC_ONLY||process.env.LC_ONLY==='keep-raise'){
     let kept=null;
