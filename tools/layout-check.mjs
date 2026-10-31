@@ -167,8 +167,18 @@ const COACH_REC=`(async()=>{${PG}
   if(!Q('#actions .act-bar .is-rec'))f.push('没有 .is-rec 按钮');
   if(!(Q('#actions .act-hint')||{textContent:''}).textContent.includes('教练建议'))f.push('.act-hint 里没有「教练建议」');
   LOCAL.mode=mode;renderActions();return f})()`;
+/* 德州: a player whose name ends in lwx keeps the coach even when it is turned off; nobody else does, and no other game */
+const COACH_LWX=`(async()=>{${PG}
+  const m=S.players[V.me],nm=m.name,mode=LOCAL.mode;LOCAL.mode='live';S.cfg.coach=false;
+  const coach=()=>(Q('#actions .act-hint')||{textContent:''}).textContent.includes('教练建议');
+  const holdem=!isZ(V)&&!isD(V)&&!isM(V);
+  m.name='小明LWX';sync();await sleep(80);renderActions();
+  if(holdem&&!coach())f.push('名字以 lwx 结尾，关了教练也应该有建议');if(!holdem&&coach())f.push('别的玩法不该有这个例外');
+  m.name='lwx小明';sync();await sleep(80);renderActions();if(coach())f.push('lwx 不在名字末尾，不该开教练');
+  m.name=nm;S.cfg.coach=true;LOCAL.mode=mode;sync();return f})()`;
 const PH=[[393,873,true],[873,393,true]];
 SCEN.push(
+  {name:'coach-lwx',game:'holdem',n:6,extra:COACH_LWX,sizes:PH},{name:'coach-lwx-zjh',game:'zjh',n:6,extra:COACH_LWX,sizes:PH},
   {name:'bar-stable',game:'holdem',n:6,extra:BAR_STABLE},
   {name:'hz-setup',game:'holdem',n:6,extra:HZ_SETUP,sizes:PH},
   {name:'coach-setup',game:'holdem',n:6,extra:COACH_SETUP,sizes:PH},
