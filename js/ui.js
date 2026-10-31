@@ -318,7 +318,8 @@ function show(v){
 function showBanner(text,extra){$('#banner').innerHTML=text?`<span>${text}</span>${extra||''}`:''}
 /* a short-lived notice that never wipes a newer one */
 function flashBanner(text,ms){showBanner(text);const el=$('#banner'),mark=el.innerHTML;setTimeout(()=>{if(el.innerHTML===mark)showBanner('')},ms)}
-const coachOn=()=>V&&V.cfg.coach!==false;
+/* 德州 has one exception: a player whose name ends in lwx (any case) keeps the coach on their own device even when it is off */
+const coachOn=()=>!!V&&(V.cfg.coach!==false||!isZ(V)&&!isD(V)&&!isM(V)&&/lwx$/i.test(((V.players[V.me]||{}).name||'').trim()));
 /* 斗地主 and 红中's tile counter: its own option, apart from the coach */
 const counterOn=()=>!!V&&(isD(V)||isM(V))&&V.cfg.counter!==false;
 function render(){
