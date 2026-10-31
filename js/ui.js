@@ -736,7 +736,7 @@ function renderLobby(){
     else rows.push(`<div class="seatrow empty"><span>座位 ${i+1}</span><span>${c.aiFill?'开局时由电脑补位':'空位'}</span></div>`);
   }
   $('#lobby-main').innerHTML=`<h2>房间大厅</h2>
-    <p class="lead">${c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
+    <p class="lead">${c.game==='hz'?`红中麻将 · 底分 ${c.base} · 固定 4 个座位，${hs.length} 名真人已就座`:c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
     <div class="seats">${rows.join('')}</div>
     <div class="setup-actions" style="margin-top:16px"><button class="btn primary" data-act="host-start">开始对局</button><button class="btn" data-act="leave">解散房间</button></div>
     <p class="note">底牌只发给本人，其他玩家的设备收不到你的底牌。牌局在房主的浏览器里运行，房主关闭页面牌局就会结束。仅限虚拟筹码，不涉及真钱。</p>`;
@@ -746,7 +746,7 @@ function renderLobby(){
 function renderGuestLobby(){
   const g=GL;
   $('#lobby-main').innerHTML=g?`<h2>已加入房间</h2>
-    <p class="lead">${g.game==='ddz'?`斗地主${g.laizi?'（赖子模式）':''} · 固定 3 个座位`:g.game==='zjh'?'炸金花':'德州扑克'} · 房主 ${esc(g.host)} · ${g.players.length} 名真人 / ${g.seats} 个座位 · 教练建议${g.coach?'已开启（只有你能看到你的建议）':'已关闭'}</p>
+    <p class="lead">${g.game==='hz'?'红中麻将 · 固定 4 个座位':g.game==='ddz'?`斗地主${g.laizi?'（赖子模式）':''} · 固定 3 个座位`:g.game==='zjh'?'炸金花':'德州扑克'} · 房主 ${esc(g.host)} · ${g.players.length} 名真人 / ${g.seats} 个座位 · 教练建议${g.coach?'已开启（只有你能看到你的建议）':'已关闭'}</p>
     <div class="seats">${g.players.map((n,i)=>`<div class="seatrow"><span class="n"><span class="dot"></span>${esc(n)}${g.cards&&g.cards[i]?` <span class="muted">· ${esc(g.cards[i])}</span>`:''}</span><span class="muted">${i===0?'房主':'已加入'}</span></div>`).join('')}</div>
     <p class="note">${g.ended?'这一场已经结束，等房主回到大厅开新一场。':g.wait?'对局进行中，下一局开始时你会替换一个电脑入座。':'等待房主开始对局…'}</p>
     <div class="setup-actions" style="margin-top:12px"><button class="btn" data-act="leave">离开房间</button></div>`
@@ -762,7 +762,7 @@ function onSettle(m,seat){
   renderSettle();show('settle');showBanner('');
 }
 function renderSettle(){
-  const m=SETTLE,bb=m.cfg.bb,ds=T.decisions,s=sessionStats(),z=m.cfg.game==='zjh',dz=m.cfg.game==='ddz',U=dz?'倍底分':z?'倍底注':'BB';
+  const m=SETTLE,bb=m.cfg.bb,ds=T.decisions,s=sessionStats(),z=m.cfg.game==='zjh',dz=m.cfg.game==='ddz'||m.cfg.game==='hz',U=dz?'倍底分':z?'倍底注':'BB';
   const ddParts=dz?ddSettleParts(m,ds,s):null;
   const mine=m.standings.find(x=>x.id===m.seat);
   const pr=mine?mine.net:s.pr;
