@@ -9,7 +9,7 @@ const isLandPhone=()=>window.matchMedia('(orientation:landscape) and (max-height
 const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,22]:[30,28];
 /* a seat, its bet chips or the middle of the table, in px inside .table-wrap (where #fx draws) */
 /* where a player sits, counted from me: 德州/炸金花 go clockwise, 斗地主 counter-clockwise (the next player sits on my right) */
-const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
+const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)||isM(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
   const n=V.players.length,slot=slotOf(pid),o=tableOrient();
@@ -78,7 +78,8 @@ function fxDiff(prev,v){
   const ev=v.ev;
   if(ev&&(!prev||!prev.ev||prev.ev.seq!==ev.seq)){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
-    if(isD(v))ddFx(v,ev);
+    if(isM(v))hzFx(v,ev);
+    else if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
     else if(ev.type==='compare'){say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
     else if(ev.allIn){allInFx(ev.pid);say('全下！',g);flyChips(from,to,6,0,ev.pid)}
@@ -170,6 +171,8 @@ function exploitHTML(a){
     <p class="why">${ex.text}${ex.rec&&!differs?' 和上面的建议一致。':''}</p></div>`;
 }
 function humanAct(type,to){
+  /* 红中麻将: a discard on my turn, or an answer to a claim on someone else's */
+  if(isM(V)){if(NET.role==='guest'){NET.host.send({t:'act',type,to,hand:V.handNo});render()}else act(P()[0],type,to);return}
   if(!myTurn())return;
   if(isD(V)){ddRecord(type,to);
     /* a play goes out as {cards, as}: the cards, and which 赖子 reading was picked */
@@ -324,6 +327,7 @@ function profileRows(list,vsOf){
 const PROFILE_HEAD='<thead><tr><th>玩家</th><th class="r">手</th><th class="r">入池</th><th class="r">加注</th><th class="r">激进</th><th class="r">弃牌</th><th>类型</th><th class="r">对你</th></tr></thead>';
 function renderProfiles(){
   const others=V.players.filter(p=>p.id!==V.me);
+  if(isM(V)){$('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">胡牌</th><th class="r">点炮</th></tr></thead><tbody>${others.map(p=>`<tr><td>${esc(p.name)}</td>${hzProfileRow(p)}</tr>`).join('')}</tbody></table></div>`;return}
   if(isD(V)){
     $('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">当地主</th><th class="r">赢</th><th class="r">对你</th></tr></thead><tbody>${others.map(p=>{const s=p.st||{},v=p.vs||0;return `<tr><td>${esc(p.name)}</td><td class="r num">${s.dd||0}</td><td class="r num">${s.ddL||0}</td><td class="r num">${s.ddW||0}</td><td class="r num ${v>0?'pos':v<0?'neg':''}">${sgn(v)}</td></tr>`}).join('')}</tbody></table></div>
      <p class="note">对你 = 你在他身上赢或输的筹码。更详细的斗地主画像会和教练一起在下一版加入。</p>`;
@@ -351,7 +355,7 @@ function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
   $('#corner-fs').innerHTML=fsCorner();
-  const info=isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   const cnt=isD(V)&&coachOn()&&!!V.dd;
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
   /* data-cnt moves the table down below the strip (CSS) */
@@ -360,8 +364,8 @@ function renderCorners(){
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
     <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>
-    <div class="kv"><span class="k">${isD(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
-    <div class="kv"><span class="k">${isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
+    <div class="kv"><span class="k">${isD(V)||isM(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
+    <div class="kv"><span class="k">${isM(V)?'红中麻将 · 底分':isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)||isM(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
     <div class="kv"><span class="k">我的盈亏</span><span class="v num ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
    </div>
    <div class="menu-row"><span class="k">声音</span><span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span></div>
@@ -398,8 +402,8 @@ async function toggleFS(){
 }
 ['fullscreenchange','webkitfullscreenchange'].forEach(t=>document.addEventListener(t,()=>{if(!fsEl())LAND_LOCK=false;renderMeta();if(V&&!$('#game-view').hidden)renderTable()}));
 function seatTag(p){
-  const pos=isD(V)?ddRole(V,p.id):isZ(V)?(p.inHand&&!p.folded?(p.seen?'已看牌':'闷牌'):''):posName(V,p);
-  const who=p.away?'暂时离桌':p.trust?'托管中':p.kind==='ai'?'电脑':p.kind==='remote'?(p.connected?'玩家':isD(V)?'托管中':'掉线'):(NET.role==='solo'?'':'房主');
+  const pos=isM(V)?(V.hz&&V.hz.dealer===p.id?'庄家':''):isD(V)?ddRole(V,p.id):isZ(V)?(p.inHand&&!p.folded?(p.seen?'已看牌':'闷牌'):''):posName(V,p);
+  const who=p.away?'暂时离桌':p.trust?'托管中':p.kind==='ai'?'电脑':p.kind==='remote'?(p.connected?'玩家':isD(V)||isM(V)?'托管中':'掉线'):(NET.role==='solo'?'':'房主');
   return [who,pos].filter(Boolean).join(' · ');
 }
 /* tapping a bet chip, or (德州) the seat it belongs to, lifts that chip above the cards for a moment; a 炸金花 seat opens its panel instead */
@@ -442,6 +446,7 @@ function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset
 /* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
 const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
+  if(isM(V)){BETPT={};return hzRenderTable()}
   if(isD(V)){BETPT={};return ddRenderTable()}
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
   const n=V.players.length,o=tableOrient();
@@ -566,6 +571,8 @@ function renderActions(){
     el.innerHTML=actWait(`这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}`,
       isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一手 ▶</button>':'');return;
   }
+  /* 红中麻将 asks for 吃 / 碰 / 杠 / 胡 on other players' turns too */
+  if(isM(V))return hzRenderActions(el,m);
   if(!myTurn()&&isD(V)){el.innerHTML=actWait(!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText());return}
   if(!myTurn()){
     const p=V.players[V.toAct];
@@ -626,6 +633,7 @@ function renderCoach(){
     el.innerHTML=`<div class="coach-head"><h2>教练</h2></div><p class="muted">房主关闭了本局的教练建议。结算时你仍会看到自己的决策复盘。</p>`;return;
   }
   if(isD(V)){el.innerHTML=ddCoachHTML(V,toggle);return}
+  if(isM(V)){el.innerHTML=typeof hzCoachHTML==='function'?hzCoachHTML(V,toggle):`<div class="coach-head"><h2>教练</h2>${toggle}</div><p class="muted">轮到你时，手牌里会标出教练推荐打的牌。</p>`;return}
   let body='';
   const turn=myTurn();
   if(turn&&LOCAL.mode==='live'){
@@ -697,6 +705,7 @@ function spark(w,h,pad){
 }
 function renderSession(){
   const s=sessionStats();
+  if(isM(V)){$('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${hzStatsHTML(me().st,s)}</div><svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="累计盈亏走势">${spark(300,70,6).svg}</svg>`;return}
   if(isD(V)){
     $('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${ddStatsHTML(me().st,s)}</div>
      <svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="累计盈亏走势">${spark(300,70,6).svg}</svg>`;
@@ -1062,6 +1071,13 @@ document.addEventListener('click',async e=>{
   else if(a==='zraise')humanAct('raise',+b.dataset.v);
   else if(a==='zcmp'){closeSeatPop();humanAct('compare',+b.dataset.t)}
   else if(a==='ddbid')humanAct('bid',+b.dataset.v);
+  else if(a==='hzdiscard'){if(HSEL!=null){const id=HSEL;HSEL=null;humanAct('discard',id)}}
+  else if(a==='hzhu')humanAct('hu');
+  else if(a==='hzpeng')humanAct('peng');
+  else if(a==='hzmgang')humanAct('mgang');
+  else if(a==='hzchi')humanAct('chi',+b.dataset.i);
+  else if(a==='hzpass')humanAct('pass');
+  else if(a==='hzgang')humanAct(b.dataset.t,+b.dataset.k);
   else if(a==='dddbl')humanAct('double',+b.dataset.v);
   else if(a==='ddplay'){const st=ddPickState();if(st.cls){const r=st.readings[+b.dataset.as||0]||st.cls,ids=[...DSEL];DSEL=new Set();humanAct('play',{cards:ids,as:{type:r.type,main:r.main,len:r.len}})}}
   else if(a==='ddpass'){DSEL=new Set();humanAct('pass')}
@@ -1088,6 +1104,8 @@ document.addEventListener('click',async e=>{
   else if(a==='menu-home'&&NET.role!=='guest'&&!confirm('还没有结算，确定直接回到主页吗？本局记录不会保存。')){}
   else if(a==='leave'||a==='home'||a==='menu-home'){leaveAll();resetT();showBanner('');show('setup')}
 });
+/* 红中麻将 hand: a tap picks a tile, a second tap on it discards */
+document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('#dd-hand [data-hz]');if(t&&V&&isM(V))hzTap(+t.dataset.hz)});
 /* 斗地主 hand: a tap picks or unpicks a card; pressing and sliding across cards sets each one like the first */
 let DDRAG=null;
 document.addEventListener('pointerdown',e=>{

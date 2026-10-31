@@ -457,6 +457,32 @@ const CHIPS_FINAL=`(async()=>{${PG}
   [...document.querySelectorAll('#table .bet,.fly-chip')].filter(vis).forEach(b=>{const r=R(b);cards.forEach(([c,cr])=>{if(hit(r,cr))f.push((b.className||'chip')+' 压住牌 '+(c.closest('.seat')?'座位 '+c.closest('.seat').dataset.pid:'公共牌'))})});
   return f})()`;
 const PH4=[[393,873,true],[873,393,true],[412,915,true],[915,412,true]];
+/* 红中麻将: a full hand fits one row, a claim offers its buttons and 过 answers it, my turn shows the clock and 出牌 */
+const HZ_FULL=`(async()=>{${PG}
+  const me=S.players[0],h=S.hz;clearTimeout(timer);hzClear();
+  const row=()=>{const r=R(Q('#dd-hand .hz-row'));if(!r)return f.push('没有手牌行');if(r.x<-0.5||r.x+r.w>innerWidth+0.5)f.push('手牌超出屏幕 '+r.x.toFixed(0)+'..'+(r.x+r.w).toFixed(0));
+    const ts=[...document.querySelectorAll('#dd-hand .hz-row > .mj')].map(R);for(let i=1;i<ts.length;i++)if(ts[i].x-ts[i-1].x<18){f.push('手牌第 '+i+' 张只露出 '+(ts[i].x-ts[i-1].x).toFixed(1)+'px');break}
+    if(document.scrollingElement.scrollWidth>innerWidth+1)f.push('页面横向滚动')};
+  me.cards=hzSort(hzDeck().filter(id=>id<108).slice(0,14));h.melds[0]=[];h.drawn=me.cards[13];S.toAct=0;h.stage='turn';sync();await sleep(80);row();
+  me.cards=hzSort([0,4]);h.melds[0]=[{t:'peng',ids:[8,9,10]},{t:'peng',ids:[12,13,14]},{t:'chi',ids:[36,40,44]},{t:'agang',ids:[60,61,62,63]}];sync();await sleep(80);row();
+  return f})()`;
+const HZ_CLAIM=`(async()=>{${PG}
+  const h=S.hz;clearTimeout(timer);hzClear();
+  S.players[0].cards=hzSort([...S.players[0].cards.filter(id=>hzKind(id)!==4).slice(0,9),16,17,12,20]);
+  const tile=18;h.discards[3].push(tile);h.stage='claim';h.claim={tile,from:3,opts:{0:['hu','peng','chi']},ans:{},qiang:null};S.toAct=-1;sync();await sleep(100);
+  const bs=[...document.querySelectorAll('#actions button')].filter(vis);
+  for(const t of ['过','碰','胡'])if(!bs.some(b=>b.textContent.trim().startsWith(t)))f.push('询问面板缺「'+t+'」');
+  bs.forEach(b=>{const r=R(b);if(r.x<0||r.y<0||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5)f.push('按钮超出屏幕 '+b.textContent.trim())});
+  const pass=bs.find(b=>b.textContent.trim()==='过');if(pass)pass.click();await sleep(100);
+  if(S.hz.claim&&S.hz.claim.ans[0]==null)f.push('点「过」没有生效');
+  return f})()`;
+const HZ_TURN=`(async()=>{${PG}
+  const h=S.hz;clearTimeout(timer);hzClear();S.cfg.turnSec=15;h.stage='turn';h.claim=null;S.toAct=0;hzProceed();await sleep(150);clearTimeout(timer);
+  if(!vis(Q('#table .seat.me .tring')))f.push('轮到我时没有倒计时');
+  if(![...document.querySelectorAll('#actions button')].some(b=>vis(b)&&b.textContent.includes('出牌')))f.push('轮到我时没有「出牌」按钮');
+  const t=[...document.querySelectorAll('#dd-hand .hz-row > .mj')].find(x=>hzKind(+x.dataset.hz)!==27);const n0=S.players[0].cards.length;if(t){const id=t.dataset.hz;t.click();await sleep(60);Q('#dd-hand [data-hz="'+id+'"]').click();await sleep(120);if(S.players[0].cards.length!==n0-1)f.push('点两次没有打出这张牌（之前 '+n0+' 张，之后 '+S.players[0].cards.length+' 张，牌河 '+S.hz.discards[0].length+'，副露 '+S.hz.melds[0].length+'）')}
+  return f})()`;
+
 SCEN.push(
   {name:'board-cards',game:'holdem',n:6,extra:BOARD_CARDS},
   {name:'board-cards-9',game:'holdem',n:9,extra:BOARD_CARDS},
@@ -471,6 +497,7 @@ SCEN.push(
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
   {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
   {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
+  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},
@@ -501,10 +528,10 @@ const MEASURE=`(()=>{
   const vis=el=>{if(!el)return false;const cs=getComputedStyle(el),r=el.getBoundingClientRect();return cs.display!=='none'&&cs.visibility!=='hidden'&&r.width>0&&r.height>0};
   const all=sel=>[...document.querySelectorAll(sel)].filter(vis).map(R);
   const se=document.scrollingElement;
-  const hand=[...document.querySelectorAll('#dd-hand .card')].map(R);
+  const hand=[...document.querySelectorAll('#dd-hand .card,#dd-hand .hz-row > .mj')].map(R);
   return {sh:se.scrollHeight,sw:se.scrollWidth,ih:innerHeight,iw:innerWidth,
     header:vis(document.querySelector('header.top')),footer:vis(document.querySelector('footer.foot')),
-    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
+    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),'hz-river':all('#table .hz-river'),'hz-center':all('#table .hz-center'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
     bets:all('#table .bet'),actions:all('#actions'),btns:[...document.querySelectorAll('#actions button')].filter(vis).map(b=>({t:b.textContent.trim().slice(0,12),h:b.getBoundingClientRect().height})),
     hand,ddStage:document.querySelector('#table .dd-center')?vis(document.querySelector('#table .dd-center .street')):null,
     /* 斗地主 is counter-clockwise: the player after me sits on my right */

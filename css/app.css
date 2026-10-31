@@ -667,3 +667,30 @@ body.in-game #game-view[data-game="ddz"]:not([data-orient="port"]) .dd-center{fl
 .trust-veil{position:absolute;inset:-4px;z-index:4;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;gap:6px 12px;padding:4px;border-radius:12px;background:rgba(6,14,10,.62);-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);color:var(--text);font-weight:800;font-size:15px;text-shadow:0 1px 3px #000}
 .trust-veil .btn{height:40px;padding:0 16px;border:none;border-radius:20px;font-size:14px;font-weight:800;white-space:nowrap;box-shadow:0 4px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.55);text-shadow:none}
 .my-hand .trust-veil{inset:-6px -10px;flex-direction:column;flex-wrap:nowrap}
+
+/* ---------- 红中麻将 ----------
+   tiles are 3:4 pictures; sizes follow the table like the cards do: --mjh my hand (14 in a row upright), --mjr the discards
+   on the felt, --mjm the melds beside a seat */
+.mj{width:var(--mjw,30px);aspect-ratio:3/4;background:var(--face) center/100% 100% no-repeat;border-radius:calc(var(--mjw,30px)*.1);flex:none;position:relative;box-shadow:0 2px 3px rgba(0,0,0,.35)}
+.mj .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.mj .lzt{position:absolute;left:1px;bottom:1px;font-style:normal;font-weight:800;font-size:max(9px,calc(var(--mjw)*.3));line-height:1.1;padding:0 2px;border-radius:3px;background:var(--brass);color:var(--brass-ink)}
+/* my hand fills the hand area (between my seat and the chat bubble), never taller than ~13% of the height */
+body.in-game #game-view[data-game="hz"]{--mjh:clamp(22px,min(calc((100vw - var(--hand-l) - var(--hand-r) - 24px) / 15),13vh),56px);--mjr:clamp(20px,6.2vh,40px);--mjm:clamp(14px,3.6vh,24px);--hand-h:calc(var(--mjh)*1.6 + 12px)}
+body.in-game #game-view[data-game="hz"][data-orient="port"]{--mjh:clamp(22px,calc((100vw - var(--hand-l) - var(--hand-r) - 20px) / 15),40px);--mjr:clamp(18px,5.6vw,30px);--mjm:clamp(12px,3.6vw,20px)}
+.hz-row{display:flex;align-items:flex-end;justify-content:center;gap:1px;padding-top:calc(var(--mjh)*.3);--mjw:var(--mjh);-webkit-user-select:none;user-select:none}
+.hz-row .mj{cursor:pointer;transition:transform .12s}
+.hz-row .mj.sel{transform:translateY(calc(var(--mjh)*-.3));outline:2px solid var(--brass);outline-offset:-1px}
+.hz-row .mj.rec{box-shadow:inset 0 0 0 2px var(--good),0 2px 3px rgba(0,0,0,.35)}
+.hz-gap{width:calc(var(--mjh)*.35);flex:none}
+.hz-melds{display:flex;gap:3px;flex-wrap:wrap;--mjw:var(--mjm)}
+.hz-melds.mine{--mjw:calc(var(--mjh)*.72);margin-right:calc(var(--mjh)*.3);align-self:flex-end}
+.hz-meld{display:flex;gap:0}
+.hz-river{position:absolute;display:grid;grid-template-columns:repeat(6,var(--mjr));gap:1px;--mjw:var(--mjr);z-index:3;transform:translate(-50%,-50%) perspective(600px) rotateX(var(--tilt,0deg));pointer-events:none}
+.hz-river.l{transform:translate(0,-50%) perspective(600px) rotateX(var(--tilt,0deg))}
+.hz-river.r{transform:translate(-100%,-50%) perspective(600px) rotateX(var(--tilt,0deg))}
+.hz-river .mj.hi{outline:2px solid var(--brass);outline-offset:-1px;transform:translateY(-3px)}
+.hz-river.hz-shown{grid-template-columns:repeat(14,var(--mjr))}
+.hz-center .pot{font-size:15px}
+.hz-birds{display:flex;gap:2px;justify-content:center;margin-top:4px;--mjw:var(--mjr)}
+.hz-birds .mj.bird{outline:2px solid var(--good);outline-offset:-1px}
+.table.hz .seat .dd-count .mj{--mjw:calc(var(--av)*.62)}

@@ -350,3 +350,114 @@ function hzRulesHTML(){
   <div><dt>庄家：</dt><dd>谁胡谁下一局坐庄，流局时庄家连庄。</dd></div></dl>
   <p class="muted" style="font-size:12.5px">谁都只输到自己的筹码为止。积分只是游戏里的数字，没有任何价值。</p>`;
 }
+
+/* =====================================================================
+   TABLE PIECES — run on every device from its own view V (ui.js calls these when isM(V)).
+   ===================================================================== */
+/* a tile: its picture, or the back for null; 红中 carries the 「赖」 mark */
+function hzTileHTML(id,o={}){
+  if(id==null)return `<div class="mj back" ${faceStyle(MJ_BACK)}></div>`;
+  const k=hzKind(id),cls=(o.sel?' sel':'')+(o.rec?' rec':'')+(o.hi?' hi':'')+(o.cls||'');
+  return `<div class="mj${cls}"${o.pick?` data-hz="${id}"`:''} ${faceStyle(mjFile(k))} aria-label="${hzName(k)}"><span class="vh">${hzName(k)}</span>${k===HZ_RED&&o.pick?'<i class="lzt">赖</i>':''}</div>`;
+}
+const hzMeldHTML=m=>`<div class="hz-meld">${m.ids.map(id=>hzTileHTML(id)).join('')}</div>`;
+/* where a seat's discards lie: like 斗地主's plays, but the far seat's drop further toward the middle, clear of its plate */
+function hzRiverXY(slot,n,o){const p=playXY(slot,n,o);if(slot&&p.al==='c')return {...p,y:seatXY(slot,n,o).y+(o==='land'?24:18)};return p}
+/* this device's picked tile in its own hand */
+let HSEL=null;
+function hzRenderTable(){
+  const h=V.hz,n=V.players.length,o=tableOrient(),over=V.phase!=='playing';
+  tableFrame(o,'hz');
+  let html='';
+  V.players.forEach((p,i)=>{
+    const slot=slotOf(i),s=seatXY(slot,n,o);
+    const cls=['seat',i===V.me?'me':'',(V.toAct===i||h&&h.stage==='claim'&&h.claim&&h.claim.from===i)&&V.phase==='playing'?'active':'',p.won>0&&over?'win':''].join(' ');
+    const tg=(p.kind==='remote'&&!p.connected||p.trust)&&p.inHand;
+    const status=[tg?'托管中':'',p.lastAction||''].filter(Boolean).join(' · ');
+    const act=p.won>0&&over?`<div class="pact won">+${fmt(p.won)}${p.handName?' · '+p.handName:''}</div>`:p.total>0&&over?`<div class="pact">−${fmt(p.total)}</div>`:`<div class="pact${tg?' tg':''}">${esc(status)}</div>`;
+    const ms=h?(h.melds[i]||[]):[],left=p.cards.length;
+    /* others: a back with the count, then their melds; my own melds sit beside my hand */
+    const cards=i===V.me||!p.inHand?'':`<div class="dd-count">${hzTileHTML(null)}<b>${left}</b></div>${ms.length?`<div class="hz-melds">${ms.map(hzMeldHTML).join('')}</div>`:''}`;
+    html+=`<div class="${cls}${seatCls(s,i===V.me,i)}" data-pid="${i}" style="${seatStyle(s)}">
+      <div class="stop">${avatarHTML(p)}<div class="cards">${cards}</div></div>
+      <div class="plate">${h&&h.dealer===i?'<span class="dd-lord" title="庄家">庄</span>':''}
+        <div class="pname">${esc(p.name)}${i===V.me&&NET.role!=='solo'?'（你）':''}</div>
+        <div class="ptag">${esc(seatTag(p))||'&nbsp;'}</div>
+        <div class="pstack">${fmt(p.stack)}</div>${act}
+      </div></div>`;
+    /* the discards lie on the felt in front of the seat, newest last and lit; the winner's whole hand at the end */
+    const sp=hzRiverXY(slot,n,o),ds=h?h.discards[i]||[]:[],last=h&&h.last&&h.last.pid===i?h.last.id:null;
+    const shownHand=over&&i!==V.me&&p.cards.length&&p.cards[0]!=null;
+    if(shownHand)html+=`<div class="hz-river hz-shown ${sp.al}" style="left:${sp.x}%;top:${sp.y}%">${hzSort(p.cards).map(id=>hzTileHTML(id)).join('')}</div>`;
+    else if(ds.length)html+=`<div class="hz-river ${sp.al}" style="left:${sp.x}%;top:${sp.y}%">${ds.map(id=>hzTileHTML(id,{hi:id===last&&h.stage==='claim'})).join('')}</div>`;
+  });
+  if(h){
+    const c=centerXY(o),r=h.result;
+    const birds=over&&h.birds.length?`<div class="hz-birds" aria-label="抓鸟">${h.birds.map(id=>hzTileHTML(id,{cls:hzBird(id)?' bird':''})).join('')}</div>`:'';
+    html+=`<div class="center hz-center" style="left:${c.x}%;top:${c.y}%"><div class="street">${over?(r&&r.w>=0?'本局结束':'流局'):h.stage==='claim'?'等待吃碰杠胡':'出牌中'}</div>
+      <div class="pot">剩 <span>${h.wallLeft}</span> 张</div>${birds}${V.msg&&over?`<div class="msg">${esc(V.msg)}</div>`:''}</div>`;
+  }
+  $('#table').innerHTML=html;
+  $('#table').classList.add('ddz','hz');$('#table').classList.remove('zjh');
+  ddLandTip();
+  $('#table').dataset.n=String(n);
+  hzRenderHand();
+}
+function hzRenderHand(){
+  const el=$('#dd-hand');if(!el)return;
+  const h=V.hz,m=V.players[V.me],ids=m&&m.inHand?m.cards.filter(c=>c!=null):[];
+  el.hidden=false;
+  if(HSEL!=null&&!ids.includes(HSEL))HSEL=null;
+  /* the tile just drawn stands a little apart at the right */
+  const drawn=h&&h.drawn!=null&&ids.includes(h.drawn)?h.drawn:null,rest=hzSort(ids.filter(id=>id!==drawn));
+  const rec=hzRecTile(),tile=id=>hzTileHTML(id,{pick:true,sel:id===HSEL,rec:id===rec});
+  const ms=h?(h.melds[V.me]||[]):[];
+  el.innerHTML=`<div class="hz-row" role="group" aria-label="我的手牌，点一张选中，再点一次打出">${ms.length?`<div class="hz-melds mine">${ms.map(hzMeldHTML).join('')}</div>`:''}${rest.map(tile).join('')}${drawn!=null?`<span class="hz-gap"></span>${tile(drawn)}`:''}</div>${ids.length?trustVeil():''}`;
+}
+/* the coach's discard to mark in my hand (hzAdvise comes with the coach) */
+function hzRecTile(){if(!(coachOn()&&LOCAL.mode==='live'&&myTurn()&&typeof hzAdvise==='function'))return null;const a=hzAdvise(V);return a&&a.discard!=null?a.discard:null}
+const hzMine=()=>{const m=V.players[V.me];return m?m.cards.filter(c=>c!=null):[]};
+function hzRenderActions(el,m){
+  const h=V.hz;if(!h)return el.innerHTML=actWait('…');
+  const live=coachOn()&&LOCAL.mode==='live',a=live&&typeof hzAdvise==='function'?hzAdvise(V):null;
+  const tip=a&&a.why?`教练：${esc(a.why)}`:'';
+  if(h.stage==='claim'&&h.claim&&h.claim.mine&&!h.claim.answered){
+    const c=h.claim,o=c.mine,nm=hzName(hzKind(c.tile)),mark=t=>a&&a.claim===t?' is-rec':'';
+    const chi=(c.chi||[]).map((ids,i)=>`<button class="btn b-yellow${mark('chi')}" data-act="hzchi" data-i="${i}">吃 ${ids.map(x=>HZ_NUM[hzKind(x)%9]).join('')}</button>`).join('');
+    el.innerHTML=actHTML(tip||`${esc(V.players[c.from].name)} ${c.qiang?'补杠':'打出'}${nm}`,
+      `<button class="btn b-gray${mark('pass')}" data-act="hzpass">过</button>${o.includes('chi')?chi:''}${o.includes('peng')?`<button class="btn b-green${mark('peng')}" data-act="hzpeng">碰</button>`:''}${o.includes('mgang')?`<button class="btn b-green${mark('gang')}" data-act="hzmgang">杠</button>`:''}${o.includes('hu')?`<button class="btn b-red${mark('hu')}" data-act="hzhu">胡</button>`:''}`);
+    return;
+  }
+  if(!myTurn()){
+    const p=V.players[V.toAct];
+    return el.innerHTML=actWait(h.stage==='claim'?'等待其他人选择吃、碰、杠、胡…':p?(p.kind==='remote'&&!p.connected?`${esc(p.name)} 掉线了，稍后由电脑代打…`:`等待 ${esc(p.name)} 出牌…`):'…');
+  }
+  const mine=hzMine(),melds=h.melds[V.me]||[],win=hzWin(mine,melds,{first:h.first});
+  const gangs=h.wallLeft?[...hzAGangKinds(mine).map(k=>['agang',k]),...hzBGangKinds(mine,melds).map(k=>['bgang',k])]:[];
+  const sel=HSEL!=null&&mine.includes(HSEL)&&hzCanDiscard({cards:mine},HSEL);
+  el.innerHTML=actHTML(tip||(sel?`打出 ${hzName(hzKind(HSEL))}？再点一次这张牌也可以打出`:'点一张牌选中，再点一次打出'),
+    `${gangs.map(([t,k])=>`<button class="btn b-green" data-act="hzgang" data-t="${t}" data-k="${k}">${t==='agang'?'暗杠':'补杠'} ${hzName(k)}</button>`).join('')}${win?`<button class="btn b-red" data-act="hzhu">${win.type==='sihz'?'四红中 胡':'自摸'}</button>`:''}<button class="btn b-green" data-act="hzdiscard"${sel?'':' disabled'}>出牌</button>`);
+}
+/* a tap on a tile in my hand: select it, or discard it on the second tap */
+function hzTap(id){
+  if(!myTurn()||!V.hz||V.hz.stage!=='turn')return;
+  if(HSEL===id){if(hzCanDiscard({cards:hzMine()},id)){HSEL=null;humanAct('discard',id)}return}
+  HSEL=id;hzRenderHand();renderActions();
+}
+/* effects and the spoken word for each move */
+function hzFx(v,ev){
+  const p=v.players[ev.pid],g=p?p.gender:'m';
+  if(ev.type==='discard'){SFX.flip();if(typeof say==='function'&&ev.tile!=null)say(hzName(hzKind(ev.tile)),g)}
+  else if(ev.type==='chi'){SFX.check();say('吃',g)}
+  else if(ev.type==='peng'){SFX.check();say('碰',g)}
+  else if(ev.type==='mgang'||ev.type==='agang'||ev.type==='bgang'){SFX.chips(3);say('杠',g)}
+  else if(ev.type==='hu'){say(ev.how==='zimo'?'自摸':'胡了',g)}
+}
+/* stats panels */
+function hzStatsHTML(st,s){
+  const n=st.hz||0;
+  return `<div class="stat"><div class="k">盈亏</div><div class="v ${s.pr>0?'pos':s.pr<0?'neg':''}">${sgn(s.pr)}</div><div class="s">共 ${n} 局</div></div>
+    <div class="stat"><div class="k">胡牌</div><div class="v">${st.hzW||0}</div><div class="s">${n?pct0((st.hzW||0)/n):'—'}</div></div>
+    <div class="stat"><div class="k">点炮</div><div class="v">${st.hzP||0}</div><div class="s">${n?pct0((st.hzP||0)/n):'—'}</div></div>`;
+}
+const hzProfileRow=p=>{const s=p.st||{},n=s.hz||0;return `<td class="r num">${n}</td><td class="r num">${s.hzW||0}</td><td class="r num">${s.hzP||0}</td>`};
