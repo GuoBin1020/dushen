@@ -456,7 +456,7 @@ function showdown(){
   al.forEach(p=>{p.score=evalCards([...p.cards,...S.board]);p.shown=true;p.handName=handName(p.score)});
   distributePots(al,u);
   const top=P().filter(p=>p.won>0).sort((a,b)=>b.won-a.won);
-  S.msg=top.map(w=>`${w.name} 以${w.handName}赢得 ${fmt(w.won)}`).join('；');
+  S.msg=[...top.map(w=>`${w.name} 以${w.handName}赢得 ${fmt(w.won)}`),...refundNote()].join('；');
   al.forEach(p=>log(`${p.name} 亮牌 ${p.cards.map(cardTxt).join(' ')}：${p.handName}`));
   log(S.msg,'win-l');
   P().forEach(p=>{p.bet=0;delete p.score});

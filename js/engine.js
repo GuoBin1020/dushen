@@ -117,7 +117,7 @@ function startHand(){
       else{p.out=true;log(`${p.name} 输光离桌`,'board-l')}
     }else p.busted=true;
   }
-  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
+  P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,refund:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
   /* 托管 that ran to the end of a 德州 / 炸金花 hand without 「超时后采用教练方案」 becomes 暂时离桌 */
   if(!isD(S)&&!isM(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
   /* 斗地主 deals a dropped player in too: the bot plays their turns until they are back */
@@ -149,19 +149,26 @@ function startHand(){
 function put(p,amt){amt=Math.min(amt,p.stack);p.stack-=amt;p.bet+=amt;p.total+=amt;if(p.stack===0)p.allIn=true;return amt}
 function post(p,amt,label){const a=put(p,amt);p.lastAction=`${label} ${fmt(a)}`;log(`${p.name}：${label} ${fmt(a)}`)}
 function winUncontested(w){
+  /* 德州: the part of the last bet nobody called goes back to its owner, it is not won; 炸金花's pot is all the last one's */
+  const back=isZ(S)?0:Math.max(0,w.total-Math.max(0,...P().filter(p=>p!==w).map(p=>p.total)));
+  if(back){w.total-=back;w.stack+=back;w.refund=back}
   const pot=potOf(S);w.stack+=pot;w.won=pot;
-  S.msg=`${w.name} 赢得底池 ${fmt(pot)}（其他人都弃牌）`;log(S.msg,'win-l');
+  S.msg=`${w.name} 赢得底池 ${fmt(pot)}（其他人都弃牌）${back?`，退回没人跟的 ${fmt(back)}`:''}`;log(S.msg,'win-l');
   P().forEach(p=>p.bet=0);endHand();
 }
-/* main pot and side pots: each level goes to the best score among players who paid into it */
+/* main pot and side pots: each level goes to the best score among players who may win it. Only an all-in player is
+   capped at what it put in; anyone else still in may win every level (炸金花: blind pays 1x, seen 2x, both stay in).
+   A level only one player put chips into, and only that player may win, is that player's own chips: they go back
+   (refund, not won) and leave its total for the hand. */
 function distributePots(al,u,pick){
   const contrib=P().filter(p=>p.total>0);
   const levels=[...new Set(contrib.map(p=>p.total))].sort((a,b)=>a-b);
-  let prev=0,carry=0;const results=[];
+  let prev=0,carry=0;const results=[],back=new Map();
   for(const L of levels){
-    let amt=carry;carry=0;for(const p of contrib)amt+=Math.max(0,Math.min(p.total,L)-prev);
-    const elig=al.filter(p=>p.total>=L);prev=L;
+    let amt=carry;const own=!carry,payers=contrib.filter(p=>p.total>prev);carry=0;for(const p of contrib)amt+=Math.max(0,Math.min(p.total,L)-prev);
+    const elig=al.filter(p=>p.total>=L||!p.allIn);prev=L;
     if(!elig.length){carry=amt;continue}
+    if(own&&payers.length===1&&elig.length===1&&elig[0]===payers[0]){back.set(payers[0],(back.get(payers[0])||0)+amt);continue}
     const ws=pick?pick(elig):(()=>{const best=Math.max(...elig.map(p=>p.score));return elig.filter(p=>p.score===best)})();
     const order=[];let i=S.dealer;for(let k=0;k<P().length;k++){i=nextIdx(i,()=>true);if(ws.includes(P()[i]))order.push(P()[i])}
     const share=Math.floor(amt/ws.length/u)*u;let rem=amt-share*ws.length;
@@ -169,7 +176,10 @@ function distributePots(al,u,pick){
     results.push({amt,ws});
   }
   if(carry>0&&results.length){const w=results[results.length-1].ws[0];w.stack+=carry;w.won+=carry}
+  back.forEach((a,p)=>{p.stack+=a;p.total-=a;p.refund=(p.refund||0)+a});
 }
+/* the end-of-hand line's tail: whose extra chips went back */
+const refundNote=()=>P().filter(p=>p.refund>0).map(p=>`退回 ${p.name} 没人跟的 ${fmt(p.refund)}`);
 function endHand(){
   commitHand();
   /* 「亮出所有人的底牌」: name the hands nobody showed down; 德州 folded hands use the board dealt when they folded */
@@ -213,7 +223,7 @@ function viewFor(seat){
         :(p.id===seat||(p.shown&&!p.folded)||reveal||showAll);
       return {id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,bet:p.bet,total:p.total,folded:p.folded,allIn:p.allIn,inHand:p.inHand,out:p.out,busted:p.busted,connected:p.connected,
         st:p.st,vs:flowVs(S.flow,p.id,seat),gender:p.gender,
-        lastAction:p.lastAction,won:p.won,shown:p.shown,handName:p.handName,revealName:showAll?p.revealName||'':'',rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,trust:!!p.trust,away:!!p.away,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
+        lastAction:p.lastAction,won:p.won,refund:p.refund||0,shown:p.shown,handName:p.handName,revealName:showAll?p.revealName||'':'',rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,trust:!!p.trust,away:!!p.away,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
     })
   };
 }
