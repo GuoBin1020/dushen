@@ -34,6 +34,23 @@ function serve(port){
 /* the five original sizes, then 6.7-inch phones both ways up */
 const SIZES=[[393,873,true],[360,780,true],[873,393,true],[768,1024,true],[1280,800,false],[430,932,true],[412,915,true],[932,430,true],[915,412,true]];
 const LONG='一二三四五六七八九十甲乙';
+/* 红中麻将 on the setup form: its own options with their defaults, 4 seats, and 开始 opens a 红中麻将 table */
+const HZ_SETUP=`(async()=>{const f=[];const vis=el=>!!el&&!el.closest('[hidden]')&&el.getBoundingClientRect().width>0;
+  clearTimeout(timer);show('setup');setMode('solo');
+  const b=document.querySelector('#f-game [data-game="hz"]');if(!b)return ['首页没有「红中麻将」按钮'];
+  b.click();await new Promise(r=>setTimeout(r,100));
+  for(const id of ['f-hzbase','f-hzbirds','f-hzdp','f-hzredself','f-hzqiang','f-hznored'])if(!vis(document.getElementById(id)))f.push('红中麻将选项 '+id+' 不可见');
+  if(vis(document.getElementById('f-players')))f.push('红中麻将不该显示座位数（固定 4 人）');
+  const want={'f-hzdp':false,'f-hzredself':true,'f-hzqiang':true,'f-hznored':false};
+  for(const [id,v] of Object.entries(want)){const el=document.getElementById(id);if(el&&el.checked!==v)f.push(id+' 默认应为 '+v)}
+  if(document.getElementById('f-hzbirds')&&document.getElementById('f-hzbirds').value!=='2')f.push('抓鸟默认应为 2');
+  document.getElementById('start-btn').click();
+  for(let i=0;i<60&&!(V&&V.cfg&&V.cfg.game==='hz');i++)await new Promise(r=>setTimeout(r,50));
+  if(!(V&&V.cfg.game==='hz'))f.push('点「开始」没有进入红中麻将');
+  else{if(V.players.length!==4)f.push('红中麻将应为 4 人，实际 '+V.players.length);
+    const c=V.cfg;if(c.hzDianpao!==false||c.hzRedSelf!==true||c.hzQiangGang!==true||c.hzNoRed!==false||c.hzBirds!==2)f.push('开局配置默认值不对 '+JSON.stringify({dp:c.hzDianpao,rs:c.hzRedSelf,qg:c.hzQiangGang,nr:c.hzNoRed,b:c.hzBirds}))}
+  clearTimeout(timer);return f})()`;
+
 let SCEN=[
   {name:'holdem-2',game:'holdem',n:2},{name:'holdem-6',game:'holdem',n:6},{name:'holdem-9',game:'holdem',n:9},
   {name:'holdem-9-long-names',game:'holdem',n:9,long:true},{name:'zjh-6',game:'zjh',n:6},
@@ -144,6 +161,7 @@ const COACH_REC=`(async()=>{${PG}
 const PH=[[393,873,true],[873,393,true]];
 SCEN.push(
   {name:'bar-stable',game:'holdem',n:6,extra:BAR_STABLE},
+  {name:'hz-setup',game:'holdem',n:6,extra:HZ_SETUP,sizes:PH},
   {name:'raise-pop',game:'holdem',n:6,extra:RAISE_POP,sizes:[...PH,[360,780,true],[1280,800,false]]},
   {name:'raise-pop-9',game:'holdem',n:9,extra:RAISE_POP,sizes:[...PH,[1280,800,false]]},
   {name:'zjh-pop',game:'zjh',n:6,extra:ZJH_POP,sizes:[...PH,[412,915,true],[915,412,true],[1280,800,false]]},

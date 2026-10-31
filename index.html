@@ -54,7 +54,7 @@
 
       <div class="field" data-modes="solo host">
         <span class="lbl" id="lbl-game">玩什么</span>
-        <div class="seg" id="f-game" role="group" aria-labelledby="lbl-game"><button type="button" data-game="holdem" aria-pressed="true">德州扑克</button><button type="button" data-game="zjh" aria-pressed="false">炸金花</button><button type="button" data-game="ddz" aria-pressed="false">斗地主</button></div>
+        <div class="seg" id="f-game" role="group" aria-labelledby="lbl-game"><button type="button" data-game="holdem" aria-pressed="true">德州扑克</button><button type="button" data-game="zjh" aria-pressed="false">炸金花</button><button type="button" data-game="ddz" aria-pressed="false">斗地主</button><button type="button" data-game="hz" aria-pressed="false">红中麻将</button></div>
       </div>
 
       <div class="field" data-modes="host join">
@@ -104,6 +104,18 @@
         </div>
         <label class="check" style="margin-top:6px"><input type="checkbox" id="f-laizi"><span>赖子模式（随机翻一个点数当赖子，可以当任意牌）</span></label>
         <div class="hint">斗地主固定 3 人：你和两个电脑。每个农民的输赢 = 底分 × 倍数，抢地主、炸弹、王炸、春天各 ×2，加倍再 ×2；一局最多「封顶 × 底分」。</div>
+      </div>
+      <div class="field" data-modes="solo host" data-games="hz">
+        <label class="lbl" for="f-hzbase">底分</label>
+        <div class="row">
+          <select id="f-hzbase"><option value="5">5</option><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option></select>
+          <label for="f-hzbirds" class="hint">抓鸟</label><select id="f-hzbirds"><option value="0">不抓鸟</option><option value="2" selected>2 张</option><option value="4">4 张</option><option value="6">6 张</option></select>
+        </div>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="f-hzdp"><span>允许点炮（不勾选时只能自摸）</span></label>
+        <label class="check"><input type="checkbox" id="f-hzredself" checked><span>手里有红中只能自摸</span></label>
+        <label class="check"><input type="checkbox" id="f-hzqiang" checked><span>抢杠胡（别人补杠的那张牌正好能胡时，可以抢过来胡）</span></label>
+        <label class="check"><input type="checkbox" id="f-hznored"><span>无红中加倍（手里没有红中就胡了，分数 ×2）</span></label>
+        <div class="hint">红中麻将固定 4 人：你和三个电脑（联机时真人不够由电脑补位）。红中是赖子，可以当任意万、条、筒，但不能打出，也不能用来吃、碰、杠。</div>
       </div>
       <div class="field" data-modes="solo host" data-games="holdem">
         <label class="lbl" for="f-blinds">盲注（小盲 / 大盲）</label>

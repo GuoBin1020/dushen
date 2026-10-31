@@ -858,6 +858,7 @@ function renderSettle(){
 function rulesHTML(game){
   if(game==='zjh')return zRulesHTML();
   if(game==='ddz')return ddRulesHTML();
+  if(game==='hz')return hzRulesHTML();
   const ex=[[[51,47,43,39,35],'皇家同花顺'],[[33,29,25,21,17],'同花顺'],[[44,45,46,47,6],'四条'],[[40,41,42,13,14],'葫芦'],[[49,37,25,13,5],'同花'],[[35,30,27,20,18],'顺子'],[[28,29,30,51,5],'三条'],[[48,49,20,21,1],'两对'],[[44,45,51,26,9],'一对'],[[51,42,31,22,13],'高牌']];
   return `<h2>规则速查</h2><p class="lead">每人 2 张底牌，桌面最多 5 张公共牌，用其中任意 5 张组成最好的牌。</p>
   <h3>一手牌的流程</h3>
@@ -874,8 +875,8 @@ function rulesHTML(game){
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
 function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
-function setGame(g){GAME=['zjh','ddz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
-const playersHint=()=>GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
+function setGame(g){GAME=['zjh','ddz','hz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
+const playersHint=()=>GAME==='hz'?'红中麻将固定 4 人。':GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
   solo:'选德州扑克、炸金花或斗地主，和电脑对手同桌。轮到你时教练会给出建议，并给每个决定打分。打完点「结束并结算」查看收益和问题点。',
   host:'你当房主：选好规则后创建房间，把邀请码（互联网）或连接码（局域网）发给朋友。底牌只发给本人，教练建议也只显示在各自设备上。',
@@ -898,7 +899,7 @@ function syncJoinNet(){
   if(MODE==='join'){$('#join-internet').hidden=lan;$('#join-lan').hidden=!lan;$('#start-btn').textContent=lan?'生成回复码':'加入房间'}
 }
 function renderSeg(){$('#f-players').innerHTML=[2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-players="${n}" aria-pressed="${seatsDraft===n}">${n}</button>`).join('')}
-function updateBB(){const st=+$('#f-stack').value||0;if(GAME==='ddz'){const b=+$('#f-ddbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='zjh'){const a=+$('#f-ante').value;$('#stack-bb').textContent=st?`= ${Math.round(st/a)} 倍底注`:''}else{const bb=+$('#f-blinds').value.split('/')[1];$('#stack-bb').textContent=st?`= ${Math.round(st/bb)} 个大盲`:''}}
+function updateBB(){const st=+$('#f-stack').value||0;if(GAME==='hz'){const b=+$('#f-hzbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='ddz'){const b=+$('#f-ddbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='zjh'){const a=+$('#f-ante').value;$('#stack-bb').textContent=st?`= ${Math.round(st/a)} 倍底注`:''}else{const bb=+$('#f-blinds').value.split('/')[1];$('#stack-bb').textContent=st?`= ${Math.round(st/bb)} 个大盲`:''}}
 /* a select only takes a value it has an option for; anything else (old prefs, the other game's numbers) keeps the default */
 const hasOption=(el,v)=>[...el.options].some(o=>o.value===String(v));
 function setSelect(sel,v){const el=$(sel);if(v!=null&&hasOption(el,v))el.value=String(v)}
@@ -906,17 +907,18 @@ const selVal=(sel,fallback)=>{const el=$(sel);return el.value&&hasOption(el,el.v
 function readCfg(){
   const z=GAME==='zjh',ante=+selVal('#f-ante','20');
   const [sb,bb]=z?[ante,ante]:selVal('#f-blinds','10/20').split('/').map(Number);
-  const dz=GAME==='ddz',base=+selVal('#f-ddbase','20');
+  const hz=GAME==='hz',dz=GAME==='ddz'||hz,base=hz?+selVal('#f-hzbase','20'):+selVal('#f-ddbase','20');
   let stack=Math.round(+$('#f-stack').value)||2000;stack=Math.max(dz?base*20:z?ante*20:bb*10,stack);
   const solo=MODE==='solo';
-  return normalizeCfg({game:GAME,base,ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
+  return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
     coach:solo?true:$('#f-coach').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
 }
 function fillForm(c){
   if(!c||typeof c!=='object')return;
   const n=Math.round(+c.players);seatsDraft=n>=2&&n<=MAX_SEATS?n:6;
-  GAME=['zjh','ddz'].includes(c.game)?c.game:'holdem';
-  setSelect('#f-ddbase',c.base);setSelect('#f-ddcap',c.ddcap);$('#f-laizi').checked=!!c.laizi;
+  GAME=['zjh','ddz','hz'].includes(c.game)?c.game:'holdem';
+  setSelect(c.game==='hz'?'#f-hzbase':'#f-ddbase',c.base);setSelect('#f-hzbirds',c.hzBirds);
+  $('#f-hzdp').checked=!!c.hzDianpao;$('#f-hzredself').checked=c.hzRedSelf!==false;$('#f-hzqiang').checked=c.hzQiangGang!==false;$('#f-hznored').checked=!!c.hzNoRed;setSelect('#f-ddcap',c.ddcap);$('#f-laizi').checked=!!c.laizi;
   setSelect('#f-ante',c.ante);setSelect('#f-zcap',c.zcap);setSelect('#f-zrounds',c.zrounds);$('#f-z235').checked=c.z235!==false;
   const st=Math.round(+c.stack);$('#f-stack').value=st>0?st:2000;
   /* hold'em blinds are saved on their own: a 炸金花 session stores sb=bb=ante, which is not a blinds option */
@@ -960,7 +962,7 @@ async function submitSetup(){
   NET.needHostCard=MODE==='join';
   const cfg=readCfg();
   /* 斗地主 forces 3 seats and ante = 底分; keep the form's own values so the other games' defaults survive */
-  const keep=cfg.game==='ddz'?{players:seatsDraft,ante:+selVal('#f-ante','20')}:{};
+  const keep=cfg.game==='ddz'||cfg.game==='hz'?{players:seatsDraft,ante:+selVal('#f-ante','20')}:{};
   savePrefs({...cfg,...keep,blinds:selVal('#f-blinds','10/20'),name:$('#f-name').value.trim(),gender});
   const btn=$('#start-btn');btn.disabled=true;
   try{
