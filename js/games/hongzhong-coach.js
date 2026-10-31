@@ -46,9 +46,10 @@ function hzCoachHTML(v,toggle){
   const body=!a?'<p class="muted">轮到你，或者别人打出的牌你能吃、碰、杠、胡时，这里给出建议。</p>'
     :!live?'<p class="muted">练习模式：先自己决定，打完再看这里的建议。</p>'
     :`<div class="dd-advice"><b>${a.hu?'胡牌':a.claim?{hu:'胡',peng:'碰',gang:'杠',pass:'过'}[a.claim]:'打 '+esc(hzName(hzKind(a.discard)))}</b><p>${esc(a.why)}</p></div>`;
-  return `<div class="coach-head"><h2>教练</h2>${toggle}</div>${body}<h3 class="dd-sub">记牌器</h3>${hzCounterHTML(v)}
-    <p class="note">记牌器只算公开的信息：你的手牌、所有人打出的牌和亮出的碰杠，数字是还没出现过的张数。</p>`;
+  return `<div class="coach-head"><h2>教练</h2>${toggle}</div>${body}${counterOn()?hzCounterSectionHTML(v):''}`;
 }
+const hzCounterSectionHTML=v=>`<h3 class="dd-sub">记牌器</h3>${hzCounterHTML(v)}
+    <p class="note">记牌器只算公开的信息：你的手牌、所有人打出的牌和亮出的碰杠，数字是还没出现过的张数。</p>`;
 const HZ_SHORT=k=>k===HZ_RED?'中':HZ_NUM[k%9];
 function hzCounterHTML(v){
   const c=hzCounter(v),cell=k=>`<span class="${c[k]?'':'zero'}${k===HZ_RED?' lzc':''}">${HZ_SHORT(k)}<b>${c[k]}</b></span>`;

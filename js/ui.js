@@ -32,9 +32,15 @@ function showBubble(pid,text,voice,dur){
   if(BUB[pid])BUB[pid].remove();
   const el=document.createElement('div');el.className='bubble'+(voice?' voice':'');
   if(voice)el.innerHTML=`<button type="button" class="vbub" data-vplay="${esc(voice)}" data-dur="${dur}">▶ ${dur}″</button>`;else el.textContent=text;
-  /* anchored on the seat's centre; margin lifts the bubble clear of the seat */
-  el.style.left=pt.x+'px';el.style.top=pt.y+'px';el.style.marginTop=-(pid===V.me?66:54)+'px';
+  /* anchored on the seat's centre; margin lifts the bubble clear of the seat. One that would leave the top of the
+     screen hangs below the seat instead, and one near a side slides in, its tail still pointing at the seat */
+  el.style.left=pt.x+'px';el.style.top=pt.y+'px';let mt=-(pid===V.me?66:54);
   fx.appendChild(el);BUB[pid]=el;
+  const fr=fx.getBoundingClientRect(),w=el.offsetWidth,h=el.offsetHeight,st=document.querySelector(`#table .seat[data-pid="${pid}"]`);
+  if(fr.top+pt.y+mt-h<4&&st){el.classList.add('dn');mt=st.getBoundingClientRect().bottom-fr.top-pt.y+8}
+  el.style.marginTop=mt+'px';
+  const x0=fr.left+pt.x-w/2,dx=Math.max(4-x0,Math.min(0,innerWidth-4-(x0+w)));
+  if(dx){el.style.marginLeft=dx+'px';el.style.setProperty('--ax',`calc(50% - ${dx}px)`)}
   setTimeout(()=>{if(BUB[pid]===el){el.remove();delete BUB[pid]}},3900);
 }
 function allInFx(pid){
@@ -313,6 +319,8 @@ function showBanner(text,extra){$('#banner').innerHTML=text?`<span>${text}</span
 /* a short-lived notice that never wipes a newer one */
 function flashBanner(text,ms){showBanner(text);const el=$('#banner'),mark=el.innerHTML;setTimeout(()=>{if(el.innerHTML===mark)showBanner('')},ms)}
 const coachOn=()=>V&&V.cfg.coach!==false;
+/* 斗地主 and 红中's tile counter: its own option, apart from the coach */
+const counterOn=()=>!!V&&(isD(V)||isM(V))&&V.cfg.counter!==false;
 function render(){
   if(!V)return;
   renderMeta();
@@ -359,7 +367,7 @@ function renderCorners(){
   const port=tableOrient()==='port',wall=isM(V)&&V.hz&&V.phase==='playing'?`剩 ${V.hz.wallLeft} 张`:'';
   const info=isM(V)?(port?`底分 ${fmt(V.cfg.base)}`:`红中麻将 · 底分 ${fmt(V.cfg.base)}${wall?` · ${wall}`:''}`):isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
-  const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&port;
+  const hzc=isM(V)&&counterOn()&&!!V.hz,cnt=isD(V)&&counterOn()&&!!V.dd||hzc&&port;
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
   /* data-cnt moves the table down below the strip (CSS) */
   const st=$('#dd-strip'),on=cnt&&DCOUNT,wrow=wall&&port?`<div class="hz-wall">${wall}</div>`:'';st.hidden=!on&&!wrow;
@@ -650,7 +658,9 @@ function renderCoach(){
   const dot=$('#coach-dot');if(dot)dot.hidden=!(myTurn()&&coachOn()&&!(SHEET&&SHEET.tab==='coach-main'));
   const toggle=`<span class="toggle" role="group" aria-label="建议显示方式"><button type="button" data-mode-coach="live" aria-pressed="${LOCAL.mode==='live'}">实时</button><button type="button" data-mode-coach="after" aria-pressed="${LOCAL.mode==='after'}">先决定</button></span>`;
   if(!coachOn()){
-    el.innerHTML=`<div class="coach-head"><h2>教练</h2></div><p class="muted">房主关闭了本局的教练建议。结算时你仍会看到自己的决策复盘。</p>`;return;
+    /* the counter stays when only the coach is off */
+    const cnt=counterOn()?(isM(V)&&V.hz?hzCounterSectionHTML(V):isD(V)&&V.dd?ddCounterSectionHTML(V):''):'';
+    el.innerHTML=`<div class="coach-head"><h2>教练</h2></div><p class="muted">${NET.role==='solo'?'你关闭了教练建议':'房主关闭了本局的教练建议'}。结算时你仍会看到自己的决策复盘。</p>${cnt}`;return;
   }
   if(isD(V)){el.innerHTML=ddCoachHTML(V,toggle);return}
   if(isM(V)){el.innerHTML=typeof hzCoachHTML==='function'?hzCoachHTML(V,toggle):`<div class="coach-head"><h2>教练</h2>${toggle}</div><p class="muted">轮到你时，手牌里会标出教练推荐打的牌。</p>`;return}
@@ -940,7 +950,7 @@ function readCfg(){
   let stack=Math.round(+$('#f-stack').value)||2000;stack=Math.max(dz?base*20:z?ante*20:bb*10,stack);
   const solo=MODE==='solo';
   return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
-    coach:$('#f-coach').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
+    coach:$('#f-coach').checked,counter:$('#f-counter').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
 }
 function fillForm(c){
   if(!c||typeof c!=='object')return;
@@ -954,7 +964,7 @@ function fillForm(c){
   setSelect('#f-blinds',c.blinds||(c.game!=='zjh'&&c.sb?`${c.sb}/${c.bb}`:null));
   setSelect('#f-style',c.style);setSelect('#f-speed',c.speed);setSelect('#f-turn',c.turnSec);$('#f-coachauto').checked=c.coachAuto!==false;
   $('#f-rebuy').checked=c.rebuy!==false;$('#f-reveal').checked=!!c.reveal;$('#f-showall').checked=!!c.showAll;$('#f-auto').checked=!!c.auto;$('#f-ff').checked=c.ff!==false;
-  $('#f-coach').checked=c.coach!==false;$('#f-aifill').checked=c.aiFill!==false;
+  $('#f-coach').checked=c.coach!==false;$('#f-counter').checked=c.counter!==false;$('#f-aifill').checked=c.aiFill!==false;
   if(c.net==='lan')$('#f-net-lan').checked=true;
   if(c.name)$('#f-name').value=c.name;
   if(c.gender==='f')$('#f-gender-f').checked=true;

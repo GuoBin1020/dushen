@@ -83,7 +83,7 @@ function normalizeCfg(c){
   if(!['mixed',...Object.keys(STYLES)].includes(c.style))c.style='mixed';
   if(!['slow','normal','fast'].includes(c.speed))c.speed='normal';
   /* a room or prefs from before 出牌限时 existed play without a limit */
-  c.turnSec=[10,15,20,30,60].includes(+c.turnSec)?+c.turnSec:0;c.coachAuto=c.coachAuto!==false;
+  c.turnSec=[10,15,20,30,60].includes(+c.turnSec)?+c.turnSec:0;c.coachAuto=c.coachAuto!==false;c.counter=c.counter!==false;
   return c;
 }
 function startGame(cfg,humans){
