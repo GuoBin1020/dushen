@@ -105,7 +105,7 @@ E(`function RUN(){for(let i=0;i<40000;i++){
   /* a fixed deal: hands[pid] as strings, the wall front-first, dealer 0 who has just drawn its 14th tile */
   function SETUP(cfg,hands,wall,melds){startGame(cfg,[{name:'你',kind:'local',gender:'m'}]);TIMERS.length=0;
     const h=S.hz;P().forEach((p,i)=>{p.cards=H(hands[i]||'')});h.wall=H(wall||'');h.melds={0:[],1:[],2:[],3:[]};Object.assign(h.melds,melds||{});
-    h.discards={0:[],1:[],2:[],3:[]};h.claim=null;h.stage='turn';h.first={0:false,1:false,2:false,3:false};h.delta={0:0,1:0,2:0,3:0};
+    h.discards={0:[],1:[],2:[],3:[]};h.river=[];h.claim=null;h.stage='turn';h.first={0:false,1:false,2:false,3:false};h.delta={0:0,1:0,2:0,3:0};
     S.toAct=0;h.drawn=P()[0].cards[P()[0].cards.length-1];return h}`);
 const conserved=()=>E(`P().concat(S.gone||[]).reduce((a,p)=>a+p.stack-S.cfg.stack*(1+p.rebuys),0)`)===0;
 
@@ -222,6 +222,12 @@ eq(E('S.toAct'),2,'座位 2 碰了五筒');
 E(`hzAct(P()[2],'hu')`);eq(E('S.phase'),'playing','碰完没摸牌不能自摸');ok(E('!S.hz.result'),'没有胡');
 ok(!E(`hzCanZimo(P()[2])`),'碰完 hzCanZimo 为假');
 E(`hzBotTurn(P()[2])`);eq(E('S.hz.discards[2].length'),1,'电脑碰完照常打一张，不会卡住');
+/* the shared river on the table: every discard in the order played, less the tiles claimed */
+eq(E('S.hz.river'),E('S.hz.discards[2]'),'牌河只剩碰后打出的那张，碰走的五筒不在');
+E(`while(S.hz.stage==='claim'){const k=Object.keys(S.hz.claim.opts).find(k=>S.hz.claim.ans[k]==null);if(k==null)break;hzAct(P()[+k],'pass')}`);
+eq(E('S.toAct')+E('S.hz.stage'),'3turn','轮到座位 3');E(`hzBotTurn(P()[3])`);
+eq(E('S.hz.river'),[E('S.hz.discards[2][0]'),E('S.hz.discards[3][0]')],'按出牌顺序排');
+eq(E('viewFor(1).hz.river'),E('S.hz.river'),'每个人都看得到牌河');
 /* a 吃 sent from outside (an old or modified client) is no answer: nothing happens */
 E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','1m','1m'],'1p 2p 3p')`);
 E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);

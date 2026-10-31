@@ -345,6 +345,21 @@ const SHOWDOWN=(all,long)=>`(async()=>{${PG}
   const mh=Q('#table .my-hand');if(!mh)f.push('没有我的手牌');else{const m=V.players[V.me],t=label('我',Q('#table .hname.mine'),R(mh),m);if(t!=null&&!t.includes(m.handName))f.push('我：标签「'+t+'」不是 '+m.handName)}
   if(!document.querySelector('#table .hname.win'))f.push('没有标出赢家');
   return f})()`;
+/* a phone starting a 斗地主 / 红中 game: the fullscreen button lights up with a small bubble under it, gone after a while;
+   desktop, 德州 and 炸金花 get none */
+const FS_TIP=`(async()=>{${PG}
+  const touch=matchMedia('(pointer:coarse)').matches,want=touch&&(isD(V)||isM(V));FS_TIP_MS=400;
+  show('setup');show('game');render();await sleep(80);
+  const b=Q('#corner-fs .cbtn'),t=Q('#fs-tip');
+  if(!want){if(vis(t))f.push('不该出现全屏提示');return f}
+  if(!vis(t)||!t.textContent.includes('全屏体验更佳'))return ['开局没有「全屏体验更佳」的小气泡'];
+  if(!b||!b.classList.contains('fs-hi'))f.push('全屏按钮没有高亮');
+  const a=R(t),c=R(b);if(a.x<0||a.y<0||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('气泡超出屏幕');
+  if(a.y<c.y+c.h-0.5||Math.abs(a.x+a.w/2-(c.x+c.w/2))>a.w/2)f.push('气泡不在全屏按钮下面');
+  render();await sleep(60);if(!vis(Q('#fs-tip'))||!Q('#corner-fs .cbtn.fs-hi'))f.push('重画之后气泡或高亮没了');
+  await sleep(600);if(vis(Q('#fs-tip')))f.push('气泡没有自己消失');if(Q('#corner-fs .cbtn.fs-hi'))f.push('高亮没有消失');
+  render();await sleep(60);if(vis(Q('#fs-tip')))f.push('同一局里又出现了气泡');
+  FS_TIP_MS=6000;return f})()`;
 /* toasts during a game sit near the top, under the corner buttons, clear of my hand and the buttons */
 const TOAST_TOP=`(async()=>{${PG}
   toast('横屏体验更好：把手机横过来，或者点上方的「横屏全屏」。',6000);await sleep(60);
@@ -424,6 +439,14 @@ const ALIGN=`(async()=>{${PG}
   return f})()`;
 /* 炸金花 比牌 PK: both avatars fly to the middle and face each other across a 「PK」, the loser dims, they fly home and a short
    line says who is out; no second banner. Reduced motion: only the line. Then a real compare through the engine plays it. */
+/* 炸金花: from round 2, on my turn, a small line says a tap on an avatar compares */
+const ZJH_CMP_TIP=`(async()=>{${PG}
+  clearTimeout(timer);const m=S.players[0];m.stack=Math.max(m.stack,5000);S.phase='playing';S.toAct=0;
+  const tip=()=>[...document.querySelectorAll('#actions .act-hint')].find(e=>vis(e)&&e.textContent.includes('点对手头像可比牌'));
+  S.round=1;sync();await sleep(100);if(tip())f.push('第 1 轮还不能比牌，不该提示');
+  S.round=2;sync();await sleep(100);const t=tip();if(!t)f.push('第 2 轮轮到我时没有「点对手头像可比牌」的提示');
+  else{const a=R(t);if(a.x<0||a.x+a.w>innerWidth+0.5||a.y<0)f.push('提示超出屏幕');const b=Q('#actions .act-bar');if(vis(b)&&hit(a,R(b)))f.push('提示压住按钮')}
+  return f})()`;
 const ZJH_PK=`(async()=>{${PG}
   const fx=Q('#fx'),off=r=>r.x<-0.5||r.y<-0.5||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5;
   const opp=V.players.filter(p=>p.id!==V.me&&alive(p)),a=opp[opp.length>2?2:0],m=V.players[V.me];
@@ -496,20 +519,67 @@ const HZ_COUNTER=`(async()=>{${PG}
   return f})()`;
 /* 红中麻将 discards: 24 each (about the most a hand sees), in rows inside each seat's own area — no area over another,
    over a seat, the buttons or my hand; the winner's hand at the end sits in the middle box, not on a river */
+/* the shared river: 60 discards in the order played lie in the middle of the felt, clear of everything, rows as wide as the room allows */
 const HZ_RIVER=`(async()=>{${PG}
   const h=S.hz;clearTimeout(timer);hzClear();
-  const pool=hzDeck().filter(id=>id<108);for(let i=0;i<4;i++)h.discards[i]=pool.splice(0,24);h.last={pid:1,id:h.discards[1][23]};sync();await sleep(120);
+  const pool=hzDeck().filter(id=>id<108);h.discards={0:[],1:[],2:[],3:[]};h.river=[];
+  for(let k=0;k<60;k++){const id=pool.shift();h.discards[k%4].push(id);h.river.push(id)}h.last={pid:3,id:h.river[59]};sync();await sleep(120);
   const ov=(a,b)=>a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5&&a.y<b.y+b.h-0.5&&b.y<a.y+a.h-0.5;
   const rv=[...document.querySelectorAll('#table .hz-river')].filter(vis);
-  if(rv.length!==4)f.push('应有 4 个牌河，实际 '+rv.length);
-  rv.forEach((r,i)=>{const a=R(r);if(a.x<0||a.y<0||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('牌河 '+i+' 超出屏幕');
-    rv.forEach((q,j)=>{if(j>i&&ov(a,R(q)))f.push('牌河 '+i+' 和 '+j+' 重叠')});
-    document.querySelectorAll('#table .seat,#actions .act-bar,#dd-hand .hz-row,.corner > *,#dd-strip').forEach(e=>{if(vis(e)&&ov(a,R(e)))f.push('牌河 '+i+' 压住 '+((e.className||e.id)+'').split(' ')[0])});
-    const ts=[...r.querySelectorAll('.mj')].map(R);for(let k=1;k<ts.length;k++){const p=ts[k-1],c=ts[k];if(ov(p,c)){f.push('牌河 '+i+' 里的牌叠在一起');break}}});
+  if(rv.length!==1)f.push('应有 1 个牌河，实际 '+rv.length);
+  const r=rv[0];if(r){const a=R(r),T=R(Q('#table'));
+    if(a.x<0||a.y<0||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('牌河超出屏幕');
+    if(a.w<T.w*0.5)f.push('牌河只用了桌面宽度的 '+Math.round(a.w/T.w*100)+'%');
+    document.querySelectorAll('#table .seat,#actions .act-bar,#dd-hand .hz-row,#dd-hand .hz-melds,.corner > *,#dd-strip').forEach(e=>{if(vis(e)&&ov(a,R(e)))f.push('牌河压住 '+((e.className||e.id)+'').split(' ')[0])});
+    const ms=[...r.querySelectorAll('.mj')],ts=ms.map(R);if(ms.length!==60)f.push('牌河应有 60 张，实际 '+ms.length);
+    for(let k=1;k<ts.length;k++){if(ov(ts[k-1],ts[k])){f.push('牌河里的牌叠在一起');break}}
+    const want=h.river.map(id=>hzName(hzKind(id))).join(),got=ms.map(m=>m.getAttribute('aria-label')).join();if(want!==got)f.push('牌河不是按出牌顺序排的');
+    if(!ms.length||!ms[ms.length-1].classList.contains('hi'))f.push('最后打出的那张没有标亮');}
   /* the end of the hand: the winner's tiles go in the middle box */
   const w=1;S.players[w].cards=hzSort([...pool.slice(0,10),108,109,110,111]);S.players[w].shown=true;h.result={w,from:null,how:'zimo',type:'ping',red:0,pts:2,hits:0};h.stage='over';S.phase='handover';S.msg='测试：自摸';sync();await sleep(120);
   const c=Q('#table .hz-center');if(!vis(c))f.push('结束时中间没有结果框');else if(c.querySelectorAll('.mj').length<14)f.push('结果框里没有胡牌人的牌');
-  if([...document.querySelectorAll('#table .hz-river.hz-shown')].length)f.push('胡牌人的牌还画在牌河位置');
+  return f})()`;
+/* my 碰 / 杠 sit above the left end of my hand, not in the row where the hand would cover them */
+const HZ_MELDS=`(async()=>{${PG}
+  const me=S.players[0],h=S.hz;clearTimeout(timer);hzClear();
+  me.cards=hzSort([0,4]);h.drawn=4;S.toAct=0;h.stage='turn';h.melds[0]=[{t:'peng',ids:[8,9,10]},{t:'peng',ids:[12,13,14]},{t:'mgang',ids:[36,37,38,39]},{t:'agang',ids:[60,61,62,63]}];sync();await sleep(120);
+  const ov=(a,b)=>a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5&&a.y<b.y+b.h-0.5&&b.y<a.y+a.h-0.5;
+  const m=Q('#dd-hand .hz-melds.mine');if(!vis(m))return ['看不到我的碰杠'];
+  const a=R(m),row=[...document.querySelectorAll('#dd-hand .hz-row > .mj')].map(R);
+  if(a.x<0||a.y<0||a.x+a.w>innerWidth+0.5)f.push('碰杠超出屏幕');
+  if(m.querySelectorAll('.mj').length!==4)f.push('4 副碰杠应缩成 4 张，实际 '+m.querySelectorAll('.mj').length);
+  const tags=[...m.querySelectorAll('.hz-m1 i')].map(e=>e.textContent).join();if(tags!=='碰,碰,杠,暗杠')f.push('碰杠上的字不对：'+tags);
+  row.forEach((t,i)=>{if(ov(a,t))f.push('碰杠被手牌第 '+i+' 张压住')});
+  const mt=[...m.querySelectorAll('.mj')].map(R);mt.forEach((t,i)=>mt.forEach((u,j)=>{if(j>i&&ov(t,u))f.push('我的碰杠叠在一起')}));
+  if(row.length&&a.y+a.h>Math.min(...row.map(t=>t.y))+0.5)f.push('碰杠不在手牌上方');
+  if(row.length&&a.x>row[0].x+innerWidth*0.15)f.push('碰杠不在手牌左边');
+  document.querySelectorAll('#table .seat,#actions .act-bar,#table .hz-river,.corner > *').forEach(e=>{if(vis(e)&&ov(a,R(e)))f.push('碰杠压住 '+((e.className||e.id)+'').split(' ')[0])});
+  /* the others' melds (four each, with a full river): right of a left seat, left of a right seat, under the far seat */
+  const pool=hzDeck().filter(id=>id>=64&&id<108);for(const i of [1,2,3])h.melds[i]=[{t:'peng',ids:pool.splice(0,3)},{t:'mgang',ids:pool.splice(0,4)},{t:'agang',ids:[pool.shift(),pool.shift(),pool.shift(),pool.shift()]},{t:'bgang',ids:pool.splice(0,1).concat([0,1,2])}];
+  h.river=hzDeck().filter(id=>id<64).slice(0,60);sync();await sleep(120);
+  const T=R(Q('#table')),boxes=[];
+  for(const i of [1,2,3]){const st=Q('#table .seat[data-pid="'+i+'"]'),mx=st&&st.querySelector('.hz-melds');if(!vis(mx)){f.push('座位 '+i+' 看不到碰杠');continue}
+    const b=R(mx),sr=R(st.querySelector('.stop')||st),cx=sr.x+sr.w/2,side=cx<T.x+T.w*0.35?'l':cx>T.x+T.w*0.65?'r':'far';boxes.push(b);
+    if(mx.querySelectorAll('.mj').length!==4)f.push('座位 '+i+' 的碰杠没有缩成一张一副');
+    if(side==='l'&&b.x<R(st).x+R(st).w-0.5)f.push('左边座位的碰杠不在座位右边');
+    if(side==='r'&&b.x+b.w>R(st).x+0.5)f.push('右边座位的碰杠不在座位左边');
+    if(side==='far'&&b.y<R(st).y+R(st).h-0.5)f.push('上方座位的碰杠不在座位下面');
+    if(b.x<0||b.y<0||b.x+b.w>innerWidth+0.5||b.y+b.h>innerHeight+0.5)f.push('座位 '+i+' 的碰杠超出屏幕');
+    document.querySelectorAll('#table .seat,#table .hz-river,.corner > *,#dd-strip,#actions .act-bar,#dd-hand .hz-row').forEach(e=>{if(vis(e)&&e!==st&&ov(b,R(e)))f.push('座位 '+i+' 的碰杠压住 '+((e.className||e.id)+'').split(' ')[0])})}
+  boxes.forEach((b,i)=>boxes.forEach((c,j)=>{if(j>i&&ov(b,c))f.push('两家的碰杠重叠')}));
+  return f})()`;
+/* the wall count: upright a row under the tile counter (also with the counter or the coach off), never over the corner buttons */
+const HZ_WALL=`(async()=>{${PG}
+  const h=S.hz;clearTimeout(timer);hzClear();h.stage='turn';S.toAct=0;
+  const ov=(a,b)=>a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5&&a.y<b.y+b.h-0.5&&b.y<a.y+a.h-0.5;
+  const port=innerHeight>innerWidth,txt='剩 '+h.wall.length+' 张';
+  const check=tag=>{const cs=[...document.querySelectorAll('.corner > *')].filter(vis);
+    cs.forEach((e,i)=>cs.forEach((g,j)=>{if(j>i&&ov(R(e),R(g)))f.push(tag+'角落 '+(e.className||e.id).split(' ')[0]+' 和 '+(g.className||g.id).split(' ')[0]+' 重叠')}));
+    const where=port?Q('#dd-strip'):Q('.cinfo');if(!vis(where)||!where.textContent.includes(txt))f.push(tag+'剩余张数不在'+(port?'记牌器下面':'右上角'));
+    if(port&&Q('.cinfo')&&Q('.cinfo').textContent.includes('剩'))f.push(tag+'竖屏右上角还显示剩余张数');
+    const st=Q('#dd-strip');if(vis(st))document.querySelectorAll('#table .seat').forEach(e=>{if(vis(e)&&ov(R(st),R(e)))f.push(tag+'记牌器压住座位')})};
+  sync();await sleep(120);check('');
+  S.cfg.coach=false;sync();await sleep(120);check('关教练：');S.cfg.coach=true;
   return f})()`;
 const HZ_TURN=`(async()=>{${PG}
   const h=S.hz;clearTimeout(timer);hzClear();S.cfg.turnSec=15;h.stage='turn';h.claim=null;S.toAct=0;hzProceed();await sleep(150);clearTimeout(timer);
@@ -532,10 +602,12 @@ SCEN.push(
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
   {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
   {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
-  {name:'hz-river',game:'hz',n:4,extra:HZ_RIVER},  {name:'hz-counter',game:'hz',n:4,extra:HZ_COUNTER},  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
+  {name:'hz-river',game:'hz',n:4,extra:HZ_RIVER},{name:'hz-melds',game:'hz',n:4,extra:HZ_MELDS},{name:'hz-wall',game:'hz',n:4,extra:HZ_WALL},  {name:'hz-counter',game:'hz',n:4,extra:HZ_COUNTER},  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},
+  {name:'fs-tip-ddz',game:'ddz',n:3,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-hz',game:'hz',n:4,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-zjh',game:'zjh',n:6,extra:FS_TIP,sizes:PH},
+  {name:'zjh-cmp-tip',game:'zjh',n:6,extra:ZJH_CMP_TIP,sizes:PH4},
   {name:'zjh-pk',game:'zjh',n:6,extra:ZJH_PK,sizes:[...PH4,[1280,800,false]]},{name:'zjh-pk-9',game:'zjh',n:9,extra:ZJH_PK,sizes:PH4},
   {name:'zjh-seat-kbd',game:'zjh',n:6,extra:ZJH_SEAT_KBD},{name:'chips-final-9',game:'holdem',n:9,extra:CHIPS_FINAL,sizes:PH4},{name:'chips-final-6',game:'holdem',n:6,extra:CHIPS_FINAL,sizes:PH4},
   {name:'trust',game:'holdem',n:6,extra:TRUST},{name:'trust-zjh',game:'zjh',n:6,extra:TRUST},{name:'trust-ddz',game:'ddz',n:3,lord20:true,extra:TRUST}

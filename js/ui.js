@@ -307,7 +307,7 @@ function show(v){
   if(chatHere){renderChat();placeBubble()}else setChatPop(false);
   if(v==='game'){UNREAD=0;renderUnread()}
   if(v!=='game'&&$('#sheet'))closeSheet();
-  if(v!=='game')renderMeta();
+  if(v!=='game'){renderMeta();fsTipOff();FS_TIP.shown=false}
 }
 function showBanner(text,extra){$('#banner').innerHTML=text?`<span>${text}</span>${extra||''}`:''}
 /* a short-lived notice that never wipes a newer one */
@@ -354,14 +354,17 @@ let DCOUNT=true;try{DCOUNT=localStorage.getItem('dushen-counter')!=='0'}catch(e)
 function renderCorners(){
   const pr=myProfit(V);
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
-  $('#corner-fs').innerHTML=fsCorner();
-  const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}${V.hz&&V.phase==='playing'?` · 剩 ${V.hz.wallLeft} 张`:''}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  $('#corner-fs').innerHTML=fsCorner();fsTip();
+  /* 红中麻将's wall count: sideways in the corner, upright a row under the tile counter (the corner has room for 底分 only, like 斗地主) */
+  const port=tableOrient()==='port',wall=isM(V)&&V.hz&&V.phase==='playing'?`剩 ${V.hz.wallLeft} 张`:'';
+  const info=isM(V)?(port?`底分 ${fmt(V.cfg.base)}`:`红中麻将 · 底分 ${fmt(V.cfg.base)}${wall?` · ${wall}`:''}`):isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
-  const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&tableOrient()==='port';
+  const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&port;
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
   /* data-cnt moves the table down below the strip (CSS) */
-  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?(isM(V)?hzCounterStripHTML(V):ddCounterStripHTML(V)):'';
-  if(on)$('#game-view').dataset.cnt='1';else delete $('#game-view').dataset.cnt;
+  const st=$('#dd-strip'),on=cnt&&DCOUNT,wrow=wall&&port?`<div class="hz-wall">${wall}</div>`:'';st.hidden=!on&&!wrow;
+  st.innerHTML=(on?(isM(V)?hzCounterStripHTML(V):ddCounterStripHTML(V)):'')+wrow;
+  if(on||wrow)$('#game-view').dataset.cnt=on?'1':'w';else delete $('#game-view').dataset.cnt;
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
     <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>
@@ -384,7 +387,23 @@ function fsLabel(){
 }
 function fsButton(){const l=fsLabel();return l?`<button type="button" class="btn sm" data-act="fs">${l}</button>`:''}
 /* the same button among the table's corner buttons; upright it shows only the icon */
-function fsCorner(){const l=fsLabel();return l?`<button type="button" class="cbtn" data-act="fs" aria-label="${l}"><span class="ic" aria-hidden="true">⤢</span><span class="lb">${l}</span></button>`:''}
+function fsCorner(){const l=fsLabel();return l?`<button type="button" class="cbtn${Date.now()<FS_TIP.until?' fs-hi':''}" data-act="fs" aria-label="${l}"><span class="ic" aria-hidden="true">⤢</span><span class="lb">${l}</span></button>`:''}
+/* a phone starting a 斗地主 or 红中麻将 game: the fullscreen button lights up and a small bubble under it says so, for
+   FS_TIP_MS; once a game (show() clears it on the way out), gone early on a tap */
+let FS_TIP_MS=6000;const FS_TIP={shown:false,until:0,timer:0};
+function fsTip(){
+  const b=$('#corner-fs .cbtn');let t=$('#fs-tip');
+  if(!FS_TIP.shown&&b&&(isD(V)||isM(V))&&isTouch()&&!fsEl()&&!isStandalone()){
+    FS_TIP.shown=true;FS_TIP.until=Date.now()+FS_TIP_MS;b.classList.add('fs-hi');
+    clearTimeout(FS_TIP.timer);FS_TIP.timer=setTimeout(fsTipOff,FS_TIP_MS);
+  }
+  if(Date.now()>=FS_TIP.until||!b){if(t)t.remove();return}
+  if(!t){t=document.createElement('div');t.id='fs-tip';t.className='fs-tip';t.setAttribute('role','status');t.textContent='全屏体验更佳';$('#game-view').appendChild(t)}
+  const r=b.getBoundingClientRect(),w=t.offsetWidth;
+  t.style.left=Math.max(6,Math.min(innerWidth-w-6,r.left+r.width/2-w/2))+'px';t.style.top=(r.bottom+8)+'px';
+  t.style.setProperty('--ax',(r.left+r.width/2-parseFloat(t.style.left))+'px');
+}
+function fsTipOff(){FS_TIP.until=0;clearTimeout(FS_TIP.timer);const t=$('#fs-tip');if(t)t.remove();const b=$('#corner-fs .cbtn');if(b)b.classList.remove('fs-hi')}
 async function lockLandscape(){
   if(!screen.orientation||!screen.orientation.lock)return false;
   try{await screen.orientation.lock('landscape');LAND_LOCK=true;return true}catch(e){return false}
@@ -1096,7 +1115,7 @@ document.addEventListener('click',async e=>{
     LOBBY={cfg:S.cfg,humans:(isD(S)?ddLobbyHumans(humans):humans).slice(0,S.cfg.players)};S=null;V=null;NET.conns.clear();resetT();voiceClear();show('lobby');lobbySync();
   }
   else if(a==='host-start')hostStart();
-  else if(a==='fs')toggleFS();
+  else if(a==='fs'){fsTipOff();toggleFS()}
   else if(a==='ddcounter'&&V&&isM(V)&&tableOrient()!=='port')openSheet('coach','coach-main');
   else if(a==='ddcounter'){DCOUNT=!DCOUNT;try{localStorage.setItem('dushen-counter',DCOUNT?'1':'0')}catch(x){}renderMeta()}
   else if(a==='wheel')openWheel();
