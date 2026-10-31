@@ -29,7 +29,8 @@ function turnTimer(p,still,bot,disc,grace){
   timer=setTimeout(()=>{if(!still())return;if(present(p))return turnOut(p);S.turnEnd=0;run(disc,Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));sync()},ms);
 }
 function turnOut(p){p.trust=true;log(`${p.name} 超时，进入托管`,'board-l');autoMove(p)}
-function autoMove(p){const coach=S.cfg.coachAuto!==false;return isM(S)?hzAutoMove(p,coach):isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
+/* 斗地主 and 红中 托管 always plays the coach's move; 德州 and 炸金花 follow the 超时后采用教练方案 option */
+function autoMove(p){const coach=isM(S)||isD(S)||S.cfg.coachAuto!==false;return isM(S)?hzAutoMove(p,coach):isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
 /* 取消托管 / 下一局加入. A guest's tap reaches the host as the 'rebuy' message (doRebuy), so the sealed online code needs no new message. */
 function hostBack(p){
   const was=p.away;p.trust=false;p.away=false;
