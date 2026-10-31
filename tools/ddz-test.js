@@ -259,7 +259,7 @@ function tests(){
 const ectx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean});
 vm.runInContext(`var TIMERS=[];var setTimeout=(f)=>{TIMERS.push(f);return TIMERS.length};var clearTimeout=()=>{};
   var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}var SETTLE_SEEN=null;function onSettle(m){SETTLE_SEEN=m}`,ectx);
-for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
 function flow(){
   let passed=0,failed=0;
   const ok=(c,msg)=>{if(c)passed++;else{failed++;console.log('FAIL',msg||'')}};

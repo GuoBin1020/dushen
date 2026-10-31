@@ -320,6 +320,7 @@ function hzAutoMove(p,coach){
   const h=S.hz;
   if(h.stage==='claim'){const o=h.claim.opts[p.id]||[];if(o.includes('hu'))return hzAct(p,'hu');return coach&&typeof hzAdvise==='function'?hzAdviseClaim(p):hzAct(p,'pass')}
   if(hzWin(p.cards,h.melds[p.id],{first:h.first[p.id]}))return hzAct(p,'hu');
+  if(coach&&typeof hzAdvise==='function'){const a=hzAdvise(viewFor(p.id));if(a&&a.discard!=null)return hzAct(p,'discard',a.discard);return hzBotTurn(p)}
   if(coach)return hzBotTurn(p);
   const d=h.drawn!=null&&hzCanDiscard(p,h.drawn)?h.drawn:[...p.cards].reverse().find(x=>hzCanDiscard(p,x));
   hzAct(p,'discard',d);
@@ -423,9 +424,9 @@ function hzRenderActions(el,m){
   const tip=a&&a.why?`教练：${esc(a.why)}`:'';
   if(h.stage==='claim'&&h.claim&&h.claim.mine&&!h.claim.answered){
     const c=h.claim,o=c.mine,nm=hzName(hzKind(c.tile)),mark=t=>a&&a.claim===t?' is-rec':'';
-    const chi=(c.chi||[]).map((ids,i)=>`<button class="btn b-yellow${mark('chi')}" data-act="hzchi" data-i="${i}">吃 ${ids.map(x=>HZ_NUM[hzKind(x)%9]).join('')}</button>`).join('');
+    const chi=(c.chi||[]).map((ids,i)=>`<button class="btn hzc b-yellow${mark('chi')}" data-act="hzchi" data-i="${i}">吃 ${ids.map(x=>HZ_NUM[hzKind(x)%9]).join('')}</button>`).join('');
     el.innerHTML=actHTML(tip||`${esc(V.players[c.from].name)} ${c.qiang?'补杠':'打出'}${nm}`,
-      `<button class="btn b-gray${mark('pass')}" data-act="hzpass">过</button>${o.includes('chi')?chi:''}${o.includes('peng')?`<button class="btn b-green${mark('peng')}" data-act="hzpeng">碰</button>`:''}${o.includes('mgang')?`<button class="btn b-green${mark('gang')}" data-act="hzmgang">杠</button>`:''}${o.includes('hu')?`<button class="btn b-red${mark('hu')}" data-act="hzhu">胡</button>`:''}`);
+      `<button class="btn hzc b-gray${mark('pass')}" data-act="hzpass">过</button>${o.includes('chi')?chi:''}${o.includes('peng')?`<button class="btn hzc b-green${mark('peng')}" data-act="hzpeng">碰</button>`:''}${o.includes('mgang')?`<button class="btn hzc b-green${mark('gang')}" data-act="hzmgang">杠</button>`:''}${o.includes('hu')?`<button class="btn hzc b-red${mark('hu')}" data-act="hzhu">胡</button>`:''}`);
     return;
   }
   if(!myTurn()){

@@ -356,10 +356,11 @@ function renderCorners(){
   const tag=NET.role==='solo'?'单机':NET.net==='lan'?'局域网联机':`联机 · 邀请码 ${NET.code||''}`;
   $('#corner-fs').innerHTML=fsCorner();
   const info=isM(V)?`红中麻将 · 底分 ${fmt(V.cfg.base)}`:isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
-  const cnt=isD(V)&&coachOn()&&!!V.dd;
-  $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
+  /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
+  const hzc=isM(V)&&coachOn()&&!!V.hz,cnt=isD(V)&&coachOn()&&!!V.dd||hzc&&tableOrient()==='port';
+  $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
   /* data-cnt moves the table down below the strip (CSS) */
-  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?ddCounterStripHTML(V):'';
+  const st=$('#dd-strip'),on=cnt&&DCOUNT;st.hidden=!on;st.innerHTML=on?(isM(V)?hzCounterStripHTML(V):ddCounterStripHTML(V)):'';
   if(on)$('#game-view').dataset.cnt='1';else delete $('#game-view').dataset.cnt;
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
@@ -1097,6 +1098,7 @@ document.addEventListener('click',async e=>{
   }
   else if(a==='host-start')hostStart();
   else if(a==='fs')toggleFS();
+  else if(a==='ddcounter'&&V&&isM(V)&&tableOrient()!=='port')openSheet('coach','coach-main');
   else if(a==='ddcounter'){DCOUNT=!DCOUNT;try{localStorage.setItem('dushen-counter',DCOUNT?'1':'0')}catch(x){}renderMeta()}
   else if(a==='wheel')openWheel();
   else if(a==='lan-new')lanNewSlot();

@@ -5,7 +5,7 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const ROOT=path.join(__dirname,'..');
 const ctx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean});
-for(const f of ['js/common.js','js/games/hongzhong.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
+for(const f of ['js/common.js','js/games/hongzhong.js','js/games/hongzhong-coach.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
 const run=s=>vm.runInContext(s,ctx);
 let passed=0,failed=0;
 const show=x=>JSON.stringify(x);
@@ -92,7 +92,7 @@ const ectx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,
 vm.runInContext(`var TIMERS=[];var setTimeout=(f)=>{TIMERS.push(f);return TIMERS.length};var clearTimeout=()=>{};
   var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}var SETTLE_SEEN=null;function onSettle(m){SETTLE_SEEN=m}
   var LOCAL={mode:'live'},T={last:null,decisions:[]};function myTurn(){return false}function coachOn(){return true}`,ectx);
-for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
 ectx.H=H;
 const E=s=>vm.runInContext(s,ectx);
 const CFG=o=>show(Object.assign({game:'hz',players:4,base:1,stack:2000,speed:'fast',rebuy:true,auto:false,aiFill:true,coach:true,hzDianpao:false,hzRedSelf:true,hzQiangGang:true,hzNoRed:false,hzBirds:2,turnSec:0},o||{}));
@@ -183,6 +183,34 @@ E(`hzAct(P()[0],'hu')`);eq(E('S.hz.result&&S.hz.result.type'),'sihz','起手四�
 E(`SETUP(${CFG()},['hz hz','1m','1m','1m'],'1p 2p',{0:[{t:'peng',ids:H('1s1s1s')},{t:'peng',ids:H('2s2s2s')},{t:'peng',ids:H('3s3s3s')},{t:'peng',ids:H('4s4s4s')}]})`);
 ok(E(`hzCanDiscard(P()[0],108)`),'只剩红中时可以打红中');
 ok(!E(`hzCanDiscard({cards:H('hz 1m')},108)`),'还有别的牌时不能打红中');
+
+/* ---------- Task 6: coach, counter, 托管 ---------- */
+const VIEW=(mine,o={})=>`({me:0,phase:'playing',toAct:0,players:[{cards:H(${show(mine)})},{cards:new Array(13).fill(null)},{cards:new Array(13).fill(null)},{cards:new Array(13).fill(null)}],hz:Object.assign({stage:'turn',wallLeft:40,melds:{0:[],1:[],2:[],3:[]},discards:{0:[],1:[],2:[],3:[]},claim:null,first:false},${show(o)})})`;
+/* one step from ready: keep the ready shape, throw the loose tile */
+let a6=run(`hzAdvise(${VIEW('1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m')})`);
+eq(a6&&hzKindOf(a6.discard),8,'教练推荐打孤张九万');
+function hzKindOf(id){return run(`hzKind(${id})`)}
+ok(a6&&/1|一/.test(a6.why),'说明里有还差几步 '+(a6&&a6.why));
+/* ready: the waits and how many of each are still unseen */
+a6=run(`hzAdvise(${VIEW('5m6m 1s2s3s 4s5s6s 7p8p9p 2p2p 9s',{discards:{0:[],1:H('4m 4m'),2:[],3:[]}})})`);
+eq(a6&&a6.waits,[3,6],'听四万七万');eq(a6&&a6.left[3],2,'四万还剩 2 张没出现');eq(a6&&a6.left[6],4,'七万还剩 4 张');
+/* the advice reads only public information: other hands as null give the same result */
+const v1=run(`hzAdvise(${VIEW('1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m')})`);
+ok(show(v1)===show(run(`(()=>{const v=${VIEW('1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m')};v.players[1].cards=H('1p1p1p 2p 3p 4p 5p 6p 7p 8p 9p 1s 2s');return hzAdvise(v)})()`)),'教练不看别人的手牌');
+/* a claim: 胡 when it wins, else 过 when taking it does not help */
+a6=run(`hzAdvise(${VIEW('1m2m3m 4m5m6m 7s8s9s 2p2p2p 5p',{stage:'claim',claim:{tile:H('5p')[1],from:3,mine:['hu','peng'],answered:false}})})`);
+eq(a6&&a6.claim,'hu','能胡就胡');
+/* counter: 4 minus what I can see */
+const cnt=run(`hzCounter(${VIEW('1m1m 2m',{discards:{0:[],1:H('1m'),2:[],3:[]},melds:{0:[],1:[],2:[{t:'peng',ids:H('9p9p9p')}],3:[]}})})`);
+eq(cnt[0],1,'一万还剩 1');eq(cnt[1],3,'二万还剩 3');eq(cnt[26],1,'九筒还剩 1');eq(cnt[27],4,'红中 4');
+
+/* 托管 timeouts in the real engine: with the coach the coach's discard, without it the drawn tile (or the rightmost non-红中) */
+E(`SETUP(${CFG({coachAuto:false})},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m','1m','1m','1m'],'1p 2p 3p')`);E(`S.hz.drawn=P()[0].cards.find(id=>hzKind(id)===22)`);
+E(`hzAutoMove(P()[0],false)`);eq(E('hzKind(S.hz.discards[0][0])'),22,'不用教练：打出刚摸的牌');
+E(`SETUP(${CFG({coachAuto:false})},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p hz','1m','1m','1m'],'1p 2p 3p')`);E(`S.hz.drawn=P()[0].cards.find(id=>hzKind(id)===27)`);
+E(`hzAutoMove(P()[0],false)`);ok(E('S.hz.discards[0].length===1&&hzKind(S.hz.discards[0][0])!==27'),'摸到红中时打最右边的非红中');
+E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7s8s9s 2p2p 5p 8p 9m','1m','1m','1m'],'1p 2p 3p')`);
+E(`hzAutoMove(P()[0],true)`);eq(E('hzKind(S.hz.discards[0][0])'),8,'用教练：打教练推荐的九万');
 
 console.log(`hz: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);

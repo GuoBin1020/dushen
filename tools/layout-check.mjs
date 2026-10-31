@@ -476,6 +476,14 @@ const HZ_CLAIM=`(async()=>{${PG}
   const pass=bs.find(b=>b.textContent.trim()==='过');if(pass)pass.click();await sleep(100);
   if(S.hz.claim&&S.hz.claim.ans[0]==null)f.push('点「过」没有生效');
   return f})()`;
+const HZ_COUNTER=`(async()=>{${PG}
+  clearTimeout(timer);hzClear();try{localStorage.removeItem('dushen-counter')}catch(e){}DCOUNT=true;render();await sleep(100);
+  const port=tableOrient()==='port',st=Q('#dd-strip');
+  if(port){if(!vis(st))f.push('竖屏没有记牌器');else{const r=R(st);if(r.x<0||r.x+r.w>innerWidth+0.5)f.push('记牌器超出屏幕');
+    [...document.querySelectorAll('#table .seat,.corner > *,#actions')].forEach(e=>{if(vis(e)){const q=R(e);if(!(q.x+q.w<=r.x||r.x+r.w<=q.x||q.y+q.h<=r.y||r.y+r.h<=q.y))f.push('记牌器压住 '+(e.className||e.id).split(' ')[0])}});
+    if(document.querySelectorAll('#dd-strip .hz-crow').length!==3)f.push('竖屏记牌器应为 3 行')}}
+  else{if(vis(st))f.push('横屏不该显示记牌器条');const b=Q('[data-act="ddcounter"]');if(!b)f.push('横屏没有 🃏 按钮');else{b.click();await sleep(150);if(!vis(Q('#sheet .hz-counter')))f.push('横屏点 🃏 没有打开记牌器');closeSheet()}}
+  return f})()`;
 const HZ_TURN=`(async()=>{${PG}
   const h=S.hz;clearTimeout(timer);hzClear();S.cfg.turnSec=15;h.stage='turn';h.claim=null;S.toAct=0;hzProceed();await sleep(150);clearTimeout(timer);
   if(!vis(Q('#table .seat.me .tring')))f.push('轮到我时没有倒计时');
@@ -497,7 +505,7 @@ SCEN.push(
   {name:'hm-seat-tap',game:'holdem',n:6,extra:HM_SEAT_TAP,sizes:PH},
   {name:'toast-top',game:'ddz',n:3,lord20:true,extra:TOAST_TOP,sizes:PH4},
   {name:'toast-top-hm',game:'holdem',n:6,extra:TOAST_TOP,sizes:PH4},
-  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
+  {name:'hz-counter',game:'hz',n:4,extra:HZ_COUNTER},  {name:'hz-4',game:'hz',n:4},{name:'hz-hand-full',game:'hz',n:4,extra:HZ_FULL},{name:'hz-claim',game:'hz',n:4,extra:HZ_CLAIM},{name:'hz-turn',game:'hz',n:4,extra:HZ_TURN},
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},

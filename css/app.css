@@ -694,3 +694,18 @@ body.in-game #game-view[data-game="hz"][data-orient="port"]{--mjh:clamp(22px,cal
 .hz-birds{display:flex;gap:2px;justify-content:center;margin-top:4px;--mjw:var(--mjr)}
 .hz-birds .mj.bird{outline:2px solid var(--good);outline-offset:-1px}
 .table.hz .seat .dd-count .mj{--mjw:calc(var(--av)*.62)}
+/* 红中麻将 tile counter: three rows (万 条 筒, 红中 after 万); upright it sits under the top corners like 斗地主's and the
+   table moves down below it */
+.hz-counter{display:grid;gap:2px}
+.hz-crow{display:flex;gap:2px;align-items:center}
+.hz-crow em{font-style:normal;font-size:11px;color:var(--muted);width:14px;text-align:center}
+.hz-crow span{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:22px;height:24px;border-radius:5px;background:rgba(255,255,255,.08);font:700 11.5px/1 var(--f-mono)}
+.hz-crow span b{font-size:9.5px;font-weight:600;color:var(--muted)}
+.hz-crow span.zero{opacity:.35}
+.hz-crow span.lzc{box-shadow:inset 0 0 0 1px var(--brass)}
+#game-view[data-orient="port"] .hz-scells{width:auto}
+body.in-game #game-view[data-game="hz"][data-orient="port"]{--cnt-b:calc(max(6px,env(safe-area-inset-top,0px)) + 38px + 84px)}
+/* the far seat's avatar stands above the rim, so the table goes a little lower than 斗地主's */
+body.in-game #game-view[data-game="hz"][data-orient="port"][data-cnt] .table-wrap{top:max(0px,calc(var(--cnt-b) + 34px - min(10%,70px)))}
+/* a claim can offer 过, up to three 吃, 碰, 杠 and 胡 in one row: narrower buttons */
+#actions .act-bar .btn.hzc{padding-inline:clamp(8px,2.6vw,16px);min-width:0}
