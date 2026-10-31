@@ -71,5 +71,118 @@ eq(run(`hzAGangKinds(H('5m5m5m5m 1s'))`),[4],'暗杠五万');
 eq(run(`hzBGangKinds(H('3p 1s'),[{t:'peng',ids:H('3p3p3p')}])`),[20],'补杠三筒');
 eq(run(`hzBGangKinds(H('hz 1s'),[{t:'peng',ids:H('3p3p3p')}])`),[],'红中不能补杠');
 
+/* ---------- Task 3: scoring ---------- */
+const ids4=[0,1,2,3],rich={0:9999,1:9999,2:9999,3:9999};
+eq(run(`hzPoints('ping',1,{hzNoRed:true})`),2,'平胡 2 分（有红中不加倍）');
+eq(run(`hzPoints('qidui',1,{})`),4,'七对翻倍');
+eq(run(`hzPoints('qidui',0,{hzNoRed:true})`),8,'七对加无红中 ×4');
+eq(run(`hzPoints('ping',0,{hzNoRed:false})`),2,'没开无红中加倍');
+eq(run(`hzPoints('sihz',4,{hzNoRed:true})`),2,'四红中按自摸平胡算');
+eq(run(`hzPayout({w:0,from:null,pts:2,birds:2,base:1,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:12,1:-4,2:-4,3:-4},'自摸平胡中 2 只鸟');
+eq(run(`hzPayout({w:2,from:1,pts:4,birds:1,base:1,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:0,1:-15,2:15,3:0},'点炮七对中 1 只鸟：一个人付 (4+1)×3');
+eq(run(`hzPayout({w:0,from:null,pts:2,birds:0,base:10,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:60,1:-20,2:-20,3:-20},'乘底分');
+eq(run(`hzPayout({w:0,from:null,pts:2,birds:0,base:10,ids:[0,1,2,3],stacks:{0:0,1:5,2:9999,3:9999}})`),{0:45,1:-5,2:-20,3:-20},'筹码不够就付到 0 为止');
+eq(run(`hzGangPay({t:'mgang',by:0,from:3,base:1,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:3,1:0,2:0,3:-3},'明杠打牌的人付 3');
+eq(run(`hzGangPay({t:'agang',by:1,from:null,base:1,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:-2,1:6,2:-2,3:-2},'暗杠每家 2');
+eq(run(`hzGangPay({t:'bgang',by:2,from:null,base:1,ids:[0,1,2,3],stacks:${show(rich)}})`),{0:-1,1:-1,2:3,3:-1},'补杠每家 1');
+eq(run(`[106,108,0,17,52,5].map(hzBird)`),[true,true,true,true,true,false],'中鸟：1、5、9 和红中');
+
+/* ---------- Task 3: the hand flow, run with the real engine and stubbed page / network ---------- */
+const ectx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean});
+vm.runInContext(`var TIMERS=[];var setTimeout=(f)=>{TIMERS.push(f);return TIMERS.length};var clearTimeout=()=>{};
+  var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}var SETTLE_SEEN=null;function onSettle(m){SETTLE_SEEN=m}
+  var LOCAL={mode:'live'},T={last:null,decisions:[]};function myTurn(){return false}function coachOn(){return true}`,ectx);
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
+ectx.H=H;
+const E=s=>vm.runInContext(s,ectx);
+const CFG=o=>show(Object.assign({game:'hz',players:4,base:1,stack:2000,speed:'fast',rebuy:true,auto:false,aiFill:true,coach:true,hzDianpao:false,hzRedSelf:true,hzQiangGang:true,hzNoRed:false,hzBirds:2,turnSec:0},o||{}));
+/* run timers; seat 0 is the only human and is played with the bot logic */
+E(`function RUN(){for(let i=0;i<40000;i++){
+  if(TIMERS.length){TIMERS.shift()();continue}
+  if(S.phase==='playing'&&S.hz){const h=S.hz;
+    if(h.stage==='turn'&&S.toAct===0){hzBotTurn(P()[0]);continue}
+    if(h.stage==='claim'&&h.claim.opts[0]&&h.claim.ans[0]==null){hzBotClaim(P()[0]);continue}}
+  if(S.phase==='busted'){doRebuy(P()[0]);continue}
+  return true}return false}
+  /* a fixed deal: hands[pid] as strings, the wall front-first, dealer 0 who has just drawn its 14th tile */
+  function SETUP(cfg,hands,wall,melds){startGame(cfg,[{name:'你',kind:'local',gender:'m'}]);TIMERS.length=0;
+    const h=S.hz;P().forEach((p,i)=>{p.cards=H(hands[i]||'')});h.wall=H(wall||'');h.melds={0:[],1:[],2:[],3:[]};Object.assign(h.melds,melds||{});
+    h.discards={0:[],1:[],2:[],3:[]};h.claim=null;h.stage='turn';h.first={0:false,1:false,2:false,3:false};h.delta={0:0,1:0,2:0,3:0};
+    S.toAct=0;h.drawn=P()[0].cards[P()[0].cards.length-1];return h}`);
+const conserved=()=>E(`P().concat(S.gone||[]).reduce((a,p)=>a+p.stack-S.cfg.stack*(1+p.rebuys),0)`)===0;
+
+/* 200 bot hands: every hand ends (win or draw), chips are conserved */
+E(`startGame(${CFG()},[{name:'你',kind:'local',gender:'m'}])`);
+eq(E('P().length'),4,'四个座位');eq(E('P()[0].cards.length+P()[1].cards.length+P()[2].cards.length+P()[3].cards.length+S.hz.wall.length'),112,'发牌后共 112 张');
+eq(E('P()[S.dealer].cards.length'),14,'庄家 14 张');
+let bad=0,wins=0,draws=0;
+for(let h=0;h<200;h++){
+  if(!E('RUN()')){ok(false,'卡住了 '+E('S.hz.stage'));break}
+  if(E('S.phase')!=='handover'){ok(false,'没有结束: '+E('S.phase')+' '+E('S.msg'));break}
+  if(!conserved())bad++;
+  if(E('S.hz.result&&S.hz.result.w>=0'))wins++;else draws++;
+  E('startHand()');
+}
+eq(bad,0,'200 局筹码守恒');ok(wins>20,'200 局里有人胡 '+wins+' / 流局 '+draws);ok(E('S.handNo')>=200,'打满 200 局');
+
+/* claims: 胡 beats 碰, the nearest 胡 in turn order wins, 碰 beats 吃 */
+E(`SETUP(${CFG({hzDianpao:true,hzRedSelf:false})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','3p4p 7s8s9s 1p2p3p 4s5s6s 2m2m','5p5p 1m1m 2s3s4s 6s7s8s 9p9p9p','4p6p 7s8s9s 1p2p3p 4s5s6s 3m3m'],'1p 2p 3p 4p 5p 6p 7p 8p')`);
+E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
+eq(E('S.hz.stage'),'claim','打出五筒后进入询问');
+ok(E('S.hz.claim.opts[1].includes("hu")')&&E('S.hz.claim.opts[3].includes("hu")'),'座位 1 和 3 都能胡五筒');
+ok(E('S.hz.claim.opts[2].includes("peng")'),'座位 2 能碰');
+E(`['1','2','3'].forEach(i=>{const p=P()[+i],o=S.hz.claim&&S.hz.claim.opts[i];if(o)hzAct(p,o.includes('hu')?'hu':o.includes('peng')?'peng':'pass')})`);
+eq(E('S.hz.result&&S.hz.result.w'),1,'离打牌人最近的座位 1 胡');eq(E('S.hz.result.from'),0,'座位 0 点炮');
+
+E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','5p5p 1m1m 2s3s4s 6s7s8s 9p9p 3p','1p 2p 3p 4p 5p 6p 7p 8p 9p 3s 4s 2s 6s'],'1p 2p 3p 4p 5p 6p 7p 8p')`);
+E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
+ok(E('S.hz.claim.opts[1].includes("chi")')&&E('S.hz.claim.opts[2].includes("peng")'),'座位 1 能吃、座位 2 能碰');
+E(`hzAct(P()[1],'chi',0);hzAct(P()[2],'peng');hzAct(P()[3],'pass')`);
+eq(E('S.toAct'),2,'碰优先于吃');eq(E('S.hz.melds[2].length&&S.hz.melds[2][0].t'),'peng');
+
+/* hz-claim-red: with 「手里有红中只能自摸」 a hand holding 红中 gets no 胡 on a discard, nor on a 抢杠 */
+E(`SETUP(${CFG({hzDianpao:true,hzRedSelf:true})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p hz 7s8s9s 1p2p3p 4s5s6s 2m2m','1m 2m','1m 2m'],'1p 2p 3p')`);
+E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
+ok(!E('S.hz.claim')||!(E('S.hz.claim.opts[1]')||[]).includes('hu'),'手里有红中：别人打的牌不能胡');
+/* 抢杠胡 works without 允许点炮 */
+E(`SETUP(${CFG({hzDianpao:false,hzQiangGang:true})},['3p 1m 9m','4p5p 7s8s9s 1p2p3p 4s5s6s 2m2m','1m','1m'],'1s 2s 3s',{0:[{t:'peng',ids:H('3p3p3p'),from:2}]})`);
+E(`hzAct(P()[0],'bgang',20)`);
+ok((E('S.hz.claim&&S.hz.claim.opts[1]')||[]).includes('hu'),'没开点炮也能抢杠胡');
+E(`hzAct(P()[1],'hu')`);eq(E('S.hz.result.how'),'qiang','抢杠胡');eq(E('S.hz.delta[0]<0&&S.hz.gangs.length'),0,'被抢的补杠不算杠分');
+
+/* hz-last-tile: no gang with an empty wall; the last tile drawn then nobody wins -> draw (流局) */
+E(`SETUP(${CFG()},['5m5m5m5m 1s 2s 4p 6p 8p 3s 7s 9s 1p 3p','1m','1m','1m'],'')`);
+eq(E('hzAGangKinds(P()[0].cards).length'),1,'手里有四张五万');
+E(`hzAct(P()[0],'agang',4)`);eq(E('S.hz.melds[0].length'),0,'牌堆空了不能杠');
+E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===9))`);E('RUN()');
+eq(E('S.phase'),'handover','牌摸完流局');eq(E('S.hz.result.w'),-1,'流局没人胡');
+
+/* hz-claim-timeout: an unanswered claim passes when the clock runs out, but a winning claim wins */
+E(`SETUP(${CFG({turnSec:10})},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p 9p 9s','4p6p 7s8s9s 1p2p3p 4s5s6s 2m2m','1m','1m'],'1p 2p 3p')`);
+E(`P()[1].kind='local';P()[0].kind='ai'`);
+E(`hzAct(P()[0],'discard',P()[0].cards.find(id=>hzKind(id)===22))`);
+ok((E('S.hz.claim&&S.hz.claim.opts[1]')||[]).includes('chi'),'座位 1 可以吃');
+E('RUN()');ok(E('!S.hz.claim'),'询问超时后算过，牌局继续');
+
+/* hz-view: a guest sees counts only, never the wall */
+E(`startGame(${CFG()},[{name:'你',kind:'local',gender:'m'}])`);
+const v=E('viewFor(1)');
+ok(v.hz&&!('wall' in v.hz)&&v.hz.wallLeft===E('S.hz.wall.length'),'视角里没有牌堆，只有剩余张数');
+ok(v.players[0].cards.every(c=>c===null),'看不到别人的牌面');ok(v.players[1].cards.every(c=>c!==null),'看得到自己的牌');
+
+/* dealer: the winner deals next; a draw keeps the dealer */
+E(`SETUP(${CFG()},['1m2m3m 4m5m6m 7m8m9m 1s1s 5p5p 9s','1m','1m','1m'],'1p 2p')`);E('S.dealer=2');
+E(`P()[0].cards=H('1m2m3m 4m5m6m 7m8m9m 1s1s 5p5p5p');hzAct(P()[0],'hu')`);eq(E('S.hz.result.w'),0,'自摸');E('startHand()');eq(E('S.dealer'),0,'谁胡谁坐庄');
+E(`SETUP(${CFG()},['1m3m5m 7m9m 1s 3s5s7s 9s 1p 3p 5p 7p','1m','1m','1m'],'')`);E('S.dealer=3');
+E(`hzAct(P()[0],'discard',P()[0].cards[0])`);E('RUN()');eq(E('S.hz.result.w'),-1);E('startHand()');eq(E('S.dealer'),3,'流局连庄');
+
+/* 四红中 at the dealer's first action */
+E(`SETUP(${CFG()},['hz hz hz hz 1m3m5m7m 2s4s6s 8s 3p5p','1m','1m','1m'],'1p 2p');S.hz.first[0]=true`);
+E(`hzAct(P()[0],'hu')`);eq(E('S.hz.result&&S.hz.result.type'),'sihz','起手四红中胡');
+/* only 红中 left: a 红中 may go out, nothing stalls */
+E(`SETUP(${CFG()},['hz hz','1m','1m','1m'],'1p 2p',{0:[{t:'peng',ids:H('1s1s1s')},{t:'peng',ids:H('2s2s2s')},{t:'peng',ids:H('3s3s3s')},{t:'peng',ids:H('4s4s4s')}]})`);
+ok(E(`hzCanDiscard(P()[0],108)`),'只剩红中时可以打红中');
+ok(!E(`hzCanDiscard({cards:H('hz 1m')},108)`),'还有别的牌时不能打红中');
+
 console.log(`hz: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);

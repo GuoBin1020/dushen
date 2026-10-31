@@ -29,7 +29,7 @@ function turnTimer(p,still,bot,disc,grace){
   timer=setTimeout(()=>{if(!still())return;if(present(p))return turnOut(p);S.turnEnd=0;run(disc,Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));sync()},ms);
 }
 function turnOut(p){p.trust=true;log(`${p.name} 超时，进入托管`,'board-l');autoMove(p)}
-function autoMove(p){const coach=S.cfg.coachAuto!==false;return isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
+function autoMove(p){const coach=S.cfg.coachAuto!==false;return isM(S)?hzAutoMove(p,coach):isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
 /* 取消托管 / 下一局加入. A guest's tap reaches the host as the 'rebuy' message (doRebuy), so the sealed online code needs no new message. */
 function hostBack(p){
   const was=p.away;p.trust=false;p.away=false;
@@ -69,13 +69,16 @@ const flowVs=(flow,p,seat)=>(flow[p+'>'+seat]||0)-(flow[seat+'>'+p]||0);
 function normalizeCfg(c){
   c={...c};
   const num=(v,d,ok)=>{v=+v;return Number.isFinite(v)&&ok(v)?v:d};
-  c.game=['zjh','ddz'].includes(c.game)?c.game:'holdem';
+  c.game=['zjh','ddz','hz'].includes(c.game)?c.game:'holdem';
   c.players=Math.round(num(c.players,6,v=>v>=2&&v<=MAX_SEATS));
   c.ante=num(c.ante,20,v=>v>0);c.zcap=num(c.zcap,10,v=>v>=2);c.zrounds=num(c.zrounds,10,v=>v>=2);
   if(c.game==='zjh'){c.sb=c.ante;c.bb=c.ante}
+  else if(c.game==='hz'){c.players=4;c.base=num(c.base,20,v=>v>0);c.sb=c.bb=c.ante=c.base;
+    /* 红中麻将 options: 点炮 off, 红中 only self-draw, 抢杠胡 on, no 无红中加倍, 2 birds */
+    c.hzDianpao=!!c.hzDianpao;c.hzRedSelf=c.hzRedSelf!==false;c.hzQiangGang=c.hzQiangGang!==false;c.hzNoRed=!!c.hzNoRed;c.hzBirds=[0,2,4,6].includes(+c.hzBirds)?+c.hzBirds:2}
   else if(c.game==='ddz'){c.players=3;c.laizi=!!c.laizi;c.base=num(c.base,20,v=>v>0);c.ddcap=num(c.ddcap,64,v=>v>=1);c.sb=c.bb=c.ante=c.base}
   else{c.bb=num(c.bb,20,v=>v>0);c.sb=num(c.sb,c.bb/2,v=>v>0&&v<=c.bb)}
-  c.stack=Math.round(num(c.stack,c.bb*100,v=>v>=c.bb*(c.game==='ddz'?20:10)));
+  c.stack=Math.round(num(c.stack,c.bb*100,v=>v>=c.bb*(c.game==='ddz'||c.game==='hz'?20:10)));
   if(!['mixed',...Object.keys(STYLES)].includes(c.style))c.style='mixed';
   if(!['slow','normal','fast'].includes(c.speed))c.speed='normal';
   /* a room or prefs from before 出牌限时 existed play without a limit */
@@ -102,28 +105,31 @@ function shuffle(){const d=[];for(let c=0;c<52;c++)d.push(c);for(let i=51;i>0;i-
 function startHand(){
   clearTimeout(timer);
   const cfg=S.cfg;
-  if(isD(S))ddSeatChanges();
+  /* 斗地主 and 红中麻将 keep every seat filled: leavers become bots, waiting players take bots' seats */
+  if(isD(S)||isM(S))ddSeatChanges();
   backOnline();
   for(const p of P()){
     if(p.stack>0||p.out)continue;
     if(isBot(p)){
       if(cfg.rebuy){p.stack=cfg.stack;p.rebuys++;log(`${p.name} 补码 ${fmt(cfg.stack)}`,'board-l')}
-      else if(isD(S))ddReplaceBot(p);
+      else if(isD(S)||isM(S))ddReplaceBot(p);
       else{p.out=true;log(`${p.name} 输光离桌`,'board-l')}
     }else p.busted=true;
   }
   P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
   /* 托管 that ran to the end of a 德州 / 炸金花 hand without 「超时后采用教练方案」 becomes 暂时离桌 */
-  if(!isD(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
+  if(!isD(S)&&!isM(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
   /* 斗地主 deals a dropped player in too: the bot plays their turns until they are back */
-  const live=P().filter(p=>!p.out&&p.stack>0&&!p.away&&(present(p)||isD(S)));
+  const live=P().filter(p=>!p.out&&p.stack>0&&!p.away&&(present(p)||isD(S)||isM(S)));
   if(!live.some(p=>!isBot(p))&&P().some(p=>p.away&&p.stack>0)){S.phase='waiting';S.msg='真人玩家都暂时离桌了，点「下一局加入」继续';sync();return}
   if(!live.some(p=>!isBot(p))){S.phase='busted';S.msg='真人玩家的筹码都输光了，补码后继续';sync();return}
   if(live.length<2){S.phase='waiting';S.msg='玩家不足 2 人，等待有人加入或补码';sync();return}
   if(isD(S)&&live.length<3){S.phase='waiting';S.msg='斗地主需要 3 个人，等待有人补码或入座';sync();return}
+  if(isM(S)&&live.length<4){S.phase='waiting';S.msg='红中麻将需要 4 个人，等待有人补码或入座';sync();return}
   live.forEach(p=>{p.inHand=true;p.st.h++;p.hf={vp:0,pf:0,tbO:0,tb:0}});
   if(isZ(S))return zDeal(live);
   if(isD(S))return ddDeal(live);
+  if(isM(S))return hzDeal(live);
   S.handNo++;S.board=[];S.msg='';
   S.dealer=nextIdx(S.dealer,p=>p.inHand);
   S.deck=shuffle();
@@ -166,7 +172,7 @@ function distributePots(al,u,pick){
 function endHand(){
   commitHand();
   /* 「亮出所有人的底牌」: name the hands nobody showed down; 德州 folded hands use the board dealt when they folded */
-  if(S.cfg.showAll&&!isD(S))P().forEach(p=>{if(p.inHand&&p.cards.length&&!(p.shown&&!p.folded&&p.handName))
+  if(S.cfg.showAll&&!isD(S)&&!isM(S))P().forEach(p=>{if(p.inHand&&p.cards.length&&!(p.shown&&!p.folded&&p.handName))
     p.revealName=isZ(S)?(S.cfg.z235&&z235(p.cards)?'235':zName(zEval(p.cards))):handName(evalCards([...p.cards,...S.board.slice(0,p.folded?p.foldAt||0:5)]))});
   S.phase='handover';sync();
   P().filter(p=>isBot(p)&&p.won-p.total>=S.cfg.bb*15).forEach(p=>{if(Math.random()<0.3)botChat(p,['运气不错','谢谢老板','这把舒服','承让承让'])});
@@ -198,7 +204,7 @@ function viewFor(seat){
     cfg:S.cfg,me:seat,dealer:S.dealer,handNo:S.handNo,board:S.board.slice(),street:S.street,currentBet:S.currentBet,minRaise:S.minRaise,raises:S.raises,
     toAct:S.toAct,phase:S.phase,msg:S.msg,
     /* time left on the turn clock as of this snapshot: each device counts down from when it got it, so clocks need not agree */
-    turnMs:turnMs(),turnLeft:S.phase==='playing'&&S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0,dd:S.dd?ddPublic(S.dd):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
+    turnMs:turnMs(),turnLeft:S.phase==='playing'&&S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0,dd:S.dd?ddPublic(S.dd):null,hz:S.hz&&isM(S)?hzPublic(S.hz,seat):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
     players:S.players.map(p=>{
       const showAll=S.cfg.showAll&&S.phase==='handover'&&p.inHand;
       /* 炸金花: a blind player cannot see their own cards; a compare shows both hands to the two players involved */
