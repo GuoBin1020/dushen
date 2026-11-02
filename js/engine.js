@@ -80,7 +80,9 @@ function normalizeCfg(c){
   else if(c.game==='ddz'){c.players=3;c.laizi=!!c.laizi;c.base=num(c.base,20,v=>v>0);c.ddcap=num(c.ddcap,64,v=>v>=1);c.sb=c.bb=c.ante=c.base}
   else{c.bb=num(c.bb,20,v=>v>0);c.sb=num(c.sb,c.bb/2,v=>v>0&&v<=c.bb)}
   c.stack=Math.round(num(c.stack,c.bb*100,v=>v>=c.bb*(c.game==='ddz'||c.game==='hz'?20:10)));
-  if(!['mixed',...Object.keys(STYLES)].includes(c.style))c.style='mixed';
+  if(!['mixed',...Object.keys(STYLES)].includes(c.style)||c.style==='coach'||c.style==='pro'&&c.game!=='holdem')c.style='mixed';
+  /* 德州's 电脑难度: easy = the chosen style (mixed by default), normal = every bot 高手, hard = every bot plays the coach's move */
+  if(!['easy','normal','hard'].includes(c.level))c.level='easy';
   if(!['slow','normal','fast'].includes(c.speed))c.speed='normal';
   /* a room or prefs from before 出牌限时 existed play without a limit */
   c.turnSec=[10,15,20,30,60].includes(+c.turnSec)?+c.turnSec:0;c.coachAuto=c.coachAuto!==false;c.counter=c.counter!==false;
@@ -94,7 +96,7 @@ function startGame(cfg,humans){
   humans.forEach(h=>{const p=mkPlayer(players.length,h.name,h.kind,null,cfg,h.gender);p.cid=h.cid||'';players.push(p)});
   if(cfg.aiFill){
     const used=new Set(humans.map(h=>h.name));let k=0;
-    while(players.length<cfg.players){const base=NAMES[k%NAMES.length];let nm=base;k++;while(used.has(nm))nm+='·';used.add(nm);const sk=cfg.style==='mixed'?pickArch():cfg.style,bp=mkPlayer(players.length,nm,'ai',sk,cfg,FEMALE_BOTS.has(base)?'f':'m');bp.ai=genAI(sk);if(cfg.game==='ddz')bp.ddArch=ddPickArch();players.push(bp)}
+    while(players.length<cfg.players){const base=NAMES[k%NAMES.length];let nm=base;k++;while(used.has(nm))nm+='·';used.add(nm);const sk=cfg.game==='holdem'&&cfg.level!=='easy'?(cfg.level==='hard'?'coach':'pro'):cfg.style==='mixed'?pickArch(cfg.game):cfg.style,bp=mkPlayer(players.length,nm,'ai',sk,cfg,FEMALE_BOTS.has(base)?'f':'m');bp.ai=genAI(sk);if(cfg.game==='ddz')bp.ddArch=ddPickArch();players.push(bp)}
   }
   S={gone:[],ddWait:[],cfg,players,dealer:Math.floor(Math.random()*players.length),handNo:0,board:[],deck:[],street:'',currentBet:0,minRaise:cfg.bb,raises:0,needAct:[],toAct:-1,phase:'playing',log:[],msg:'',sbId:-1,bbId:-1,preRaisers:[],flow:{}};
   NET.conns.clear();

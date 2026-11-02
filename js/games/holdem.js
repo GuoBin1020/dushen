@@ -212,11 +212,16 @@ function buildCombos(keys,dead){
 }
 
 /* ---------- coach (runs on each player's own device, from their own view) ---------- */
-function advise(st,p){
-  const opps=st.players.filter(q=>q!==p&&alive(q)),opp=opps.length;
+/* win chance against each opponent's estimated range: preflop range from its actions, narrowed by its lines since */
+function rangeEquity(st,p,iters){
+  const opps=st.players.filter(q=>q!==p&&alive(q));if(!opps.length)return 1;
   const dead=new Set([...p.cards,...st.board]);
   const rs=opps.map(q=>{let combos=buildCombos(q.pre||ALL_KEYS,dead);if(!combos.length)combos=buildCombos(ALL_KEYS,dead);return {combos,post:q.post||[]}});
-  const e=opp?equityRanges(p.cards,st.board,rs,1500):1;
+  return equityRanges(p.cards,st.board,rs,iters);
+}
+function advise(st,p){
+  const opps=st.players.filter(q=>q!==p&&alive(q)),opp=opps.length;
+  const e=rangeEquity(st,p,1500);
   const eRand=equity(p.cards,st.board,opp,600);
   const oppInfo=opps.map(q=>({name:q.name,line:(q.line||[]).join(' → ')||'尚未行动',pct:q.pre?comboCount(q.pre)/1326:1,post:(q.post||[]).some(r=>r.k!=='x')}));
   const pot=potOf(st),toCall=Math.min(st.currentBet-p.bet,p.stack);
@@ -483,10 +488,13 @@ function aiPreflop(p){
 }
 function aiAct(p){
   if(isZ(S))return zAiAct(p);
+  /* 教练算法: the coach's move, its exploit advice first when it has one (the same thing a person sees in the coach panel) */
+  if(p.style==='coach'){const a=advise(S,p),ex=exploitAdvice(S,p,a),r=ex&&ex.rec||a.rec;return act(p,r.type,r.to)}
   if(S.street==='preflop')return aiPreflop(p);
   const st=p.ai||STYLES[p.style]||STYLES.tag;
   const opp=P().filter(q=>q!==p&&alive(q)).length;
-  const e=equity(p.cards,S.board,opp,S.board.length?240:180);
+  /* 高手 weighs its hand against what each opponent's actions say they hold; the others against random hands */
+  const e=p.style==='pro'?rangeEquity(S,p,800):equity(p.cards,S.board,opp,S.board.length?240:180);
   const pot=potOf(S),toCall=Math.min(S.currentBet-p.bet,p.stack);
   const fair=1/(opp+1),strong=fair+(1-fair)*0.33;
   const r=Math.random(),eAdj=e+st.loose;

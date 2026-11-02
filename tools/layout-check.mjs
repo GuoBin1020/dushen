@@ -242,6 +242,18 @@ const ROOM_EDIT=`(async()=>{${PG}
   show('setup');setMode('solo');await sleep(30);if(!vis(Q('#setup-form .tabs'))||!vis(Q('#f-name')))f.push('退出改设置后，设置页没有恢复');if(Q('#start-btn').textContent.includes('保存'))f.push('退出后按钮还是「保存」');
   if(keep.sync)lobbySync=keep.sync;NET.role=keep.role;LOBBY=null;S.cfg=keep.cfg;show('game');render();
   return f})()`;
+/* 德州's 电脑难度 on the setup page: default 简单 with the style picker; 普通 / 困难 hide it; 炸金花 has neither 难度 nor 高手 */
+const LEVEL_SETUP=`(async()=>{${PG}
+  show('setup');setMode('solo');const gb=g=>Q('#f-game [data-game="'+g+'"]'),lv=Q('#f-level');
+  gb('holdem').click();await sleep(40);
+  if(!vis(lv))f.push('德州没有「电脑难度」');else if(lv.value!=='easy')f.push('难度默认应是简单，实际 '+lv.value);
+  if(!vis(Q('#f-style')))f.push('简单时应能选电脑风格');if(Q('#f-style option[value="pro"]').hidden)f.push('德州的风格里应有高手');
+  for(const v of ['normal','hard']){lv.value=v;lv.dispatchEvent(new Event('change',{bubbles:true}));await sleep(30);
+    if(vis(Q('#f-style')))f.push(v+' 时不该再选电脑风格');if(readCfg().level!==v)f.push('读到的难度不是 '+v);}
+  lv.value='easy';lv.dispatchEvent(new Event('change',{bubbles:true}));
+  gb('zjh').click();await sleep(40);
+  if(vis(lv))f.push('炸金花不该有电脑难度');if(!vis(Q('#f-style')))f.push('炸金花应能选电脑风格');if(!Q('#f-style option[value="pro"]').hidden)f.push('炸金花不该有高手风格');
+  gb('holdem').click();show('game');render();return f})()`;
 /* chat bubbles: every seat's bubble stays on screen and above everything (it may cover other things, it is gone in 4 s) */
 const BUBBLE_ON=`(async()=>{${PG}
   const fx=Q('#fx');
@@ -274,6 +286,7 @@ const FX_POINTS=`(async()=>{${PG}
 SCEN.push(
   {name:'counter-cfg-ddz',game:'ddz',n:3,extra:COUNTER_CFG,sizes:PH},{name:'counter-cfg-hz',game:'hz',n:4,extra:COUNTER_CFG,sizes:PH},
   {name:'room-edit',game:'holdem',n:6,extra:ROOM_EDIT,sizes:PH},
+  {name:'level-setup',game:'holdem',n:6,extra:LEVEL_SETUP,sizes:PH},
   {name:'bubble-on',game:'holdem',n:6,extra:BUBBLE_ON},{name:'bubble-on-9',game:'holdem',n:9,extra:BUBBLE_ON},{name:'bubble-on-zjh',game:'zjh',n:6,extra:BUBBLE_ON},{name:'bubble-on-ddz',game:'ddz',n:3,extra:BUBBLE_ON},{name:'bubble-on-hz',game:'hz',n:4,extra:BUBBLE_ON},
   {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},
