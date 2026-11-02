@@ -645,7 +645,7 @@ function matrixHTML(pre){
 }
 function oppsHTML(a){
   if(!a.oppInfo||!a.oppInfo.length)return '';
-  return `<div class="opps"><div class="t">对手范围估计</div>${a.oppInfo.map(o=>`<div class="opp"><span><b>${esc(o.name)}</b> <span class="l">${esc(o.line)}</span></span><span class="num">${o.pct>=0.999?'任意牌':'前 '+pct(o.pct)}${o.post?' · 翻后收窄':''}</span></div>`).join('')}</div>`;
+  return `<div class="opps"><div class="t">对手范围估计</div>${a.oppInfo.map(o=>`<div class="opp"><span><b>${esc(o.name)}</b> <span class="l">${esc(o.line)}</span></span><span class="num">${o.pct>=0.999?'任意牌':'前 '+pct(o.pct)}${o.post?' · 翻后收窄':''}${o.habit?' · '+esc(o.habit):''}</span></div>`).join('')}</div>`;
 }
 function decisionDetail(a){
   return `<div class="stats">

@@ -55,7 +55,7 @@ function delay(){
 }
 const FEMALE_BOTS=new Set(['小美','Lina','Mia']);
 function mkPlayer(id,name,kind,style,cfg,gender){return {id,name,kind,style,gender:gender==='f'?'f':'m',stack:cfg.stack,rebuys:0,out:false,busted:false,connected:true,cards:[],bet:0,total:0,folded:false,allIn:false,inHand:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],
-  st:{h:0,vp:0,pf:0,tbO:0,tb:0,bets:0,calls:0,fbO:0,fb:0},hf:null}}
+  st:{h:0,vp:0,pf:0,tbO:0,tb:0,bets:0,calls:0,fbO:0,fb:0,sa:0,saAir:0,sc:0,scAir:0},hf:null}}
 function commitHand(){
   const ps=P().filter(p=>p.inHand);
   ps.forEach(p=>{const f=p.hf;if(f){p.st.vp+=f.vp;p.st.pf+=f.pf;p.st.tbO+=f.tbO;p.st.tb+=f.tb}p.hf=null});

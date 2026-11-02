@@ -54,6 +54,32 @@ function tests(){
   P().forEach(p=>Object.assign(p,{inHand:true,folded:false,allIn:false}));b.cards=[0,5];
   const want=advise(S,b).rec.type;aiAct(b);ok(b.folded===(want==='fold'),'翻牌前照教练：'+want+' / '+b.lastAction);
 
+  /* ---------- the coach's range model learns each player's habits (after 12 hands) ---------- */
+  game('holdem',{level:'easy',style:'tag'});
+  const q=bots()[0],pos=()=>{S.street='preflop';S.raises=0;S.preRaisers=[];S.phase='playing';P().forEach(p=>Object.assign(p,{inHand:true,folded:false,pre:null,post:[],line:[]}))};
+  const habit=(h,vp,pf,bets,calls)=>{q.st={h,vp,pf,tbO:0,tb:0,bets,calls,fbO:0,fb:0}};
+  const width=(type,raises)=>{pos();S.raises=raises||0;trackRange(q,type);return comboCount(q.pre)};
+  habit(0,0,0,0,0);const w0=width('raise'),c0=width('call',1);
+  habit(30,18,12,20,10);const wL=width('raise'),cL=width('call',1);
+  habit(30,5,3,4,8);const wT=width('raise'),cT=width('call',1);
+  ok(wL>w0&&w0>wT,'开池加注：松的人范围更宽、紧的人更窄（'+wT+' < '+w0+' < '+wL+'）');
+  ok(cL>c0&&c0>cT,'跟注加注：同样按习惯放宽收窄（'+cT+' < '+c0+' < '+cL+'）');
+  habit(8,6,5,5,1);eq(width('raise'),w0,'不满 12 手不调整');
+  /* after the flop: someone shown bluffing at showdown is called down lighter than someone who only ever showed value */
+  game('holdem',{level:'easy',style:'tag'});
+  const me0=P()[0],v=P()[1];S.street='river';S.board=[44,29,10,39,7];S.phase='playing';
+  P().forEach((p,i)=>Object.assign(p,{inHand:i<2,folded:i>=2,pre:null,post:[],line:[]}));me0.cards=[45,2];
+  v.post=[{n:3,k:'a'},{n:4,k:'a'},{n:5,k:'a'}];
+  v.st={h:40,vp:14,pf:10,tbO:0,tb:0,bets:20,calls:10,fbO:0,fb:0,sa:20,saAir:12,sc:0,scAir:0};const eAgg=rangeEquity(S,me0,6000);
+  v.st={h:40,vp:14,pf:10,tbO:0,tb:0,bets:20,calls:10,fbO:0,fb:0,sa:20,saAir:0,sc:0,scAir:0};const ePas=rangeEquity(S,me0,6000);
+  ok(eAgg>ePas+0.05,'对诈唬多的人胜率更高（'+eAgg.toFixed(2)+' vs '+ePas.toFixed(2)+'）');
+  ok(advise(S,me0).oppInfo.some(o=>o.habit),'教练面板写明按习惯调整了');
+  /* the showdown teaches it: a bet with nothing shown down counts as a bluff */
+  game('holdem',{level:'easy',style:'tag'});{const w=P()[1],l=P()[2];S.board=[44,29,10,39,7];
+    P().forEach((p,i)=>Object.assign(p,{inHand:i===1||i===2,folded:!(i===1||i===2),total:i===1||i===2?100:0,bet:0}));
+    w.cards=[48,49];l.cards=[0,5];l.post=[{n:3,k:'a'},{n:4,k:'c'}];w.post=[{n:3,k:'c'}];showdown();
+    eq([l.st.sa,l.st.saAir,l.st.sc,l.st.scAir],[1,1,1,1],'亮牌时记下：下注和跟注时手里什么都没有');eq([w.st.sc,w.st.scAir],[1,0],'有牌跟注不算');}
+
   /* ---------- whole hands: every level plays to the end, chips conserved ---------- */
   for(const lv of ['easy','normal','hard']){
     TQ=[];startGame({game:'holdem',players:6,stack:4000,sb:10,bb:20,aiFill:true,rebuy:true,speed:'fast',auto:false,ff:false,coach:true,turnSec:10,level:lv},[{name:'你',kind:'local',gender:'m'}]);P()[0].trust=true;let bad=0,done=0;
