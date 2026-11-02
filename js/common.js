@@ -12,7 +12,10 @@ const STYLES={
   station:{name:'跟注站',loose:0.1,aggr:0.18,bluff:0.03,margin:0.12},
   nit:{name:'紧弱',loose:-0.07,aggr:0.35,bluff:0.02,margin:-0.03},
   maniac:{name:'疯子',loose:0.1,aggr:0.9,bluff:0.38,margin:0.07},
-  reg:{name:'常规',loose:0.01,aggr:0.55,bluff:0.1,margin:0.02}
+  reg:{name:'常规',loose:0.01,aggr:0.55,bluff:0.1,margin:0.02},
+  /* 德州 only: 高手 reads each opponent's likely hands after the flop; 教练算法 plays the coach's own move */
+  pro:{name:'高手',loose:0,aggr:0.65,bluff:0.1,margin:0},
+  coach:{name:'教练算法',loose:0,aggr:0.6,bluff:0.08,margin:0}
 };
 /* Bot personalities: each archetype gives a range per trait and every bot draws its own values,
    so two bots of the same type still play differently.
@@ -25,9 +28,13 @@ const ARCH={
   station:{w:20,loosenWide:[.4,.7], loosenAny:[.3,.55],raiseUp:[0,.05], passive:[.5,.75],tighten:[0,.05], loose:[.08,.14], aggr:[.1,.25], bluff:[.01,.05],margin:[.1,.16]},
   nit:    {w:15,loosenWide:[0,.03], loosenAny:[0,.02], raiseUp:[0,.05], passive:[.3,.5], tighten:[.4,.6], loose:[-.09,-.05],aggr:[.25,.4], bluff:[.01,.04],margin:[-.05,-.01]},
   maniac: {w:5, loosenWide:[.6,.8], loosenAny:[.4,.6], raiseUp:[.5,.7], passive:[0,.05], tighten:[0,0],   loose:[.08,.14], aggr:[.85,.95],bluff:[.3,.45], margin:[.05,.1]},
-  reg:    {w:12,loosenWide:[.1,.25],loosenAny:[0,.06], raiseUp:[.1,.25],passive:[.1,.3], tighten:[.05,.2],loose:[-.01,.03],aggr:[.45,.65],bluff:[.07,.14],margin:[0,.04]}
+  reg:    {w:12,loosenWide:[.1,.25],loosenAny:[0,.06], raiseUp:[.1,.25],passive:[.1,.3], tighten:[.05,.2],loose:[-.01,.03],aggr:[.45,.65],bluff:[.07,.14],margin:[0,.04]},
+  /* close to the chart preflop; after the flop it judges hands against each opponent's range (holdem.js aiAct) */
+  pro:    {w:15,holdem:true,loosenWide:[0,.05],loosenAny:[0,.02],raiseUp:[.05,.15],passive:[0,.1],tighten:[0,.05],loose:[-.01,.02],aggr:[.6,.75],bluff:[.08,.14],margin:[-.01,.02]},
+  coach:  {w:0, holdem:true,loosenWide:[0,0],  loosenAny:[0,0],  raiseUp:[0,0],   passive:[0,0],  tighten:[0,0],  loose:[0,0],     aggr:[.6,.6],  bluff:[.08,.08],margin:[0,0]}
 };
-function pickArch(){let r=Math.random()*Object.values(ARCH).reduce((a,x)=>a+x.w,0);for(const [k,a] of Object.entries(ARCH)){r-=a.w;if(r<=0)return k}return 'tag'}
+/* the mixed pool: 高手 only at 德州 */
+function pickArch(game){const ks=Object.entries(ARCH).filter(([k,a])=>a.w>0&&(game==='holdem'||!a.holdem));let r=Math.random()*ks.reduce((a,[,x])=>a+x.w,0);for(const [k,a] of ks){r-=a.w;if(r<=0)return k}return 'tag'}
 function genAI(key){
   const a=ARCH[key]||ARCH.tag,o={key};
   for(const t of ['loosenWide','loosenAny','raiseUp','passive','tighten','loose','aggr','bluff','margin']){const [lo,hi]=a[t];o[t]=+(lo+Math.random()*(hi-lo)).toFixed(3)}

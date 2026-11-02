@@ -645,7 +645,7 @@ function matrixHTML(pre){
 }
 function oppsHTML(a){
   if(!a.oppInfo||!a.oppInfo.length)return '';
-  return `<div class="opps"><div class="t">对手范围估计</div>${a.oppInfo.map(o=>`<div class="opp"><span><b>${esc(o.name)}</b> <span class="l">${esc(o.line)}</span></span><span class="num">${o.pct>=0.999?'任意牌':'前 '+pct(o.pct)}${o.post?' · 翻后收窄':''}</span></div>`).join('')}</div>`;
+  return `<div class="opps"><div class="t">对手范围估计</div>${a.oppInfo.map(o=>`<div class="opp"><span><b>${esc(o.name)}</b> <span class="l">${esc(o.line)}</span></span><span class="num">${o.pct>=0.999?'任意牌':'前 '+pct(o.pct)}${o.post?' · 翻后收窄':''}${o.habit?' · '+esc(o.habit):''}</span></div>`).join('')}</div>`;
 }
 function decisionDetail(a){
   return `<div class="stats">
@@ -767,7 +767,7 @@ function renderLobby(){
     else rows.push(`<div class="seatrow empty"><span>座位 ${i+1}</span><span>${c.aiFill?'开局时由电脑补位':'空位'}</span></div>`);
   }
   $('#lobby-main').innerHTML=`<h2>房间大厅</h2>
-    <p class="lead">${c.game==='hz'?`红中麻将 · 底分 ${c.base} · 固定 4 个座位，${hs.length} 名真人已就座`:c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
+    <p class="lead">${c.game==='hz'?`红中麻将 · 底分 ${c.base} · 固定 4 个座位，${hs.length} 名真人已就座`:c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}${c.game==='holdem'?`，电脑难度：${{easy:'简单',normal:'普通',hard:'困难'}[c.level]||'简单'}`:''}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
     <div class="seats">${rows.join('')}</div>
     <div class="setup-actions" style="margin-top:16px"><button class="btn primary" data-act="host-start">开始对局</button><button class="btn" data-act="room-edit">修改对局设置</button><button class="btn" data-act="leave">解散房间</button></div>
     <p class="note">底牌只发给本人，其他玩家的设备收不到你的底牌。牌局在房主的浏览器里运行，房主关闭页面牌局就会结束。仅限虚拟筹码，不涉及真钱。</p>`;
@@ -915,7 +915,10 @@ function rulesHTML(game){
 /* ---------- setup form ---------- */
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
-function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
+function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))});
+  /* 德州: the style only matters on 简单; 高手 is a 德州 style */
+  if(GAME==='holdem'&&selVal('#f-level','easy')!=='easy')$('#style-field').hidden=true;
+  const po=$('#f-style option[value="pro"]');po.hidden=po.disabled=GAME!=='holdem';if(GAME!=='holdem'&&$('#f-style').value==='pro')$('#f-style').value='mixed'}
 function setGame(g){GAME=['zjh','ddz','hz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.game===GAME));const no=roomGameBlock(b.dataset.game,roomMin());b.disabled=!!no;b.title=no});applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
 const playersHint=()=>GAME==='hz'?'红中麻将固定 4 人。':GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
@@ -980,7 +983,7 @@ function readCfg(){
   const hz=GAME==='hz',dz=GAME==='ddz'||hz,base=hz?+selVal('#f-hzbase','20'):+selVal('#f-ddbase','20');
   let stack=Math.round(+$('#f-stack').value)||2000;stack=Math.max(dz?base*20:z?ante*20:bb*10,stack);
   const solo=MODE==='solo';
-  return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
+  return normalizeCfg({game:GAME,base,hzDianpao:$('#f-hzdp').checked,hzRedSelf:$('#f-hzredself').checked,hzQiangGang:$('#f-hzqiang').checked,hzNoRed:$('#f-hznored').checked,hzBirds:+selVal('#f-hzbirds','2'),ddcap:+selVal('#f-ddcap','64'),laizi:$('#f-laizi').checked,ante,zcap:+selVal('#f-zcap','10'),zrounds:+selVal('#f-zrounds','10'),z235:$('#f-z235').checked,players:seatsDraft,stack,sb,bb,style:selVal('#f-style','mixed'),level:selVal('#f-level','easy'),rebuy:$('#f-rebuy').checked,reveal:solo&&$('#f-reveal').checked,showAll:$('#f-showall').checked,auto:$('#f-auto').checked,ff:solo?$('#f-ff').checked:true,speed:selVal('#f-speed','normal'),turnSec:+selVal('#f-turn','15'),coachAuto:$('#f-coachauto').checked,
     coach:$('#f-coach').checked,counter:$('#f-counter').checked,aiFill:solo?true:$('#f-aifill').checked,net:$('#f-net-lan').checked?'lan':'internet'});
 }
 function fillForm(c){
@@ -993,7 +996,7 @@ function fillForm(c){
   const st=Math.round(+c.stack);$('#f-stack').value=st>0?st:2000;
   /* hold'em blinds are saved on their own: a 炸金花 session stores sb=bb=ante, which is not a blinds option */
   setSelect('#f-blinds',c.blinds||(c.game!=='zjh'&&c.sb?`${c.sb}/${c.bb}`:null));
-  setSelect('#f-style',c.style);setSelect('#f-speed',c.speed);setSelect('#f-turn',c.turnSec);$('#f-coachauto').checked=c.coachAuto!==false;
+  setSelect('#f-style',c.style);setSelect('#f-level',c.level);setSelect('#f-speed',c.speed);setSelect('#f-turn',c.turnSec);$('#f-coachauto').checked=c.coachAuto!==false;
   $('#f-rebuy').checked=c.rebuy!==false;$('#f-reveal').checked=!!c.reveal;$('#f-showall').checked=!!c.showAll;$('#f-auto').checked=!!c.auto;$('#f-ff').checked=c.ff!==false;
   $('#f-coach').checked=c.coach!==false;$('#f-counter').checked=c.counter!==false;$('#f-aifill').checked=c.aiFill!==false;
   if(c.net==='lan')$('#f-net-lan').checked=true;
@@ -1216,6 +1219,7 @@ document.addEventListener('selectstart',e=>{if(REC.pressing||e.target.closest&&e
 document.addEventListener('contextmenu',e=>{if(e.target.closest('#ptt'))e.preventDefault()});
 $('#f-blinds').addEventListener('change',updateBB);$('#f-ante').addEventListener('change',updateBB);$('#f-ddbase').addEventListener('change',()=>{$('#f-stack').value=String(100*(+$('#f-ddbase').value||20));updateBB()});
 $('#setup-form').addEventListener('submit',e=>{e.preventDefault();submitSetup()});
+$('#f-level').addEventListener('change',applyVis);
 document.addEventListener('submit',e=>{if(e.target.id!=='chat-form')return;e.preventDefault();const t=$('#chat-text');sendChat(t.value);t.value=''});
 /* a turned phone or a clearly resized window lays the table out again. Small changes (a phone's address bar or keyboard)
    are left alone: everything is placed in %, and a re-render would rebuild the buttons and reset a raise slider mid-drag. */

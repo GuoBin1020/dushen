@@ -169,10 +169,12 @@ function handClass(c0,c1,b){
   }
   return 0;
 }
-function passLine(c0,c1,post,board){
+/* adj (from habitOf): how often this player bets / calls with nothing, instead of the usual 30% / 40% */
+function passLine(c0,c1,post,board,adj){
+  const air=adj?adj.air:0.3,callAir=adj?adj.callAir:0.4;
   for(const r of post){
     const cls=handClass(c0,c1,board.slice(0,r.n));
-    const pr=r.k==='a'?(cls>=2?1:cls===1?0.8:0.3):r.k==='c'?(cls>=2?1:cls===1?0.9:0.4):(cls>=3?0.55:1);
+    const pr=r.k==='a'?(cls>=2?1:cls===1?0.8:air):r.k==='c'?(cls>=2?1:cls===1?0.9:callAir):(cls>=3?0.55:1);
     if(Math.random()>pr)return false;
   }
   return true;
@@ -189,7 +191,7 @@ function equityRanges(hole,board,opps,iters){
         const x=cb[Math.floor(Math.random()*cb.length)];
         if(STAMP[x[0]]===st||STAMP[x[1]]===st)continue;
         if(!pick)pick=x;
-        if(!opps[o].post.length||passLine(x[0],x[1],opps[o].post,board)){pick=x;break}
+        if(!opps[o].post.length||passLine(x[0],x[1],opps[o].post,board,opps[o].adj)){pick=x;break}
       }
       if(!pick){const f=deck.filter(c=>STAMP[c]!==st);pick=[f[0],f[1]]}
       STAMP[pick[0]]=st;STAMP[pick[1]]=st;oh[o]=pick;
@@ -212,13 +214,18 @@ function buildCombos(keys,dead){
 }
 
 /* ---------- coach (runs on each player's own device, from their own view) ---------- */
+/* win chance against each opponent's estimated range: preflop range from its actions, narrowed by its lines since */
+function rangeEquity(st,p,iters){
+  const opps=st.players.filter(q=>q!==p&&alive(q));if(!opps.length)return 1;
+  const dead=new Set([...p.cards,...st.board]);
+  const rs=opps.map(q=>{let combos=buildCombos(q.pre||ALL_KEYS,dead);if(!combos.length)combos=buildCombos(ALL_KEYS,dead);return {combos,post:q.post||[],adj:habitOf(q)}});
+  return equityRanges(p.cards,st.board,rs,iters);
+}
 function advise(st,p){
   const opps=st.players.filter(q=>q!==p&&alive(q)),opp=opps.length;
-  const dead=new Set([...p.cards,...st.board]);
-  const rs=opps.map(q=>{let combos=buildCombos(q.pre||ALL_KEYS,dead);if(!combos.length)combos=buildCombos(ALL_KEYS,dead);return {combos,post:q.post||[]}});
-  const e=opp?equityRanges(p.cards,st.board,rs,1500):1;
+  const e=rangeEquity(st,p,1500);
   const eRand=equity(p.cards,st.board,opp,600);
-  const oppInfo=opps.map(q=>({name:q.name,line:(q.line||[]).join(' → ')||'尚未行动',pct:q.pre?comboCount(q.pre)/1326:1,post:(q.post||[]).some(r=>r.k!=='x')}));
+  const oppInfo=opps.map(q=>{const hb=habitOf(q);return {name:q.name,line:(q.line||[]).join(' → ')||'尚未行动',pct:q.pre?comboCount(q.pre)/1326:1,post:(q.post||[]).some(r=>r.k!=='x'),habit:hb?hb.text:''}});
   const pot=potOf(st),toCall=Math.min(st.currentBet-p.bet,p.stack);
   const fair=1/(opp+1),strong=fair+(1-fair)*0.35;
   const maxTo=p.bet+p.stack,canRaise=maxTo>st.currentBet;
@@ -380,19 +387,34 @@ function hmAutoMove(p,coach){
   if(!coach)return act(p,S.currentBet>p.bet?'fold':'check');
   const r=advise(S,p).rec;act(p,r.type,r.to);
 }
+/* a player's habits. Preflop, once there are enough hands (MIN_H): how much wider or narrower than a typical player its
+   raises (加注率 against 17%) and calls (入池率 against 25%) are. After the flop: how often it bet / called with nothing,
+   from the hands it showed down, pulled toward the usual 30% / 40% while there are few (8 hands' worth of prior).
+   null while there is nothing to go on: the standard ranges stand. */
+const clampN=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+function habitOf(q){
+  const pr=profile(q),s=q.st||{},sa=s.sa||0,sc=s.sc||0,pre=pr.h>=MIN_H;if(!pre&&!sa&&!sc)return null;
+  const raise=pre?clampN(pr.pfr/0.17,0.45,2.6):1,call=pre?clampN(pr.vpip/0.25,0.45,2.4):1;
+  const air=((s.saAir||0)+0.3*8)/(sa+8),callAir=((s.scAir||0)+0.4*8)/(sc+8);
+  const text=raise>1.25||call>1.25?'按他的习惯放宽':raise<0.8&&call<0.8?'按他的习惯收窄':air>0.4?'按他的习惯：常诈唬':'按他的习惯';
+  return {raise,call,air,callAir,text};
+}
+/* a band of the hand ranking from lo, its width scaled by k (1 = the standard range) */
+const bandK=(lo,hi,k)=>band(lo,Math.min(1,lo+(hi-lo)*k));
 function trackRange(p,type){
   if(type==='fold')return;
   if(S.street==='preflop'){
-    const prior=S.raises,n=P().filter(q=>q.inHand).length;let nr=null,label='';
+    const prior=S.raises,n=P().filter(q=>q.inHand).length,hb=habitOf(p),kr=hb?hb.raise:1,kc=hb?hb.call:1;let nr=null,label='';
     if(type==='raise'){
-      if(prior===0){const cp=chartPos(posName(S,p),n);nr=cp==='BB'?band(0,.15):[...parseRange(CH.RFI[cp])];label=`${posName(S,p)} 开池加注`}
-      else if(prior===1){nr=band(0,.07);label='3-bet'}
-      else{nr=band(0,.03);label=prior===2?'4-bet':'再加注'}
+      if(prior===0){const cp=chartPos(posName(S,p),n),std=cp==='BB'?null:[...parseRange(CH.RFI[cp])];
+        nr=cp==='BB'?bandK(0,.15,kr):hb?band(0,Math.min(1,comboCount(std)/1326*kr)):std;label=`${posName(S,p)} 开池加注`}
+      else if(prior===1){nr=bandK(0,.07,kr);label='3-bet'}
+      else{nr=bandK(0,.03,kr);label=prior===2?'4-bet':'再加注'}
       S.preRaisers.push(p.id);
     }else if(type==='call'){
-      if(prior===0){nr=band(.04,.55);label='平跟入池'}
-      else if(prior===1){nr=p.id===S.bbId?band(.03,.62):band(.04,.4);label='跟注加注'}
-      else{nr=band(.02,.14);label='跟注 3-bet'}
+      if(prior===0){nr=bandK(.04,.55,kc);label='平跟入池'}
+      else if(prior===1){nr=p.id===S.bbId?bandK(.03,.62,kc):bandK(.04,.4,kc);label='跟注加注'}
+      else{nr=bandK(.02,.14,kc);label='跟注 3-bet'}
     }else label='大盲过牌';
     if(nr){if(p.pre){const s=new Set(nr),x=p.pre.filter(k=>s.has(k));p.pre=x.length?x:nr}else p.pre=nr}
     p.line.push(label);
@@ -454,6 +476,9 @@ function runOut(){sync();const hn=S.handNo;clearTimeout(timer);timer=setTimeout(
 function showdown(){
   const al=P().filter(alive),u=S.cfg.sb;
   al.forEach(p=>{p.score=evalCards([...p.cards,...S.board]);p.shown=true;p.handName=handName(p.score)});
+  /* what each one shown down had when it bet or called after the flop: the coach learns who bluffs (these cards are public now) */
+  al.forEach(p=>{const s=p.st;(p.post||[]).forEach(r=>{if(r.k==='x')return;const air=handClass(p.cards[0],p.cards[1],S.board.slice(0,r.n))===0;
+    if(r.k==='a'){s.sa=(s.sa||0)+1;if(air)s.saAir=(s.saAir||0)+1}else{s.sc=(s.sc||0)+1;if(air)s.scAir=(s.scAir||0)+1}})});
   distributePots(al,u);
   const top=P().filter(p=>p.won>0).sort((a,b)=>b.won-a.won);
   S.msg=[...top.map(w=>`${w.name} 以${w.handName}赢得 ${fmt(w.won)}`),...refundNote()].join('；');
@@ -483,10 +508,13 @@ function aiPreflop(p){
 }
 function aiAct(p){
   if(isZ(S))return zAiAct(p);
+  /* 教练算法: the coach's move, its exploit advice first when it has one (the same thing a person sees in the coach panel) */
+  if(p.style==='coach'){const a=advise(S,p),ex=exploitAdvice(S,p,a),r=ex&&ex.rec||a.rec;return act(p,r.type,r.to)}
   if(S.street==='preflop')return aiPreflop(p);
   const st=p.ai||STYLES[p.style]||STYLES.tag;
   const opp=P().filter(q=>q!==p&&alive(q)).length;
-  const e=equity(p.cards,S.board,opp,S.board.length?240:180);
+  /* 高手 weighs its hand against what each opponent's actions say they hold; the others against random hands */
+  const e=p.style==='pro'?rangeEquity(S,p,800):equity(p.cards,S.board,opp,S.board.length?240:180);
   const pot=potOf(S),toCall=Math.min(S.currentBet-p.bet,p.stack);
   const fair=1/(opp+1),strong=fair+(1-fair)*0.33;
   const r=Math.random(),eAdj=e+st.loose;

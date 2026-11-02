@@ -130,16 +130,25 @@
         <span class="lbl">联机选项</span>
         <label class="check"><input type="checkbox" id="f-aifill" checked><span>空位由电脑补位<br><span class="hint">真人不够坐满时，开局时用电脑填满座位。不勾选则只有真人对战（至少 2 人）。</span></span></label>
       </div>
-      <div class="field" data-modes="solo host" data-games="holdem zjh">
+      <div class="field" data-modes="solo host" data-games="holdem">
+        <label class="lbl" for="f-level">电脑难度</label>
+        <select id="f-level">
+          <option value="easy" selected>简单：电脑性格随机，有强有弱，有破绽可以针对</option>
+          <option value="normal">普通：电脑都是高手，翻牌后会按你的行动判断你的牌</option>
+          <option value="hard">困难：电脑都按教练的算法打，还会针对你的打牌习惯</option>
+        </select>
+      </div>
+      <div class="field" data-modes="solo host" data-games="holdem zjh" id="style-field">
         <label class="lbl" for="f-style">电脑对手风格</label>
         <select id="f-style">
-          <option value="mixed" selected>混合（每个电脑随机生成，风格各不相同）</option>
+          <option value="mixed" selected>混合（每个电脑随机生成，风格各不相同；德州里也会有高手）</option>
           <option value="tag">紧凶：只玩好牌，玩就下重注</option>
           <option value="lag">松凶：牌很宽，经常诈唬</option>
           <option value="station">跟注站：很少弃牌，很少加注</option>
           <option value="nit">紧弱：很紧，遇到下注常常弃牌</option>
           <option value="reg">常规：中规中矩，接近标准打法</option>
           <option value="maniac">疯子：什么牌都玩，疯狂加注诈唬</option>
+          <option value="pro">高手：接近标准打法，翻牌后按对手的行动判断对手的牌（仅德州）</option>
         </select>
       </div>
       <div class="field" data-modes="solo host">
