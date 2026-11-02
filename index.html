@@ -40,11 +40,11 @@
       </div>
       <p class="lead" id="mode-lead"></p>
 
-      <div class="field">
+      <div class="field no-edit">
         <label class="lbl" for="f-name">你的昵称</label>
         <input type="text" id="f-name" maxlength="12" placeholder="比如：小郭">
       </div>
-      <div class="field">
+      <div class="field no-edit">
         <span class="lbl">性别（决定你行动时的语音音色）</span>
         <div class="row" style="gap:18px">
           <label class="radio"><input type="radio" name="f-gender" id="f-gender-m" value="m" checked><span>男</span></label>
@@ -57,7 +57,7 @@
         <div class="seg" id="f-game" role="group" aria-labelledby="lbl-game"><button type="button" data-game="holdem" aria-pressed="true">德州扑克</button><button type="button" data-game="zjh" aria-pressed="false">炸金花</button><button type="button" data-game="ddz" aria-pressed="false">斗地主</button><button type="button" data-game="hz" aria-pressed="false">红中麻将</button></div>
       </div>
 
-      <div class="field" data-modes="host join">
+      <div class="field no-edit" data-modes="host join">
         <span class="lbl">连接方式</span>
         <label class="radio"><input type="radio" name="f-net" id="f-net-internet" value="internet" checked><span>互联网<br><span class="hint">通过免费的 PeerJS 服务建立点对点连接，凭 6 位邀请码加入。双方都要能上网。</span></span></label>
         <label class="radio"><input type="radio" name="f-net" id="f-net-lan" value="lan"><span>局域网（不经过第三方）<br><span class="hint">同一 Wi-Fi 或内网下使用。房主和每位玩家手动互换一次连接码，全程不连接任何外部服务器。</span></span></label>
@@ -162,6 +162,7 @@
 
       <div class="setup-actions">
         <button type="submit" class="btn primary" id="start-btn">开始对局</button>
+        <button type="button" class="btn" data-act="room-edit-cancel" hidden>取消</button>
       </div>
       <p class="err" id="setup-err"></p>
     </form>

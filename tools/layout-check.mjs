@@ -209,6 +209,39 @@ const COUNTER_CFG=`(async()=>{${PG}
     if(vis(c)!==(g==='ddz'||g==='hz'))f.push(g+' 的「显示记牌器」显示不对');}
   const c=document.getElementById('f-counter');if(c){if(!c.checked)f.push('「显示记牌器」默认应勾选');c.checked=false;if(readCfg().counter!==false)f.push('取消勾选后 counter 不是 false');c.checked=true}
   show('game');render();return f})()`;
+/* the host changes the game settings from the room (no new room); a room with more than 3 people can't switch to 斗地主,
+   more than 4 not to 红中, and the seats can't drop below the people in the room */
+const ROOM_EDIT=`(async()=>{${PG}
+  const keep={role:NET.role,sync:typeof lobbySync==='function'?lobbySync:null,cfg:S.cfg};let sent=0;
+  lobbySync=()=>{sent++};NET.role='host';
+  const guest=n=>({name:'客'+n,kind:'remote',conn:{send(){},close(){}},gender:'m',cid:'c'+n});
+  LOBBY={cfg:normalizeCfg({...S.cfg,game:'holdem',players:6,net:'internet'}),humans:[{name:'房主',kind:'local',gender:'m',cid:'me'},guest(1),guest(2),guest(3)]};
+  show('lobby');renderLobby();
+  const eb=Q('#lobby-main [data-act="room-edit"]');if(!vis(eb))f.push('房间界面没有「修改对局设置」');else eb.click();await sleep(80);
+  if(!vis(Q('#setup-view')))f.push('点了没有打开设置');
+  if(vis(Q('#setup-form .tabs')))f.push('改设置时不该显示单机 / 创建 / 加入的标签');
+  if(vis(Q('#f-name')))f.push('改设置时不该改昵称');if(vis(Q('#f-net-lan')))f.push('改设置时不该改连接方式');
+  if(!Q('#start-btn').textContent.includes('保存'))f.push('按钮应是「保存设置」');
+  const gb=g=>Q('#f-game [data-game="'+g+'"]');
+  if(!gb('ddz').disabled)f.push('4 名真人时斗地主应不能选');if(gb('hz').disabled)f.push('4 名真人时红中麻将应能选');
+  setGame('zjh');renderSeg();await sleep(30);
+  if(!Q('#f-players [data-players="3"]').disabled)f.push('座位数 3 少于真人数，应不能选');if(Q('#f-players [data-players="4"]').disabled)f.push('座位数 4 应能选');
+  gb('hz').click();await sleep(30);Q('#start-btn').click();await sleep(150);
+  if(!vis(Q('#lobby-view')))f.push('保存后没有回到房间');if(LOBBY.cfg.game!=='hz')f.push('保存后房间还是 '+LOBBY.cfg.game);
+  if(!sent)f.push('保存后没有通知房间里的人');if(!Q('#lobby-main').textContent.includes('红中麻将'))f.push('房间界面没有显示新设置');
+  if(LOBBY.cfg.net!=='internet')f.push('连接方式被改了');
+  /* five people: neither 斗地主 nor 红中, even if picked some other way */
+  LOBBY.humans.push(guest(4));LOBBY.cfg=normalizeCfg({...LOBBY.cfg,game:'holdem',players:6});renderLobby();sent=0;
+  Q('#lobby-main [data-act="room-edit"]').click();await sleep(80);
+  if(!gb('ddz').disabled||!gb('hz').disabled)f.push('5 名真人时斗地主和红中都应不能选');
+  for(const [g,w] of [['ddz','斗地主'],['hz','红中麻将']]){setGame(g);Q('#start-btn').click();await sleep(120);
+    if(!vis(Q('#setup-view'))||!Q('#setup-err').textContent.includes(w))f.push('5 人改成'+w+'应被拦下：'+Q('#setup-err').textContent);
+    if(LOBBY.cfg.game!=='holdem')f.push('被拦下后房间设置不该变');}
+  const cb=Q('#setup-form [data-act="room-edit-cancel"]');if(!vis(cb))f.push('没有「取消」');else cb.click();await sleep(80);
+  if(!vis(Q('#lobby-view')))f.push('取消后没有回到房间');if(sent)f.push('取消不该通知房间');
+  show('setup');setMode('solo');await sleep(30);if(!vis(Q('#setup-form .tabs'))||!vis(Q('#f-name')))f.push('退出改设置后，设置页没有恢复');if(Q('#start-btn').textContent.includes('保存'))f.push('退出后按钮还是「保存」');
+  if(keep.sync)lobbySync=keep.sync;NET.role=keep.role;LOBBY=null;S.cfg=keep.cfg;show('game');render();
+  return f})()`;
 /* chat bubbles: every seat's bubble stays on screen and above everything (it may cover other things, it is gone in 4 s) */
 const BUBBLE_ON=`(async()=>{${PG}
   const fx=Q('#fx');
@@ -240,6 +273,7 @@ const FX_POINTS=`(async()=>{${PG}
   return f})()`;
 SCEN.push(
   {name:'counter-cfg-ddz',game:'ddz',n:3,extra:COUNTER_CFG,sizes:PH},{name:'counter-cfg-hz',game:'hz',n:4,extra:COUNTER_CFG,sizes:PH},
+  {name:'room-edit',game:'holdem',n:6,extra:ROOM_EDIT,sizes:PH},
   {name:'bubble-on',game:'holdem',n:6,extra:BUBBLE_ON},{name:'bubble-on-9',game:'holdem',n:9,extra:BUBBLE_ON},{name:'bubble-on-zjh',game:'zjh',n:6,extra:BUBBLE_ON},{name:'bubble-on-ddz',game:'ddz',n:3,extra:BUBBLE_ON},{name:'bubble-on-hz',game:'hz',n:4,extra:BUBBLE_ON},
   {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},

@@ -305,6 +305,7 @@ function cardTxt(c){return RL[c>>2]+SU[c&3]}
 function cardHTML(c){if(c==null)return `<div class="card back" ${faceStyle(BACK_FILE)}></div>`;const red=(c&3)===1||(c&3)===2;return `<div class="card${red?' red':''}" ${faceStyle(cardImgFor(c))} aria-label="${SUIT_NAME[c&3]}${RL[c>>2]}"><span class="vh">${cardTxt(c)}</span><i class="ci" aria-hidden="true">${RL[c>>2]}<b>${SU[c&3]}</b></i></div>`}
 function show(v){
   ['setup','lobby','game','settle'].forEach(x=>{$('#'+x+'-view').hidden=x!==v});window.scrollTo(0,0);
+  if(v!=='setup'&&typeof roomEditEnd==='function')roomEditEnd();
   /* the table fills the window: no page header, banner, footer or side rail; panels open in the sheet */
   document.body.classList.toggle('in-game',v==='game');placePanels();
   /* one floating chat for the waiting room and the table */
@@ -768,7 +769,7 @@ function renderLobby(){
   $('#lobby-main').innerHTML=`<h2>房间大厅</h2>
     <p class="lead">${c.game==='hz'?`红中麻将 · 底分 ${c.base} · 固定 4 个座位，${hs.length} 名真人已就座`:c.game==='ddz'?`斗地主${c.laizi?'（赖子模式）':''} · 底分 ${c.base}，封顶 ${c.ddcap} 倍 · 固定 3 个座位，${hs.length} 名真人已就座`:`${c.game==='zjh'?'炸金花':'德州扑克'} · ${hs.length} 名真人已就座，共 ${c.players} 个座位。`}${c.game==='zjh'?`底注 ${c.ante}，单注封顶 ${c.zcap} 倍底注，最多 ${c.zrounds} 轮${c.z235?'，235 吃豹子':''}`:c.game==='ddz'?'':`盲注 ${c.sb}/${c.bb}`}，起始筹码 ${fmt(c.stack)}。教练建议${c.coach?'已开启（每人只看到自己的）':'已关闭'}。</p>
     <div class="seats">${rows.join('')}</div>
-    <div class="setup-actions" style="margin-top:16px"><button class="btn primary" data-act="host-start">开始对局</button><button class="btn" data-act="leave">解散房间</button></div>
+    <div class="setup-actions" style="margin-top:16px"><button class="btn primary" data-act="host-start">开始对局</button><button class="btn" data-act="room-edit">修改对局设置</button><button class="btn" data-act="leave">解散房间</button></div>
     <p class="note">底牌只发给本人，其他玩家的设备收不到你的底牌。牌局在房主的浏览器里运行，房主关闭页面牌局就会结束。仅限虚拟筹码，不涉及真钱。</p>`;
   $('#lobby-side').innerHTML=`<h2>邀请玩家</h2>${inviteHTML(false)}`;
   fillLanInputs();
@@ -915,7 +916,7 @@ function rulesHTML(game){
 let MODE='solo',GAME='holdem',seatsDraft=6;
 /* a field shows when it belongs to the current tab (data-modes) and the chosen game (data-games) */
 function applyVis(){document.querySelectorAll('[data-modes],[data-games]').forEach(el=>{const m=el.dataset.modes,g=el.dataset.games;el.hidden=(m&&!m.split(' ').includes(MODE))||(g&&!g.split(' ').includes(GAME))})}
-function setGame(g){GAME=['zjh','ddz','hz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.game===GAME)));applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
+function setGame(g){GAME=['zjh','ddz','hz'].includes(g)?g:'holdem';document.querySelectorAll('#f-game [data-game]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.game===GAME));const no=roomGameBlock(b.dataset.game,roomMin());b.disabled=!!no;b.title=no});applyVis();updateBB();$('#rules').innerHTML=rulesHTML(GAME);if(MODE!=='join')$('#players-hint').textContent=playersHint()}
 const playersHint=()=>GAME==='hz'?'红中麻将固定 4 人。':GAME==='ddz'?'斗地主固定 3 人。':GAME==='zjh'?'炸金花 2 到 9 人都能玩，常见 5、6 人一桌。':MODE==='host'?'座位数包含你和所有真人玩家。真人不够时可以用电脑补位。':'德州扑克 2 到 10 人都能玩，线上常见 6 人桌，线下常见 9 人桌。新手建议 6 人。';
 const LEADS={
   solo:'选德州扑克、炸金花或斗地主，和电脑对手同桌。轮到你时教练会给出建议，并给每个决定打分。打完点「结束并结算」查看收益和问题点。',
@@ -938,7 +939,36 @@ function syncJoinNet(){
   const lan=$('#f-net-lan').checked;
   if(MODE==='join'){$('#join-internet').hidden=lan;$('#join-lan').hidden=!lan;$('#start-btn').textContent=lan?'生成回复码':'加入房间'}
 }
-function renderSeg(){$('#f-players').innerHTML=[2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-players="${n}" aria-pressed="${seatsDraft===n}">${n}</button>`).join('')}
+function renderSeg(){const lo=roomMin();$('#f-players').innerHTML=[2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-players="${n}" aria-pressed="${seatsDraft===n}"${n<lo?' disabled title="少于房间里的真人数"':''}>${n}</button>`).join('')}
+/* ---------- changing a room's settings: the setup page again, opened from the room, without leaving it ---------- */
+let ROOM_EDIT=false;
+/* while editing: the people already in the room set the fewest seats, and rule out 斗地主 (3 seats) / 红中 (4 seats) */
+const roomMin=()=>ROOM_EDIT&&LOBBY?LOBBY.humans.length:0;
+const roomGameBlock=(g,n)=>g==='ddz'&&n>3?`房间里有 ${n} 名真人，斗地主只有 3 个座位，不能改成斗地主。`:g==='hz'&&n>4?`房间里有 ${n} 名真人，红中麻将只有 4 个座位，不能改成红中麻将。`:'';
+function roomEdit(){
+  if(!LOBBY||NET.role!=='host')return;
+  ROOM_EDIT=true;$('#setup-form').classList.add('room-edit');
+  fillForm({...LOBBY.cfg,name:null,gender:null});setMode('host');setGame(GAME);renderSeg();updateBB();
+  const n=LOBBY.humans.length,no=[n>3?'斗地主':'',n>4?'红中麻将':''].filter(Boolean);
+  $('#mode-lead').textContent=`修改这个房间的对局设置，保存后房间里的人马上能看到。房间里现在有 ${n} 名真人${no.length?`，不能改成${no.join('、')}`:''}。`;
+  $('#start-btn').textContent='保存设置';$('#setup-form [data-act="room-edit-cancel"]').hidden=false;
+  show('setup');
+}
+function roomEditEnd(){
+  if(!ROOM_EDIT)return;
+  ROOM_EDIT=false;$('#setup-form').classList.remove('room-edit');$('#setup-form [data-act="room-edit-cancel"]').hidden=true;
+  setMode(MODE);setGame(GAME);renderSeg();
+}
+function roomEditSave(){
+  const err=$('#setup-err'),n=LOBBY?LOBBY.humans.length:0;
+  if(!LOBBY){roomEditEnd();show('setup');return}
+  const cfg={...readCfg(),net:LOBBY.cfg.net};
+  const why=roomGameBlock(cfg.game,n)||(cfg.players<n?`房间里有 ${n} 名真人，座位数不能少于 ${n}。`:'');
+  if(why){err.textContent=why;return}
+  LOBBY.cfg=cfg;
+  show('lobby');lobbySync();renderLobby();hostSave();
+  flashBanner('对局设置已更新，房间里的人都能看到。',3000);
+}
 function updateBB(){const st=+$('#f-stack').value||0;if(GAME==='hz'){const b=+$('#f-hzbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='ddz'){const b=+$('#f-ddbase').value;$('#stack-bb').textContent=st?`= ${Math.round(st/b)} 倍底分`:''}else if(GAME==='zjh'){const a=+$('#f-ante').value;$('#stack-bb').textContent=st?`= ${Math.round(st/a)} 倍底注`:''}else{const bb=+$('#f-blinds').value.split('/')[1];$('#stack-bb').textContent=st?`= ${Math.round(st/bb)} 个大盲`:''}}
 /* a select only takes a value it has an option for; anything else (old prefs, the other game's numbers) keeps the default */
 const hasOption=(el,v)=>[...el.options].some(o=>o.value===String(v));
@@ -992,6 +1022,7 @@ function askTerms(){
 }
 async function submitSetup(){
   const err=$('#setup-err');err.textContent='';
+  if(ROOM_EDIT)return roomEditSave();
   const name=cleanName($('#f-name').value||(MODE==='solo'?'你':''));
   const gender=$('#f-gender-f').checked?'f':'m';
   actx();
@@ -1120,6 +1151,8 @@ document.addEventListener('click',async e=>{
   else if(a==='untrust'||a==='rejoin'){if(NET.role==='guest')NET.host.send({t:'rebuy'});else if(S)hostBack(P()[0])}
   else if(a==='settle'){if(S)hostSettle('')}
   else if(a==='again'){const cfg=S.cfg,me0=S.players[0];show('game');startGame(cfg,[{name:me0.name,kind:'local',gender:me0.gender}])}
+  else if(a==='room-edit')roomEdit();
+  else if(a==='room-edit-cancel'){show('lobby');renderLobby()}
   else if(a==='relobby'){
     const humans=[{name:S.players[0].name,kind:'local',gender:S.players[0].gender,cid:CID}];
     for(const [seat,c] of NET.conns){const p=S.players[seat];if(p&&p.connected){c.seat=null;humans.push({name:p.name,kind:'remote',conn:c,gender:p.gender,cid:p.cid})}}
