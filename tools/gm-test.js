@@ -78,12 +78,82 @@ run(`function GAME(bl,wl,seed){let s=seed;const rnd=()=>((s=(s*1103515245+12345)
   const open=[112,112+1+15*((rnd()*3|0)-1)];b[open[0]]=1;let c=2;
   for(let n=1;n<225;n++){const L=c===1?bl:wl,o=Object.assign({level:L,forbid:false,rnd},${show(BUD)}[L]);const m=n===1?open[1]===112?113:open[1]:AI.search(b,c,o).move;
     if(m==null||b[m])return 0;b[m]=c;if(gmFive(b,m,c).win)return c;c=3-c}return 0}`);
-for(const [lo,hi] of [['easy','normal'],['normal','hard'],['hard','hell']]){
+/* GM_FAST=1 skips these matches while iterating; the full run always plays them */
+if(!process.env.GM_FAST)for(const [lo,hi] of [['easy','normal'],['normal','hard'],['hard','hell']]){
   let pts=0;const t0=Date.now();for(let g=0;g<10;g++){const hb=g%2===0,w=run(`GAME(${show(hb?hi:lo)},${show(hb?lo:hi)},${7+g*31})`);pts+=w===0?0.5:(w===1)===hb?1:0}
   console.log(`  ${hi} 对 ${lo}：${pts} / 10（${((Date.now()-t0)/1000).toFixed(0)} 秒）`);ok(pts>=7,hi+' 应稳定赢 '+lo+'，得分 '+pts);}
 /* real time: three mid-game positions stay within the limits */
 {const ps=[mk([[7,7],[8,8],[6,8],[9,6]],[[8,7],[7,8],[6,6],[9,9]]),mk([[7,7],[7,8],[8,9],[6,6],[9,7]],[[8,8],[6,7],[8,6],[5,5],[9,9]]),mk([[5,5],[6,6],[7,7],[5,7],[9,9],[8,5]],[[6,5],[7,6],[8,7],[4,4],[6,8],[10,10]])];
   for(const [L,ms] of [['hard',1000],['hell',2000]])ps.forEach((b,k)=>{const r=srch(b,1,{level:L,forbid:false,maxMs:ms});ok(r.ms<=ms*1.2,L+' 局面 '+k+' 用时 '+r.ms+'ms')});}
+
+/* ---------- Task 3: the game in the real engine (fake clock, like turn-test.js) ---------- */
+{const CLOCK={t:1e12};class FakeDate extends Date{constructor(...a){super(...(a.length?a:[CLOCK.t]))}static now(){return CLOCK.t}}
+const g=vm.createContext({console,Math,Date:FakeDate,JSON,Set,Map,Object,Array,Number,String,Boolean,Uint8Array,CLOCK});
+vm.runInContext(`var TQ=[],TID=0;var setTimeout=(f,ms)=>{const id=++TID;TQ.push({id,f,at:CLOCK.t+Math.max(0,+ms||0)});return id};var clearTimeout=id=>{TQ=TQ.filter(x=>x.id!==id)};
+  function tick(){if(!TQ.length)return false;TQ.sort((a,b)=>a.at-b.at||a.id-b.id);const x=TQ.shift();CLOCK.t=Math.max(CLOCK.t,x.at);x.f();return true}
+  var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}var SETTLE_SEEN=null;function onSettle(m){SETTLE_SEEN=m}function cardTxt(c){return String(c)}`,g);
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/games/gomoku.js','js/games/gomoku-ai.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),g,{filename:f});
+const E=s=>vm.runInContext(s,g);
+const SOLO=(x)=>E(`NET.role='solo';TQ=[];startGame(${show({game:'gm',players:2,stack:1000,aiFill:true,speed:'fast',auto:false,turnSec:0,gmLevel:'normal',...x})},[{name:'你',kind:'local',gender:'m'}])`);
+const DUO=(x)=>E(`NET.role='host';TQ=[];startGame(${show({game:'gm',players:2,stack:1000,aiFill:false,speed:'fast',auto:false,turnSec:15,...x})},[{name:'甲',kind:'local',gender:'m'},{name:'乙',kind:'remote',gender:'m',conn:{send(){},seat:1}}])`);
+const run2=(max=400)=>{for(let i=0;i<max;i++){if(E('S.phase')!=='playing')return;if(!E('tick()'))return}};
+const PL=(pid,x,y)=>E(`gmAct(P()[${pid}],'place',${I(x,y)})`);
+/* settings */
+eq(E(`[normalizeCfg({game:'gm'}).players,normalizeCfg({game:'gm'}).gmLevel,normalizeCfg({game:'gm'}).gmForbid,normalizeCfg({game:'gm'}).gmFirst]`),[2,'normal',false,'me'],'五子棋默认：2 人、普通、不禁手、我执黑');
+eq(E(`normalizeCfg({game:'gm',gmLevel:'x'}).gmLevel`),'normal');eq(E(`normalizeCfg({game:'gm',gmLevel:'hell'}).gmLevel`),'hell');
+/* first game: who is black */
+SOLO({gmFirst:'me'});eq(E('S.gm.black'),0,'单机选我执黑');eq(E('S.toAct'),0,'我先下');
+SOLO({gmFirst:'ai'});eq(E('S.gm.black'),1,'单机选电脑执黑');run2(3);eq(E('S.gm.moves.length'),1,'电脑先下了一步');
+{const seen=new Set();for(let k=0;k<30;k++){DUO();seen.add(E('S.gm.black'))}eq([...seen].sort(),[0,1],'联机第一盘随机执黑');}
+/* a game to the end; the loser is black next; a draw swaps */
+SOLO({gmFirst:'me'});
+E(`P()[1].kind='local'`);/* both seats played by hand for this test */
+for(const [x,y,q] of [[3,3,0],[3,9,1],[4,3,0],[4,9,1],[5,3,0],[5,9,1],[6,3,0],[6,9,1]])PL(q,x,y);
+eq(E('S.phase'),'playing');PL(0,7,3);eq(E('S.phase'),'handover','成五结束这一盘');
+eq(E('[P()[0].gw,P()[0].gl,P()[1].gw,P()[1].gl]'),[1,0,0,1],'胜负记数');ok(E('S.gm.over.line.length')===5,'记下连成的五子');
+E('startHand()');eq(E('S.gm.black'),1,'输的一方下一盘执黑');
+E(`S.gm.over=null;gmEnd(-1,'draw',[])`);eq(E('[P()[0].gd,P()[1].gd]'),[1,1],'和棋双方各记一盘');E('startHand()');eq(E('S.gm.black'),0,'和棋交换黑白');
+/* gm-black-stuck: forbidden rule on, black to move, only forbidden points left: a draw */
+SOLO({gmFirst:'me',gmForbid:true});E(`P()[1].kind='local'`);
+E(`S.gm.board=${show(ctx.STUCK)};S.gm.moves=[1];S.toAct=1`);E(`gmAct(P()[1],'place',${I(3,3)})`);
+ok(E('S.phase')==='handover'&&E('S.gm.over.winner')===-1,'gm-black-stuck：黑棋只剩禁手点，判和棋');
+/* solo undo: my turn takes back the computer's move and mine; ignored while it thinks or after the game */
+SOLO({gmFirst:'me'});PL(0,7,7);run2(5);eq(E('S.gm.moves.length'),2,'电脑应了一手');
+E(`gmAct(P()[0],'undo')`);eq(E('S.gm.moves.length'),0,'单机悔棋撤回两步');eq(E('S.toAct'),0);
+E(`var HOLD=null;var keepThink=gmThink;gmThink=(b,c,o,cb)=>{HOLD=cb}`);PL(0,7,7);run2(3);ok(E('HOLD!==null'),'电脑在思考');
+E(`gmAct(P()[0],'undo')`);eq(E('S.gm.moves.length'),1,'电脑思考时不能悔棋');
+/* gm-stale-ai: I resign while it thinks; its late answer is dropped */
+E(`gmAct(P()[0],'resign')`);eq(E('S.phase'),'handover','认输结束');eq(E('[P()[1].gw,P()[0].gl]'),[1,1],'认输算对方赢');
+E(`HOLD({move:${I(8,8)}})`);eq(E('S.gm.moves.length'),1,'gm-stale-ai：认输后电脑迟到的结果作废');E('gmThink=keepThink');
+eq(E(`(gmAct(P()[0],'undo'),S.gm.moves.length)`),1,'一局结束后不能悔棋');
+/* gm-place-guard and gm-bad-input */
+DUO();E(`S.gm.black=0;S.toAct=0`);PL(1,7,7);eq(E('S.gm.moves.length'),0,'不是自己回合不能下');
+PL(0,7,7);PL(1,7,7);eq(E('S.gm.moves.length'),1,'已有棋子的位置不能下');
+for(const bad of ['-1','225','3.5','"x"','null'])E(`gmAct(P()[1],'place',${bad})`);eq(E('S.gm.moves.length'),1,'gm-bad-input：非法位置都无效');
+PL(1,8,8);eq(E('S.gm.moves.length'),2,'之后照常能下');
+/* forbidden point refused */
+DUO({gmForbid:true});E(`S.gm.black=0;S.toAct=0;for(const i of [${[I(6,7),I(8,7),I(7,6),I(7,8)]}])S.gm.board[i]=1;for(const i of [${[I(1,1),I(13,13),I(1,13),I(13,1)]}])S.gm.board[i]=2`);
+PL(0,7,7);eq(E('S.gm.board['+I(7,7)+']'),0,'禁手点下不了');ok(/三三/.test(E('S.ev&&S.ev.forbid||""')),'提示禁手名称');
+/* online undo */
+DUO();E(`S.gm.black=0;S.toAct=0`);PL(0,7,7);
+E('CLOCK.t+=5000');const left0=E('S.turnEnd-CLOCK.t');
+E(`gmAct(P()[0],'undo')`);ok(E('!!S.gm.undo'),'联机：申请悔棋');eq(E('S.turnEnd'),0,'申请挂着时对方倒计时暂停');
+PL(1,8,8);eq(E('S.gm.moves.length'),1,'申请挂着时对方不能落子');
+E(`gmAct(P()[1],'undoNo')`);ok(E('!S.gm.undo'),'不同意');eq(E('S.gm.moves.length'),1);eq(E('S.turnEnd-CLOCK.t'),left0,'倒计时接着走，剩余时间不变');
+E(`gmAct(P()[0],'undo')`);E(`gmAct(P()[1],'undoYes')`);eq(E('S.gm.moves.length'),0,'同意：撤回');eq(E('S.toAct'),0,'轮回申请人');
+PL(0,7,7);E(`gmAct(P()[0],'undo')`);E('CLOCK.t+=15000;tick()');ok(E('!S.gm.undo')&&E('S.gm.moves.length')===1,'15 秒不回应算不同意');
+E(`gmAct(P()[0],'undo')`);ok(E('!S.gm.undo'),'每局最多 3 次（第 4 次被拒）');eq(E('S.gm.undoLeft[0]'),0);
+PL(1,8,8);E(`gmAct(P()[0],'undo')`);ok(E('!S.gm.undo'),'对方已落子后不能申请');
+DUO();E(`S.gm.black=0;S.toAct=0`);PL(0,7,7);E(`P()[1].trust=true`);E(`gmAct(P()[0],'undo')`);ok(E('!S.gm.undo'),'对方托管时申请直接算不同意');
+/* gm-undo-disc: the requester drops while it waits */
+DUO();E(`S.gm.black=1;S.toAct=1`);PL(1,7,7);E(`gmAct(P()[1],'undo')`);E(`P()[1].connected=false`);E('CLOCK.t+=15000;tick()');
+ok(E('!S.gm.undo'),'gm-undo-disc：申请人掉线，15 秒后算不同意');ok(E('S.turnEnd>CLOCK.t'),'对方倒计时恢复');
+/* timeout: the coach plays and the player goes on 托管 */
+DUO();E(`S.gm.black=0;S.toAct=0`);PL(0,7,7);E('CLOCK.t+=16000;for(let k=0;k<5&&S.gm.moves.length<2;k++)tick()');
+ok(E('P()[1].trust')&&E('S.gm.moves.length')===2,'超时后按教练落子并托管');
+/* the view: nothing hidden */
+DUO();PL(E('S.toAct'),7,7);eq(E('JSON.stringify(viewFor(1).gm)'),E('JSON.stringify(viewFor(0).gm)'),'两边看到的棋局一样');
+}
 
 console.log(`gm: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);

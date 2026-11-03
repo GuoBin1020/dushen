@@ -30,7 +30,7 @@ function turnTimer(p,still,bot,disc,grace){
 }
 function turnOut(p){p.trust=true;log(`${p.name} 超时，进入托管`,'board-l');autoMove(p)}
 /* 斗地主 and 红中 托管 always plays the coach's move; 德州 and 炸金花 follow the 超时后采用教练方案 option */
-function autoMove(p){const coach=isM(S)||isD(S)||S.cfg.coachAuto!==false;return isM(S)?hzAutoMove(p,coach):isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
+function autoMove(p){if(isG(S))return gmAutoMove(p);const coach=isM(S)||isD(S)||S.cfg.coachAuto!==false;return isM(S)?hzAutoMove(p,coach):isD(S)?ddAutoMove(p,coach):isZ(S)?zAutoMove(p,coach):hmAutoMove(p,coach)}
 /* 取消托管 / 下一局加入. A guest's tap reaches the host as the 'rebuy' message (doRebuy), so the sealed online code needs no new message. */
 function hostBack(p){
   const was=p.away;p.trust=false;p.away=false;
@@ -54,7 +54,7 @@ function delay(){
   return base;
 }
 const FEMALE_BOTS=new Set(['小美','Lina','Mia']);
-function mkPlayer(id,name,kind,style,cfg,gender){return {id,name,kind,style,gender:gender==='f'?'f':'m',stack:cfg.stack,rebuys:0,out:false,busted:false,connected:true,cards:[],bet:0,total:0,folded:false,allIn:false,inHand:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],
+function mkPlayer(id,name,kind,style,cfg,gender){return {id,name,kind,style,gender:gender==='f'?'f':'m',stack:cfg.stack,rebuys:0,out:false,busted:false,connected:true,cards:[],bet:0,total:0,folded:false,allIn:false,inHand:false,lastAction:'',won:0,shown:false,handName:'',pre:null,post:[],line:[],gw:0,gl:0,gd:0,
   st:{h:0,vp:0,pf:0,tbO:0,tb:0,bets:0,calls:0,fbO:0,fb:0,sa:0,saAir:0,sc:0,scAir:0},hf:null}}
 function commitHand(){
   const ps=P().filter(p=>p.inHand);
@@ -70,13 +70,15 @@ const flowVs=(flow,p,seat)=>(flow[p+'>'+seat]||0)-(flow[seat+'>'+p]||0);
 function normalizeCfg(c){
   c={...c};
   const num=(v,d,ok)=>{v=+v;return Number.isFinite(v)&&ok(v)?v:d};
-  c.game=['zjh','ddz','hz'].includes(c.game)?c.game:'holdem';
+  c.game=['zjh','ddz','hz','gm'].includes(c.game)?c.game:'holdem';
   c.players=Math.round(num(c.players,6,v=>v>=2&&v<=MAX_SEATS));
   c.ante=num(c.ante,20,v=>v>0);c.zcap=num(c.zcap,10,v=>v>=2);c.zrounds=num(c.zrounds,10,v=>v>=2);
   if(c.game==='zjh'){c.sb=c.ante;c.bb=c.ante}
   else if(c.game==='hz'){c.players=4;c.base=num(c.base,20,v=>v>0);c.sb=c.bb=c.ante=c.base;
     /* 红中麻将 options: 点炮 off, 红中 only self-draw, 抢杠胡 on, no 无红中加倍, 2 birds */
     c.hzDianpao=!!c.hzDianpao;c.hzRedSelf=c.hzRedSelf!==false;c.hzQiangGang=c.hzQiangGang!==false;c.hzNoRed=!!c.hzNoRed;c.hzBirds=[0,2,4,6].includes(+c.hzBirds)?+c.hzBirds:2}
+  /* 五子棋: two seats, no chips; 电脑难度 (alone), 黑棋禁手, who is black in the first game (alone; online it is random) */
+  else if(c.game==='gm'){c.players=2;c.sb=c.bb=c.ante=1;c.gmLevel=['easy','normal','hard','hell'].includes(c.gmLevel)?c.gmLevel:'normal';c.gmForbid=!!c.gmForbid;c.gmFirst=c.gmFirst==='ai'?'ai':'me'}
   else if(c.game==='ddz'){c.players=3;c.laizi=!!c.laizi;c.base=num(c.base,20,v=>v>0);c.ddcap=num(c.ddcap,64,v=>v>=1);c.sb=c.bb=c.ante=c.base}
   else{c.bb=num(c.bb,20,v=>v>0);c.sb=num(c.sb,c.bb/2,v=>v>0&&v<=c.bb)}
   c.stack=Math.round(num(c.stack,c.bb*100,v=>v>=c.bb*(c.game==='ddz'||c.game==='hz'?20:10)));
@@ -121,9 +123,9 @@ function startHand(){
   }
   P().forEach(p=>Object.assign(p,{cards:[],bet:0,total:0,folded:false,allIn:false,lastAction:'',won:0,refund:0,shown:false,handName:'',pre:null,post:[],line:[],inHand:false,seen:false,zs:0,revealTo:[],lostCmp:false,foldAt:0,revealName:''}));
   /* 托管 that ran to the end of a 德州 / 炸金花 hand without 「超时后采用教练方案」 becomes 暂时离桌 */
-  if(!isD(S)&&!isM(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
+  if(!isD(S)&&!isM(S)&&!isG(S))P().forEach(p=>{if(p.trust&&!S.cfg.coachAuto){p.trust=false;p.away=true;log(`${p.name} 暂时离桌`,'board-l')}});
   /* 斗地主 deals a dropped player in too: the bot plays their turns until they are back */
-  const live=P().filter(p=>!p.out&&p.stack>0&&!p.away&&(present(p)||isD(S)||isM(S)));
+  const live=P().filter(p=>!p.out&&p.stack>0&&!p.away&&(present(p)||isD(S)||isM(S)||isG(S)));
   if(!live.some(p=>!isBot(p))&&P().some(p=>p.away&&p.stack>0)){S.phase='waiting';S.msg='真人玩家都暂时离桌了，点「下一局加入」继续';sync();return}
   if(!live.some(p=>!isBot(p))){S.phase='busted';S.msg='真人玩家的筹码都输光了，补码后继续';sync();return}
   if(live.length<2){S.phase='waiting';S.msg='玩家不足 2 人，等待有人加入或补码';sync();return}
@@ -133,6 +135,7 @@ function startHand(){
   if(isZ(S))return zDeal(live);
   if(isD(S))return ddDeal(live);
   if(isM(S))return hzDeal(live);
+  if(isG(S))return gmStart(live);
   S.handNo++;S.board=[];S.msg='';
   S.dealer=nextIdx(S.dealer,p=>p.inHand);
   S.deck=shuffle();
@@ -202,7 +205,7 @@ function hostSettle(reason){
   clearTimeout(timer);let note='';
   if(S.phase==='playing'||S.phase==='runout'){P().forEach(p=>{if(p.inHand){p.stack+=p.total;p.total=0;p.bet=0}});note='最后一手没打完，已退回所有人这手投入的筹码。'}
   S.phase='settled';
-  const standings=P().concat(S.gone||[]).map(p=>({id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,rebuys:p.rebuys,out:p.out,ddArch:p.ddArch,net:p.stack-S.cfg.stack*(1+p.rebuys),st:p.st,ai:p.ai||null}));
+  const standings=P().concat(S.gone||[]).map(p=>({id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,rebuys:p.rebuys,out:p.out,ddArch:p.ddArch,net:p.stack-S.cfg.stack*(1+p.rebuys),st:p.st,ai:p.ai||null,gw:p.gw||0,gl:p.gl||0,gd:p.gd||0}));
   const m={t:'settle',standings,reason:reason||'',note,cfg:S.cfg,flow:S.flow};
   for(const c of NET.conns.values())c.send(m);
   /* 斗地主: people still waiting for a seat hear that this round is over */
@@ -217,14 +220,14 @@ function viewFor(seat){
     cfg:S.cfg,me:seat,dealer:S.dealer,handNo:S.handNo,board:S.board.slice(),street:S.street,currentBet:S.currentBet,minRaise:S.minRaise,raises:S.raises,
     toAct:S.toAct,phase:S.phase,msg:S.msg,
     /* time left on the turn clock as of this snapshot: each device counts down from when it got it, so clocks need not agree */
-    turnMs:turnMs(),turnLeft:S.phase==='playing'&&S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0,dd:S.dd?ddPublic(S.dd):null,hz:S.hz&&isM(S)?hzPublic(S.hz,seat):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
+    turnMs:turnMs(),turnLeft:S.phase==='playing'&&S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0,dd:S.dd?ddPublic(S.dd):null,hz:S.hz&&isM(S)?hzPublic(S.hz,seat):null,gm:S.gm&&isG(S)?gmPublic(S.gm):null,sbId:S.sbId,bbId:S.bbId,preRaisers:S.preRaisers.slice(),log:S.log.slice(-80),ev:S.ev||null,stake:S.stake||0,round:S.round||0,
     players:S.players.map(p=>{
       const showAll=S.cfg.showAll&&S.phase==='handover'&&p.inHand;
       /* 炸金花: a blind player cannot see their own cards; a compare shows both hands to the two players involved */
       const vis=isZ(S)?((p.id===seat&&(p.seen||(S.phase!=='playing'&&S.phase!=='runout')))||(p.shown&&!p.folded)||(p.revealTo||[]).includes(seat)||(reveal&&p.id!==seat)||showAll)
         :(p.id===seat||(p.shown&&!p.folded)||reveal||showAll);
       return {id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,bet:p.bet,total:p.total,folded:p.folded,allIn:p.allIn,inHand:p.inHand,out:p.out,busted:p.busted,connected:p.connected,
-        st:p.st,vs:flowVs(S.flow,p.id,seat),gender:p.gender,
+        st:p.st,vs:flowVs(S.flow,p.id,seat),gender:p.gender,gw:p.gw||0,gl:p.gl||0,gd:p.gd||0,
         lastAction:p.lastAction,won:p.won,refund:p.refund||0,shown:p.shown,handName:p.handName,revealName:showAll?p.revealName||'':'',rebuys:p.rebuys,cards:p.inHand?(vis?p.cards.slice():p.cards.map(()=>null)):[],seen:!!p.seen,zs:p.zs||0,lostCmp:!!p.lostCmp,trust:!!p.trust,away:!!p.away,pre:p.pre,post:p.post.slice(),line:p.line.slice()};
     })
   };

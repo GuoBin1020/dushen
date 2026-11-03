@@ -74,3 +74,130 @@ function gmWinner(b,i,c,forbid){
   const f5=gmFive(b,i,c);
   return f5.win&&!(c===1&&forbid&&f5.over)?'win':'';
 }
+
+/* =====================================================================
+   The game: two seats, S.gm holds the board. Black alternates by the rules (the loser takes black, a draw swaps);
+   the computer thinks off the page (gmThink), and a late answer is dropped by comparing S.gm.seq.
+   ===================================================================== */
+const gmColor=pid=>pid===S.gm.black?1:2;
+const gmOther=pid=>P().find(p=>p.id!==pid).id;
+const gmEv=(p,o)=>{S.ev={seq:(S.ev?S.ev.seq:0)+1,pid:p?p.id:-1,...o}};
+function gmStart(live){
+  S.handNo++;S.board=[];S.msg='';clearTimeout(timer);
+  const prev=S.gm,ids=P().map(p=>p.id);let black;
+  if(!prev){const bot=P().find(isBot);black=bot?(S.cfg.gmFirst==='ai'?bot.id:P().find(p=>!isBot(p)).id):ids[Math.random()<0.5?0:1]}
+  else if(prev.over&&prev.over.winner>=0)black=gmOther(prev.over.winner);
+  else black=gmOther(prev.black);
+  P().forEach(p=>{p.lastAction=''});
+  S.gm={board:new Array(225).fill(0),moves:[],black,over:null,undo:null,undoLeft:Object.fromEntries(ids.map(i=>[i,3])),seq:0,last:-1};
+  Object.assign(S,{phase:'playing',toAct:black,street:'gm',currentBet:0,minRaise:0,raises:0,preRaisers:[],sbId:-1,bbId:-1});
+  log(`第 ${S.handNo} 盘，${P()[black].name} 执黑先下`,'sep');
+  gmProceed();
+}
+/* whoever is to move: bots and the clock are scheduled here; a pending 悔棋 request holds the clock for 15 s */
+function gmProceed(resume){
+  if(S.phase!=='playing'||!S.gm)return;
+  const g=S.gm,mark=++g.seq;clearTimeout(timer);S.turnEnd=0;
+  if(g.undo){timer=setTimeout(()=>{if(S&&S.gm===g&&g.seq===mark&&g.undo)gmAct(P()[gmOther(g.undo.by)],'undoNo')},Math.max(0,g.undo.until-Date.now()));return sync()}
+  const p=P()[S.toAct],still=()=>S&&S.gm===g&&g.seq===mark&&S.phase==='playing'&&!g.undo&&S.toAct===p.id;
+  turnTimer(p,still,gmBotTurn,gmAutoMove,Math.max(400,(p.discAt||0)+DISC_GRACE-Date.now()));
+  /* back from a refused 悔棋: the clock goes on from where it stopped */
+  if(resume>0&&S.turnEnd&&!isBot(p)&&present(p)&&!p.trust){clearTimeout(timer);S.turnEnd=Date.now()+resume;
+    timer=setTimeout(()=>{if(still())turnOut(p)},resume)}
+  sync();
+}
+/* the engine off the page: a Worker built from the rule and engine sources (works from file:// and the one-file build);
+   no Worker, or it fails: the same search here and now */
+let GM_AI=null,GM_W=null,GM_WID=0;const GM_CB={};
+function gmWorker(){
+  if(GM_W!==null)return GM_W;
+  try{
+    const src=`'use strict';const GM_DIRS=${JSON.stringify(GM_DIRS)};${[gmRun,gmFive,gmFivePoints,gmFours,gmForbid,gmRealThree,gmAiModule].map(f=>f.toString()).join('\n')}
+      const AI=gmAiModule();onmessage=e=>{const d=e.data;postMessage({id:d.id,r:AI.search(d.board,d.color,d.opt)})};`;
+    GM_W=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    GM_W.onmessage=e=>{const cb=GM_CB[e.data.id];delete GM_CB[e.data.id];if(cb)cb(e.data.r)};
+    GM_W.onerror=()=>{GM_W=false};
+  }catch(e){GM_W=false}
+  return GM_W;
+}
+function gmThink(board,color,opt,cb){
+  const w=typeof Worker!=='undefined'&&typeof Blob!=='undefined'&&typeof URL!=='undefined'?gmWorker():false;
+  if(w){const id=++GM_WID;GM_CB[id]=cb;w.postMessage({id,board:board.slice(),color,opt});return}
+  if(!GM_AI)GM_AI=gmAiModule();cb(GM_AI.search(board,color,opt));
+}
+/* a computer seat, or 托管 (the coach's own engine); the answer counts only if nothing moved in between */
+function gmMoveFor(p,opt){
+  const g=S.gm;if(!g||g.over||S.toAct!==p.id)return;
+  const mark=g.seq;g.thinking=p.id;
+  gmThink(g.board,gmColor(p.id),{forbid:!!S.cfg.gmForbid,...opt},r=>{
+    if(!S||S.gm!==g||g.seq!==mark||g.over||S.toAct!==p.id||g.undo)return;
+    g.thinking=-1;if(r&&r.move!=null)gmPlace(p,r.move);
+  });
+}
+const gmBotTurn=p=>gmMoveFor(p,{level:S.cfg.gmLevel||'normal'});
+const gmAutoMove=p=>gmMoveFor(p,{level:'hell',maxMs:2000});
+const gmFull=b=>!b.includes(0);
+/* black to move with the rule on and only forbidden points left (checked once few are left) */
+function gmBlackStuck(g){
+  if(!S.cfg.gmForbid||gmColor(S.toAct)!==1)return false;
+  const empty=[];g.board.forEach((v,i)=>{if(!v)empty.push(i)});
+  return empty.length<=40&&empty.every(i=>gmForbid(g.board,i));
+}
+function gmPlace(p,i){
+  const g=S.gm;
+  if(S.phase!=='playing'||!g||g.over||g.undo||S.toAct!==p.id||!Number.isInteger(i)||i<0||i>=225||g.board[i])return sync();
+  const c=gmColor(p.id),res=gmWinner(g.board,i,c,!!S.cfg.gmForbid);
+  if(res.startsWith('forbid:')){gmEv(p,{type:'forbid',forbid:res.slice(7)});return sync()}
+  g.board[i]=c;g.moves.push(i);g.last=i;g.thinking=-1;
+  p.lastAction=`落子 ${gmPos(i)}`;log(`${p.name}（${c===1?'黑':'白'}）：${gmPos(i)}`);gmEv(p,{type:'place',i});
+  if(res==='win')return gmEnd(p.id,'five',gmFive(g.board,i,c).line);
+  S.toAct=gmOther(p.id);
+  if(gmFull(g.board)||gmBlackStuck(g))return gmEnd(-1,'draw',[]);
+  gmProceed();
+}
+function gmEnd(w,why,line){
+  const g=S.gm;clearTimeout(timer);
+  g.over={winner:w,line:line||[],why};g.undo=null;
+  if(w>=0){const W=P()[w],L=P()[gmOther(w)];W.gw=(W.gw||0)+1;L.gl=(L.gl||0)+1;
+    S.msg=why==='resign'?`${L.name} 认输，${W.name} 赢了这一盘`:`${W.name} 连成五子，赢了这一盘`;gmEv(W,{type:'win',why})}
+  else{P().forEach(p=>{p.gd=(p.gd||0)+1});S.msg='和棋';gmEv(null,{type:'draw'})}
+  log(S.msg,'win-l');
+  S.toAct=-1;S.turnEnd=0;
+  endHand();
+}
+/* 悔棋. Alone: on my turn, back to before my last move (the computer's reply goes too). Against a person: right after
+   my move, ask; the other answers 同意 / 不同意 (15 s, then 不同意); 3 asks a game; not while they are on 托管 or away. */
+function gmUndo(p){
+  const g=S.gm,opp=P()[gmOther(p.id)],c=gmColor(p.id),lastC=g.moves.length?g.board[g.moves[g.moves.length-1]]:0;
+  if(isBot(opp)){
+    if(S.toAct!==p.id||!g.moves.some(i=>g.board[i]===c))return sync();
+    while(g.moves.length){const i=g.moves.pop();const was=g.board[i];g.board[i]=0;if(was===c)break}
+    g.last=g.moves.length?g.moves[g.moves.length-1]:-1;log(`${p.name} 悔棋`);gmEv(p,{type:'undo'});return gmProceed();
+  }
+  if(S.toAct!==opp.id||lastC!==c||g.undo||!(g.undoLeft[p.id]>0))return sync();
+  if(opp.trust||!present(opp)){log(`${opp.name} ${opp.trust?'托管中':'不在线'}，不能同意悔棋`);gmEv(p,{type:'undoNo',auto:true});return sync()}
+  g.undoLeft[p.id]--;
+  const left=S.turnEnd?Math.max(0,S.turnEnd-Date.now()):0;
+  g.undo={by:p.id,until:Date.now()+15000,left};log(`${p.name} 申请悔棋`);gmEv(p,{type:'undoAsk'});
+  gmProceed();
+}
+function gmUndoAnswer(p,yes){
+  const g=S.gm,u=g.undo;if(!u||p.id===u.by)return sync();
+  g.undo=null;
+  if(yes){const i=g.moves.pop();g.board[i]=0;g.last=g.moves.length?g.moves[g.moves.length-1]:-1;S.toAct=u.by;
+    log(`${p.name} 同意悔棋`);gmEv(p,{type:'undoYes'});return gmProceed()}
+  log(`${p.name} 不同意悔棋`);gmEv(p,{type:'undoNo'});gmProceed(u.left);
+}
+function gmAct(p,type,arg){
+  const g=S.gm;if(!g||S.phase!=='playing'||g.over||!p)return sync();
+  if(type==='place')return gmPlace(p,arg);
+  if(type==='undo')return gmUndo(p);
+  if(type==='undoYes'||type==='undoNo')return gmUndoAnswer(p,type==='undoYes');
+  if(type==='resign'){log(`${p.name} 认输`);return gmEnd(gmOther(p.id),'resign',[])}
+  sync();
+}
+/* everything is public in 五子棋 */
+function gmPublic(g){
+  return {board:g.board.slice(),moves:g.moves.slice(),black:g.black,over:g.over?{...g.over,line:g.over.line.slice()}:null,last:g.last,
+    undo:g.undo?{by:g.undo.by,left:Math.max(0,g.undo.until-Date.now())}:null,undoLeft:{...g.undoLeft},thinking:g.thinking!=null?g.thinking:-1};
+}
