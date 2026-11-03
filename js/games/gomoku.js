@@ -157,7 +157,7 @@ function gmPlace(p,i){
 }
 function gmEnd(w,why,line){
   const g=S.gm;clearTimeout(timer);
-  g.over={winner:w,line:line||[],why};g.undo=null;
+  g.over={winner:w,line:line||[],why};g.undo=null;(S.gmGames||(S.gmGames=[])).push({n:S.handNo,winner:w,why,black:g.black});
   if(w>=0){const W=P()[w],L=P()[gmOther(w)];W.gw=(W.gw||0)+1;L.gl=(L.gl||0)+1;
     S.msg=why==='resign'?`${L.name} 认输，${W.name} 赢了这一盘`:`${W.name} 连成五子，赢了这一盘`;gmEv(W,{type:'win',why})}
   else{P().forEach(p=>{p.gd=(p.gd||0)+1});S.msg='和棋';gmEv(null,{type:'draw'})}
@@ -329,7 +329,7 @@ function gmOverText(v){
 /* sounds and tips from the host's events */
 function gmFx(v,ev){
   const p=v.players[ev.pid],g=p?p.gender:'m';
-  if(ev.type==='place')SFX.chips(1);
+  if(ev.type==='place'){SFX.chips(1);if(ev.pid===v.me&&typeof gmRecordMine==='function')gmRecordMine(v,ev)}
   else if(ev.type==='forbid'){if(ev.pid===v.me){SFX.check();toast(`禁手：${ev.forbid}，这一步不能下`,2200)}}
   else if(ev.type==='win'){if(ev.pid===v.me)SFX.win();else SFX.fold();say(ev.why==='resign'?'认输':'五连',g)}
   else if(ev.type==='undoAsk'&&ev.pid!==v.me){SFX.ding();toast(`${p?p.name:'对方'} 想悔棋`,2000)}

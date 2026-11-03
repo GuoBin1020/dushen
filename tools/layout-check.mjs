@@ -264,6 +264,26 @@ const GM_FORBID=`(async()=>{${PG}${GMQ}
   tap(112);await sleep(40);tap(112);await sleep(150);
   if(G().board[112])f.push('禁手点被下了');const t=Q('#toast');if(!vis(t)||!t.textContent.includes('禁手'))f.push('没有禁手提示');
   S.cfg.gmForbid=false;return f})()`;
+/* gm-coach: on my turn the coach rings ①②③ on the board (all on screen) and its panel lists the three with how it worked
+   them out; with the coach off (a name without lwx) there are no rings */
+const GM_COACH=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);const mode=LOCAL.mode;LOCAL.mode='live';const g=G();[112,113,127].forEach((i,k)=>{g.board[i]=k===1?2:1;g.moves.push(i)});g.board[98]=2;g.moves.push(98);S.toAct=0;sync();
+  let cs=[];for(let k=0;k<80;k++){await sleep(100);cs=[...document.querySelectorAll('#table .gm-cand')].filter(vis);if(cs.length>=3)break}
+  if(cs.length!==3)f.push('候选圈有 '+cs.length+' 个');
+  const bd=R(Q('#table .gm-board'));cs.forEach((c,k)=>{const a=R(c);if(a.x<bd.x-1||a.y<bd.y-1||a.x+a.w>bd.x+bd.w+1||a.y+a.h>bd.y+bd.h+1)f.push('候选圈 '+(k+1)+' 不在棋盘上')});
+  if(!(Q('#actions .act-hint')||{textContent:''}).textContent.includes('教练建议'))f.push('提示行没有教练建议');
+  openSheet('coach','coach-main');await sleep(80);const ch=Q('#coach');
+  if(!ch||ch.querySelectorAll('.gm-cands tbody tr').length!==3)f.push('教练面板的候选表不是 3 行');if(!ch||!ch.textContent.includes('怎么算的'))f.push('教练面板没有「怎么算的」');
+  closeSheet();
+  S.cfg.coach=false;sync();await sleep(150);if([...document.querySelectorAll('#table .gm-cand')].filter(vis).length)f.push('关掉教练后还有候选圈');
+  S.cfg.coach=true;LOCAL.mode=mode;return f})()`;
+/* gm-settle: the settlement shows the score and each game, no chips */
+const GM_SETTLE=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);const g=G(),c=gmColor(0);[106,107,108,109].forEach(i=>{g.board[i]=c;g.moves.push(i)});S.toAct=0;gmAct(P()[0],'place',110);await sleep(80);
+  hostSettle('');await sleep(150);const sv=Q('#settle-view');if(!vis(sv))return ['没有结算页'];
+  const t=sv.textContent;if(!/1\\s*:\\s*0/.test(t))f.push('没有比分 1 : 0');if(!t.includes('第 1 盘'))f.push('没有每盘结果');
+  if(/筹码|盈亏|BB/.test(t))f.push('五子棋结算不该出现筹码盈亏');if(!t.includes('教练第一推荐'))f.push('没有复盘统计');
+  return f})()`;
 /* the 记牌器 switch: its own option for 斗地主 and 红中 (on by default), apart from the coach */
 const COUNTER_CFG=`(async()=>{${PG}
   const cells=()=>[...document.querySelectorAll('#dd-strip .dd-scells,#dd-strip .hz-counter')].filter(vis).length;
@@ -363,7 +383,7 @@ SCEN.push(
   {name:'room-edit',game:'holdem',n:6,extra:ROOM_EDIT,sizes:PH},
   {name:'level-setup',game:'holdem',n:6,extra:LEVEL_SETUP,sizes:PH},
   {name:'gm-board',game:'gm',n:2,extra:GM_BOARD},{name:'gm-preview',game:'gm',n:2,extra:GM_PREVIEW},{name:'gm-win',game:'gm',n:2,extra:GM_WIN},
-  {name:'gm-undo-dialog',game:'gm',n:2,extra:GM_UNDO},{name:'gm-forbid-tip',game:'gm',n:2,extra:GM_FORBID,sizes:PH},{name:'bubble-on-gm',game:'gm',n:2,extra:BUBBLE_ON},
+  {name:'gm-undo-dialog',game:'gm',n:2,extra:GM_UNDO},{name:'gm-forbid-tip',game:'gm',n:2,extra:GM_FORBID,sizes:PH},{name:'bubble-on-gm',game:'gm',n:2,extra:BUBBLE_ON},{name:'gm-coach',game:'gm',n:2,extra:GM_COACH},{name:'gm-settle',game:'gm',n:2,extra:GM_SETTLE,sizes:PH},
   {name:'bubble-on',game:'holdem',n:6,extra:BUBBLE_ON},{name:'bubble-on-9',game:'holdem',n:9,extra:BUBBLE_ON},{name:'bubble-on-zjh',game:'zjh',n:6,extra:BUBBLE_ON},{name:'bubble-on-ddz',game:'ddz',n:3,extra:BUBBLE_ON},{name:'bubble-on-hz',game:'hz',n:4,extra:BUBBLE_ON},
   {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},

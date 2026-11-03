@@ -206,7 +206,7 @@ function hostSettle(reason){
   if(S.phase==='playing'||S.phase==='runout'){P().forEach(p=>{if(p.inHand){p.stack+=p.total;p.total=0;p.bet=0}});note='最后一手没打完，已退回所有人这手投入的筹码。'}
   S.phase='settled';
   const standings=P().concat(S.gone||[]).map(p=>({id:p.id,name:p.name,kind:p.kind,style:p.style,stack:p.stack,rebuys:p.rebuys,out:p.out,ddArch:p.ddArch,net:p.stack-S.cfg.stack*(1+p.rebuys),st:p.st,ai:p.ai||null,gw:p.gw||0,gl:p.gl||0,gd:p.gd||0}));
-  const m={t:'settle',standings,reason:reason||'',note,cfg:S.cfg,flow:S.flow};
+  const m={t:'settle',standings,reason:reason||'',note,cfg:S.cfg,flow:S.flow,gmGames:S.gmGames||[]};
   for(const c of NET.conns.values())c.send(m);
   /* 斗地主: people still waiting for a seat hear that this round is over */
   (S.ddWait||[]).forEach(e=>{if(e.conn)e.conn.send(ddWaitMsg({ended:true}))});

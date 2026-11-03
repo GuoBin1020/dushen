@@ -5,7 +5,7 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const ROOT=path.join(__dirname,'..');
 const ctx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean});
-for(const f of ['js/common.js','js/games/gomoku.js','js/games/gomoku-ai.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
+for(const f of ['js/common.js','js/games/gomoku.js','js/games/gomoku-ai.js','js/games/gomoku-coach.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
 const run=s=>vm.runInContext(s,ctx);
 let passed=0,failed=0;
 const show=x=>JSON.stringify(x);
@@ -85,6 +85,20 @@ if(!process.env.GM_FAST)for(const [lo,hi] of [['easy','normal'],['normal','hard'
 /* real time: three mid-game positions stay within the limits */
 {const ps=[mk([[7,7],[8,8],[6,8],[9,6]],[[8,7],[7,8],[6,6],[9,9]]),mk([[7,7],[7,8],[8,9],[6,6],[9,7]],[[8,8],[6,7],[8,6],[5,5],[9,9]]),mk([[5,5],[6,6],[7,7],[5,7],[9,9],[8,5]],[[6,5],[7,6],[8,7],[4,4],[6,8],[10,10]])];
   for(const [L,ms] of [['hard',1000],['hell',2000]])ps.forEach((b,k)=>{const r=srch(b,1,{level:L,forbid:false,maxMs:ms});ok(r.ms<=ms*1.2,L+' 局面 '+k+' 用时 '+r.ms+'ms')});}
+
+/* ---------- Task 6: the coach and the review ---------- */
+{const V0=(b)=>({me:0,phase:'playing',toAct:0,handNo:1,cfg:{gmForbid:false},players:[{id:0},{id:1}],gm:{board:b,black:0,moves:b.map((c,i)=>c?i:-1).filter(i=>i>=0)}});
+  const adv=v=>{let out=null;ctx.__V=v;run(`gmAdvise(__V,r=>{__R=r})`);out=run('__R');return out};
+  run('var __R=null');
+  let a=adv(V0(mk([[3,3],[11,11]],[[6,7],[7,7],[8,7]])));
+  ok(a&&[I(5,7),I(9,7),I(4,7),I(10,7)].includes(a.best[0].i),'教练：对方活三时推荐堵点 '+(a&&a.best[0].pos));
+  ok(a&&/活三/.test(a.best[0].why),'教练：理由写明活三 '+(a&&a.best[0].why));
+  ok(a&&a.best.length===3&&a.best[0].score>=a.best[1].score&&a.best[1].score>=a.best[2].score,'教练：3 个候选，评分从高到低');
+  ok(a&&/推算/.test(a.text)&&/局面/.test(a.text),'教练：写明怎么算的 '+(a&&a.text));
+  a=adv(V0(mk([[4,5],[5,5],[6,5],[7,5]],[[4,6],[5,6],[6,6]])));ok(a&&[I(8,5),I(3,5)].includes(a.best[0].i),'教练：能成五时推荐成五');
+  /* the review: a move that leaves the other side's 冲四 open is a big mistake, the block is not */
+  const b=mk([[3,3],[10,10],[3,7]],[[4,7],[5,7],[6,7],[7,7]]);
+  eq(run(`gmReview(${show(b)},1,${I(0,0)},false).bad`),true,'复盘：漏堵冲四算大失误');eq(run(`gmReview(${show(b)},1,${I(8,7)},false).bad`),false,'复盘：堵住不算失误');}
 
 /* ---------- Task 3: the game in the real engine (fake clock, like turn-test.js) ---------- */
 {const CLOCK={t:1e12};class FakeDate extends Date{constructor(...a){super(...(a.length?a:[CLOCK.t]))}static now(){return CLOCK.t}}

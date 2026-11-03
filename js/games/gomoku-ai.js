@@ -68,12 +68,14 @@ function gmAiModule(){
     const f=forced(root);
     if(f&&f.length===1)return done(f[0].p,f[0].val,f.concat(root.filter(m=>m!==f[0])));
     const list=f||root;
+    /* when only some points are playable (the others lose to the other side's threat), the rest still come after them */
+    const rest=f?root.filter(m=>!f.includes(m)).map(m=>({...m,score:-WIN})):[];
     if(level==='easy'){
       /* often blind to open threes (fours and fives it still sees), and often just takes one of its top few */
       const blind=rnd()<0.7,sc=list.map(m=>({...m,score:blind&&!m.def.f4&&!m.def.five?m.atk.s+Math.min(m.def.s,SCORES['眠三'])*0.9:m.val})).sort((a,z)=>z.score-a.score);
       const pick=rnd()<0.4?sc[Math.floor(rnd()*Math.min(4,sc.length))]:sc[0];return done(pick.p,pick.score,sc);
     }
-    if(level==='normal')return done(list[0].p,list[0].val,list);
+    if(level==='normal')return done(list[0].p,list[0].val,list.concat(rest));
     /* hard / hell: negamax with alpha-beta */
     const K=level==='hell'?8:10;
     function nega(c,depth,alpha,beta,ply){
@@ -124,7 +126,7 @@ function gmAiModule(){
         if(best.score>=WIN/2)break;
       }
     }catch(e){if(e!==STOP)throw e}
-    return done(best.p,best.score!=null?best.score:best.val,scored);
+    return done(best.p,best.score!=null?best.score:best.val,scored.concat(rest));
   }
   /* why a point: what c makes there, what it takes from the other side, and whether the other then wins outright */
   function explain(b0,c,i,forbid){

@@ -342,6 +342,7 @@ function profileRows(list,vsOf){
 const PROFILE_HEAD='<thead><tr><th>玩家</th><th class="r">手</th><th class="r">入池</th><th class="r">加注</th><th class="r">激进</th><th class="r">弃牌</th><th>类型</th><th class="r">对你</th></tr></thead>';
 function renderProfiles(){
   const others=V.players.filter(p=>p.id!==V.me);
+  if(isG(V)){$('#profiles').innerHTML=`<h2>对手</h2><p class="muted">五子棋只看棋盘，没有对手画像。比分在座位信息里。</p>`;return}
   if(isM(V)){$('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">胡牌</th><th class="r">点炮</th></tr></thead><tbody>${others.map(p=>`<tr><td>${esc(p.name)}</td>${hzProfileRow(p)}</tr>`).join('')}</tbody></table></div>`;return}
   if(isD(V)){
     $('#profiles').innerHTML=`<h2>对手画像</h2><div class="tbl-wrap" style="margin-top:8px"><table class="ptbl"><thead><tr><th>玩家</th><th class="r">局</th><th class="r">当地主</th><th class="r">赢</th><th class="r">对你</th></tr></thead><tbody>${others.map(p=>{const s=p.st||{},v=p.vs||0;return `<tr><td>${esc(p.name)}</td><td class="r num">${s.dd||0}</td><td class="r num">${s.ddL||0}</td><td class="r num">${s.ddW||0}</td><td class="r num ${v>0?'pos':v<0?'neg':''}">${sgn(v)}</td></tr>`}).join('')}</tbody></table></div>
@@ -675,6 +676,7 @@ function renderCoach(){
     el.innerHTML=`<div class="coach-head"><h2>教练</h2></div><p class="muted">${NET.role==='solo'?'你关闭了教练建议':'房主关闭了本局的教练建议'}。结算时你仍会看到自己的决策复盘。</p>${cnt}`;return;
   }
   if(isD(V)){el.innerHTML=ddCoachHTML(V,toggle);return}
+  if(isG(V)){el.innerHTML=gmCoachHTML(V,toggle);return}
   if(isM(V)){el.innerHTML=typeof hzCoachHTML==='function'?hzCoachHTML(V,toggle):`<div class="coach-head"><h2>教练</h2>${toggle}</div><p class="muted">轮到你时，手牌里会标出教练推荐打的牌。</p>`;return}
   let body='';
   const turn=myTurn();
@@ -747,6 +749,7 @@ function spark(w,h,pad){
 }
 function renderSession(){
   const s=sessionStats();
+  if(isG(V)){const R=T.gm||{n:0,match:0,bad:0},m=me();$('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px"><div class="stat"><div class="k">比分</div><div class="v">${m.gw||0} 胜 ${m.gl||0} 负</div><div class="s">和 ${m.gd||0} 盘</div></div><div class="stat"><div class="k">和教练一致</div><div class="v">${R.n?Math.round(R.match/R.n*100)+'%':'—'}</div><div class="s">共 ${R.n} 步</div></div><div class="stat"><div class="k">大失误</div><div class="v">${R.bad}</div></div></div>`;return}
   if(isM(V)){$('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${hzStatsHTML(me().st,s)}</div><svg class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="累计盈亏走势">${spark(300,70,6).svg}</svg>`;return}
   if(isD(V)){
     $('#session').innerHTML=`<h2>我的统计</h2><div class="stats" style="margin-top:10px">${ddStatsHTML(me().st,s)}</div>
@@ -805,6 +808,7 @@ function onSettle(m,seat){
   renderSettle();show('settle');showBanner('');
 }
 function renderSettle(){
+  if(SETTLE&&SETTLE.cfg.game==='gm')return gmRenderSettle();
   const m=SETTLE,bb=m.cfg.bb,ds=T.decisions,s=sessionStats(),z=m.cfg.game==='zjh',dz=m.cfg.game==='ddz'||m.cfg.game==='hz',U=dz?'倍底分':z?'倍底注':'BB';
   const ddParts=dz?ddSettleParts(m,ds,s):null;
   const mine=m.standings.find(x=>x.id===m.seat);
