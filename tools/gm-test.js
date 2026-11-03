@@ -100,6 +100,15 @@ if(!process.env.GM_FAST)for(const [lo,hi] of [['easy','normal'],['normal','hard'
   const b=mk([[3,3],[10,10],[3,7]],[[4,7],[5,7],[6,7],[7,7]]);
   eq(run(`gmReview(${show(b)},1,${I(0,0)},false).bad`),true,'复盘：漏堵冲四算大失误');eq(run(`gmReview(${show(b)},1,${I(8,7)},false).bad`),false,'复盘：堵住不算失误');}
 
+/* final review I-3: reviewing my move never puts a 2-second job in front of the computer's reply */
+{run(`var V=null,T={};var SEEN=[];var keepT=gmThink;gmThink=(b,c,o,cb)=>{SEEN.push(o.maxMs)}`);
+  const b=mk([[7,7]],[]),v={me:0,phase:'playing',toAct:1,handNo:1,cfg:{gmForbid:false},players:[{id:0},{id:1}],gm:{board:b,black:0,moves:[I(7,7)]}};ctx.__V2=v;
+  run(`GM_ADV={key:'',r:null,busy:'',cbs:[]};gmRecordMine(__V2,{i:${I(7,7)},pid:0})`);
+  ok(run('SEEN.length===1&&SEEN[0]<=300'),'复盘：没有现成建议时只用短时间算 '+run('JSON.stringify(SEEN)'));
+  run(`SEEN=[];GM_ADV={key:'',r:null,busy:[1,0,0,undefined].join('|'),cbs:[()=>{}]};gmRecordMine(__V2,{i:${I(7,7)},pid:0})`);
+  ok(run('SEEN.length===0&&GM_ADV.cbs.length===2'),'复盘：教练正在算这个局面时挂上去，不重复算');
+  run('gmThink=keepT');}
+
 /* ---------- Task 3: the game in the real engine (fake clock, like turn-test.js) ---------- */
 {const CLOCK={t:1e12};class FakeDate extends Date{constructor(...a){super(...(a.length?a:[CLOCK.t]))}static now(){return CLOCK.t}}
 const g=vm.createContext({console,Math,Date:FakeDate,JSON,Set,Map,Object,Array,Number,String,Boolean,Uint8Array,CLOCK});
@@ -165,6 +174,18 @@ ok(E('!S.gm.undo'),'gm-undo-disc：申请人掉线，15 秒后算不同意');ok(
 /* timeout: the coach plays and the player goes on 托管 */
 DUO();E(`S.gm.black=0;S.toAct=0`);PL(0,7,7);E('CLOCK.t+=16000;for(let k=0;k<5&&S.gm.moves.length<2;k++)tick()');
 ok(E('P()[1].trust')&&E('S.gm.moves.length')===2,'超时后按教练落子并托管');
+
+/* final review I-1: a Worker that errors, or never answers, still gets the computer to move */
+SOLO({gmFirst:'me'});E(`var Worker=class{postMessage(){const w=this;setTimeout(()=>{w.onerror&&w.onerror()},10)}};var Blob=class{};var URL={createObjectURL:()=>'blob:x'};GM_W=null`);
+PL(0,7,7);E('for(let k=0;k<20&&S.gm.moves.length<2;k++)tick()');eq(E('S.gm.moves.length'),2,'Worker 出错：改在本页算，电脑照常落子');
+SOLO({gmFirst:'me'});E(`Worker=class{postMessage(){}};GM_W=null`);PL(0,7,7);E('CLOCK.t+=1000;for(let k=0;k<20&&S.gm.moves.length<2;k++){CLOCK.t+=1000;tick()}');
+eq(E('S.gm.moves.length'),2,'Worker 一直不回：超时后改在本页算');E('Worker=undefined;GM_W=null');
+/* final review I-2: a third player in the room can neither play nor answer for the two at the board */
+DUO();E(`S.players.push(mkPlayer(2,'丙','remote',null,S.cfg,'m'));S.gm.black=0;S.toAct=0`);PL(0,7,7);
+E(`gmAct(P()[2],'resign')`);eq(E('S.phase'),'playing','第三个人认输不算');E(`gmAct(P()[0],'undo')`);E(`gmAct(P()[2],'undoYes')`);ok(E('!!S.gm.undo')&&E('S.gm.moves.length')===1,'第三个人回应悔棋不算');
+E(`gmAct(P()[1],'undoNo')`);ok(E('!S.gm.undo'),'对手本人回应照常');
+/* final review (M-3 regraded): the engine finds nothing (all near points forbidden): any legal point is played, else a draw */
+SOLO({gmFirst:'ai'});E(`var keepT2=gmThink;gmThink=(b,c,o,cb)=>cb({move:null})`);run2(5);eq(E('S.gm.moves.length'),1,'电脑没算出点时随便下一个合法点');E('gmThink=keepT2');
 /* the view: nothing hidden */
 DUO();PL(E('S.toAct'),7,7);eq(E('JSON.stringify(viewFor(1).gm)'),E('JSON.stringify(viewFor(0).gm)'),'两边看到的棋局一样');
 }

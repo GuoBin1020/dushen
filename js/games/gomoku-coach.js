@@ -7,8 +7,8 @@ const gmAdvKey=v=>[v.handNo,v.gm.moves.length,v.me,v.gm.moves[v.gm.moves.length-
 const gmLocalAI=()=>GM_AI||(GM_AI=gmAiModule());
 const gmScoreTxt=s=>s>=5e6?'必胜':s<=-5e6?'必输':String(Math.round(s));
 /* the coach always uses the strongest engine (地狱), whatever the other side plays at */
-function gmAdviseBoard(board,color,forbid,cb){
-  gmThink(board,color,{level:'hell',maxMs:2000,forbid},r=>{
+function gmAdviseBoard(board,color,forbid,cb,maxMs){
+  gmThink(board,color,{level:'hell',maxMs:maxMs||2000,forbid},r=>{
     const ai=gmLocalAI();
     const best=(r.cands||[]).slice(0,3).map(c=>{const e=ai.explain(board,color,c.i,forbid);return {i:c.i,pos:gmPos(c.i),score:c.score,why:e.text,lose:e.lose}});
     const text=r.depth?`往后推算了 ${r.depth} 步（双方各 ${r.depth/2} 步），检查了 ${r.nodes} 个局面，用时 ${(r.ms/1000).toFixed(1)} 秒。`
@@ -34,7 +34,9 @@ function gmRecordMine(v,ev){
   const key=[v.handNo,g.moves.length-1,v.me,g.moves[g.moves.length-2]].join('|');
   const done=r=>{const top=r.best[0],hit=!!top&&top.i===ev.i;if(hit)T0.match++;
     GM_REV={pos:gmPos(ev.i),hit,bad:rv.bad,why:rv.text,best:top?top.pos:'',bestWhy:top?top.why:''};if(V&&isG(V))renderCoach()};
-  if(GM_ADV.key===key&&GM_ADV.r)done(GM_ADV.r);else gmAdviseBoard(before,color,!!v.cfg.gmForbid,done);
+  /* the coach's own answer when it has one (or is working it out now); otherwise a short look, so the review never keeps
+     the other side's reply waiting behind a 2-second job */
+  if(GM_ADV.key===key&&GM_ADV.r)done(GM_ADV.r);else if(GM_ADV.busy===key)GM_ADV.cbs.push(done);else gmAdviseBoard(before,color,!!v.cfg.gmForbid,done,300);
 }
 const gmCoachLive=v=>coachOn()&&LOCAL.mode==='live'&&v.phase==='playing'&&v.gm&&v.toAct===v.me&&!v.gm.over&&!v.gm.undo;
 /* ask for the advice on this position; when it arrives (and the position is still this one) draw it */

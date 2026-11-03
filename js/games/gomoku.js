@@ -80,16 +80,18 @@ function gmWinner(b,i,c,forbid){
    the computer thinks off the page (gmThink), and a late answer is dropped by comparing S.gm.seq.
    ===================================================================== */
 const gmColor=pid=>pid===S.gm.black?1:2;
-const gmOther=pid=>P().find(p=>p.id!==pid).id;
+/* the two at the board: black and white (a third person in the room is neither) */
+const gmOther=pid=>{const g=S.gm;return g&&g.seats?g.seats.find(i=>i!==pid):P().find(p=>p.id!==pid).id};
+const gmSeated=p=>!!p&&!!S.gm&&(S.gm.seats||[]).includes(p.id);
 const gmEv=(p,o)=>{S.ev={seq:(S.ev?S.ev.seq:0)+1,pid:p?p.id:-1,...o}};
 function gmStart(live){
   S.handNo++;S.board=[];S.msg='';clearTimeout(timer);
-  const prev=S.gm,ids=P().map(p=>p.id);let black;
+  const prev=S.gm,ids=P().slice(0,2).map(p=>p.id);let black;
   if(!prev){const bot=P().find(isBot);black=bot?(S.cfg.gmFirst==='ai'?bot.id:P().find(p=>!isBot(p)).id):ids[Math.random()<0.5?0:1]}
   else if(prev.over&&prev.over.winner>=0)black=gmOther(prev.over.winner);
   else black=gmOther(prev.black);
   P().forEach(p=>{p.lastAction=''});
-  S.gm={board:new Array(225).fill(0),moves:[],black,over:null,undo:null,undoLeft:Object.fromEntries(ids.map(i=>[i,3])),seq:0,last:-1};
+  S.gm={board:new Array(225).fill(0),moves:[],black,seats:ids,over:null,undo:null,undoLeft:Object.fromEntries(ids.map(i=>[i,3])),seq:0,last:-1};
   Object.assign(S,{phase:'playing',toAct:black,street:'gm',currentBet:0,minRaise:0,raises:0,preRaisers:[],sbId:-1,bbId:-1});
   log(`第 ${S.handNo} 盘，${P()[black].name} 执黑先下`,'sep');
   gmProceed();
@@ -109,21 +111,26 @@ function gmProceed(resume){
 /* the engine off the page: a Worker built from the rule and engine sources (works from file:// and the one-file build);
    no Worker, or it fails: the same search here and now */
 let GM_AI=null,GM_W=null,GM_WID=0;const GM_CB={};
+const gmSearchHere=(board,color,opt)=>(GM_AI||(GM_AI=gmAiModule())).search(board,color,opt);
+/* the Worker failed: every request still waiting is answered here instead */
+function gmWorkerDown(){GM_W=false;for(const id of Object.keys(GM_CB)){const q=GM_CB[id];delete GM_CB[id];q.cb(gmSearchHere(q.board,q.color,q.opt))}}
 function gmWorker(){
   if(GM_W!==null)return GM_W;
   try{
     const src=`'use strict';const GM_DIRS=${JSON.stringify(GM_DIRS)};${[gmRun,gmFive,gmFivePoints,gmFours,gmForbid,gmRealThree,gmAiModule].map(f=>f.toString()).join('\n')}
       const AI=gmAiModule();onmessage=e=>{const d=e.data;postMessage({id:d.id,r:AI.search(d.board,d.color,d.opt)})};`;
     GM_W=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
-    GM_W.onmessage=e=>{const cb=GM_CB[e.data.id];delete GM_CB[e.data.id];if(cb)cb(e.data.r)};
-    GM_W.onerror=()=>{GM_W=false};
+    GM_W.onmessage=e=>{const q=GM_CB[e.data.id];delete GM_CB[e.data.id];if(q)q.cb(e.data.r)};
+    GM_W.onerror=gmWorkerDown;
   }catch(e){GM_W=false}
   return GM_W;
 }
 function gmThink(board,color,opt,cb){
   const w=typeof Worker!=='undefined'&&typeof Blob!=='undefined'&&typeof URL!=='undefined'?gmWorker():false;
-  if(w){const id=++GM_WID;GM_CB[id]=cb;w.postMessage({id,board:board.slice(),color,opt});return}
-  if(!GM_AI)GM_AI=gmAiModule();cb(GM_AI.search(board,color,opt));
+  if(w){const id=++GM_WID;GM_CB[id]={cb,board:board.slice(),color,opt};w.postMessage({id,board:board.slice(),color,opt});
+    /* a Worker that never answers (blocked, stuck): give up on it after its time plus 3 s */
+    setTimeout(()=>{if(GM_CB[id])gmWorkerDown()},(opt.maxMs||2000)+3000);return}
+  cb(gmSearchHere(board,color,opt));
 }
 /* a computer seat, or 托管 (the coach's own engine); the answer counts only if nothing moved in between */
 function gmMoveFor(p,opt){
@@ -131,7 +138,12 @@ function gmMoveFor(p,opt){
   const mark=g.seq;g.thinking=p.id;
   gmThink(g.board,gmColor(p.id),{forbid:!!S.cfg.gmForbid,...opt},r=>{
     if(!S||S.gm!==g||g.seq!==mark||g.over||S.toAct!==p.id||g.undo)return;
-    g.thinking=-1;if(r&&r.move!=null)gmPlace(p,r.move);
+    g.thinking=-1;
+    /* nothing usable (every near point forbidden for black): any legal point, or a draw when there is none */
+    let mv=r&&r.move;const c=gmColor(p.id),fb=!!S.cfg.gmForbid,okAt=i=>i!=null&&!g.board[i]&&!(c===1&&fb&&gmForbid(g.board,i));
+    if(!okAt(mv)){mv=null;for(let i=0;i<225&&mv==null;i++)if(okAt(i))mv=i}
+    if(mv==null)return gmEnd(-1,'draw',[]);
+    gmPlace(p,mv);
   });
 }
 const gmBotTurn=p=>gmMoveFor(p,{level:S.cfg.gmLevel||'normal'});
@@ -182,14 +194,14 @@ function gmUndo(p){
   gmProceed();
 }
 function gmUndoAnswer(p,yes){
-  const g=S.gm,u=g.undo;if(!u||p.id===u.by)return sync();
+  const g=S.gm,u=g.undo;if(!u||p.id!==gmOther(u.by))return sync();
   g.undo=null;
   if(yes){const i=g.moves.pop();g.board[i]=0;g.last=g.moves.length?g.moves[g.moves.length-1]:-1;S.toAct=u.by;
     log(`${p.name} 同意悔棋`);gmEv(p,{type:'undoYes'});return gmProceed()}
   log(`${p.name} 不同意悔棋`);gmEv(p,{type:'undoNo'});gmProceed(u.left);
 }
 function gmAct(p,type,arg){
-  const g=S.gm;if(!g||S.phase!=='playing'||g.over||!p)return sync();
+  const g=S.gm;if(!g||S.phase!=='playing'||g.over||!gmSeated(p))return sync();
   if(type==='place')return gmPlace(p,arg);
   if(type==='undo')return gmUndo(p);
   if(type==='undoYes'||type==='undoNo')return gmUndoAnswer(p,type==='undoYes');
@@ -198,7 +210,7 @@ function gmAct(p,type,arg){
 }
 /* everything is public in 五子棋 */
 function gmPublic(g){
-  return {board:g.board.slice(),moves:g.moves.slice(),black:g.black,over:g.over?{...g.over,line:g.over.line.slice()}:null,last:g.last,
+  return {board:g.board.slice(),moves:g.moves.slice(),black:g.black,seats:(g.seats||[]).slice(),over:g.over?{...g.over,line:g.over.line.slice()}:null,last:g.last,
     undo:g.undo?{by:g.undo.by,left:Math.max(0,g.undo.until-Date.now())}:null,undoLeft:{...g.undoLeft},thinking:g.thinking!=null?g.thinking:-1};
 }
 /* the rules panel */
@@ -263,7 +275,7 @@ function gmRenderTable(){
   if(!v.gm){T.innerHTML='';return}
   if(GM_SEL!=null&&(v.toAct!==v.me||v.gm.board[GM_SEL]))GM_SEL=null;
   /* the other player first (top / left), me second (bottom / right) */
-  const ps=[...v.players].sort((a,b)=>(a.id===v.me)-(b.id===v.me));
+  const ps=v.players.filter(p=>!v.gm.seats||v.gm.seats.includes(p.id)).sort((a,b)=>(a.id===v.me)-(b.id===v.me));
   T.innerHTML=`${ps.map(p=>gmSeatHTML(v,p)).join('')}<div class="gm-board">${gmBoardSVG(v)}</div>`;
   T.dataset.n='2';
   gmLayout();
