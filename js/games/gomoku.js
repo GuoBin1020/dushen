@@ -201,3 +201,21 @@ function gmPublic(g){
   return {board:g.board.slice(),moves:g.moves.slice(),black:g.black,over:g.over?{...g.over,line:g.over.line.slice()}:null,last:g.last,
     undo:g.undo?{by:g.undo.by,left:Math.max(0,g.undo.until-Date.now())}:null,undoLeft:{...g.undoLeft},thinking:g.thinking!=null?g.thinking:-1};
 }
+/* the rules panel */
+function gmRulesHTML(){
+  return `<h2>五子棋规则</h2><p class="lead">15×15 的棋盘，黑棋先下，黑白轮流在交叉点上落子。横、竖、斜任意方向先连成五个同色棋子的一方赢。</p>
+  <h3>一盘棋</h3>
+  <ul><li>落下的棋子不能移动。点一个空位先出现预览，再点一次才落下。</li>
+  <li>棋盘下满还没人连成五个，算和棋。</li>
+  <li>不开禁手时，连成六个或更多也算赢。</li>
+  <li>可以认输，认输算对方赢一盘。</li></ul>
+  <h3>谁执黑</h3>
+  <ul><li>第一盘：单机时开局前自己选；联机时随机。</li><li>之后每盘：上一盘输的一方执黑；和棋就交换黑白。</li></ul>
+  <h3>黑棋禁手（开关）</h3>
+  <p>黑棋先下优势很大，打开「黑棋禁手」后黑棋不能下这三种点：</p>
+  <dl class="terms"><div><dt>三三：</dt><dd style="display:inline">一步同时形成两个活三。</dd></div><div><dt>四四：</dt><dd style="display:inline">一步同时形成两个四。</dd></div><div><dt>长连：</dt><dd style="display:inline">连成六个或更多。</dd></div></dl>
+  <p class="muted" style="font-size:12.5px">一步同时连成五个照样算赢，不算禁手。白棋没有禁手。下到禁手点时会提示，这一步不算。</p>
+  <h3>悔棋</h3>
+  <ul><li>单机：轮到你时随时可以悔棋，连同电脑的应手一起撤回。</li><li>联机：自己刚下完、对方还没落子时可以申请，对方同意才悔；15 秒不回应算不同意；每人每盘最多 3 次。</li></ul>
+  <h3>计分</h3><p>不用筹码，只记每个人赢、输、和了几盘，结算时显示比分。</p>`;
+}

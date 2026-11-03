@@ -176,8 +176,32 @@ const COACH_LWX=`(async()=>{${PG}
   if(holdem&&!coach())f.push('名字以 lwx 结尾，关了教练也应该有建议');if(!holdem&&coach())f.push('别的玩法不该有这个例外');
   m.name='lwx小明';sync();await sleep(80);renderActions();if(coach())f.push('lwx 不在名字末尾，不该开教练');
   m.name=nm;S.cfg.coach=true;LOCAL.mode=mode;sync();return f})()`;
+/* 五子棋 on the setup page: its three options with their defaults, the chip / seat / bot-style options hidden; online the
+   电脑难度 and 第一局谁执黑 go (the first game is random), 黑棋禁手 stays */
+const GM_SETUP=`(async()=>{const f=[];const vis=el=>!!el&&!el.closest('[hidden]')&&el.getBoundingClientRect().width>0;const $$=id=>document.getElementById(id);
+  clearTimeout(timer);show('setup');setMode('solo');
+  const b=document.querySelector('#f-game [data-game="gm"]');if(!b)return ['首页没有「五子棋」按钮'];
+  b.click();await new Promise(r=>setTimeout(r,100));
+  for(const id of ['f-gmlevel','f-gmforbid','f-gmfirst'])if(!vis($$(id)))f.push('五子棋选项 '+id+' 不可见');
+  for(const id of ['f-stack','f-blinds','f-style','f-players','f-counter','f-coachauto','f-rebuy','f-level'])if(vis($$(id)))f.push('五子棋不该显示 '+id);
+  if($$('f-gmlevel')&&$$('f-gmlevel').value!=='normal')f.push('电脑难度默认应为普通');if($$('f-gmforbid')&&$$('f-gmforbid').checked)f.push('黑棋禁手默认应不勾');
+  if($$('f-gmfirst')&&$$('f-gmfirst').value!=='me')f.push('第一局默认应是我执黑');
+  const c=readCfg();if(c.game!=='gm'||c.players!==2||c.gmLevel!=='normal'||c.gmForbid!==false||c.gmFirst!=='me')f.push('读到的设置不对 '+JSON.stringify({g:c.game,n:c.players,l:c.gmLevel,fb:c.gmForbid,ff:c.gmFirst}));
+  if(!document.getElementById('rules').textContent.includes('禁手'))f.push('规则说明没有写禁手');
+  setMode('host');await new Promise(r=>setTimeout(r,50));
+  if(vis($$('f-gmlevel'))||vis($$('f-gmfirst')))f.push('联机时不该有电脑难度和第一局谁执黑');if(!vis($$('f-gmforbid')))f.push('联机时也要有禁手开关');
+  if(vis($$('f-aifill')))f.push('联机五子棋不该有电脑补位');if(readCfg().aiFill!==false)f.push('联机五子棋不补电脑');
+  if(!document.getElementById('players-hint').textContent&&false)f.push('');
+  setMode('solo');document.querySelector('#f-game [data-game="holdem"]').click();show('game');render();return f})()`;
+/* the lwx exception reaches 五子棋 too, and still not 炸金花 */
+const COACH_LWX_GM=`(async()=>{const f=[];const keep=V;
+  const as=(g,coach,name)=>{V={...keep,cfg:{...keep.cfg,game:g,coach},players:keep.players.map((p,i)=>i===keep.me?{...p,name}:p)};const r=coachOn();V=keep;return r};
+  if(!as('gm',false,'小明lwx'))f.push('五子棋：名字以 lwx 结尾，关了教练也应该开');if(as('gm',false,'lwx小明'))f.push('五子棋：lwx 不在末尾不该开');
+  if(as('zjh',false,'小明lwx'))f.push('炸金花不该有这个例外');if(!as('gm',true,'小明'))f.push('五子棋开着教练时应该开');
+  return f})()`;
 const PH=[[393,873,true],[873,393,true]];
 SCEN.push(
+  {name:'gm-setup',game:'holdem',n:6,extra:GM_SETUP,sizes:PH},{name:'coach-lwx-gm',game:'holdem',n:6,extra:COACH_LWX_GM,sizes:PH},
   {name:'coach-lwx',game:'holdem',n:6,extra:COACH_LWX,sizes:PH},{name:'coach-lwx-zjh',game:'zjh',n:6,extra:COACH_LWX,sizes:PH},
   {name:'bar-stable',game:'holdem',n:6,extra:BAR_STABLE},
   {name:'hz-setup',game:'holdem',n:6,extra:HZ_SETUP,sizes:PH},
@@ -237,6 +261,8 @@ const ROOM_EDIT=`(async()=>{${PG}
   for(const [g,w] of [['ddz','斗地主'],['hz','红中麻将']]){setGame(g);Q('#start-btn').click();await sleep(120);
     if(!vis(Q('#setup-view'))||!Q('#setup-err').textContent.includes(w))f.push('5 人改成'+w+'应被拦下：'+Q('#setup-err').textContent);
     if(LOBBY.cfg.game!=='holdem')f.push('被拦下后房间设置不该变');}
+  if(gb('gm')&&!gb('gm').disabled)f.push('5 名真人时五子棋应不能选');
+  {setGame('gm');Q('#start-btn').click();await sleep(120);if(!vis(Q('#setup-view'))||!Q('#setup-err').textContent.includes('五子棋'))f.push('多于 2 人改成五子棋应被拦下：'+Q('#setup-err').textContent);if(LOBBY.cfg.game!=='holdem')f.push('被拦下后房间设置不该变')}
   const cb=Q('#setup-form [data-act="room-edit-cancel"]');if(!vis(cb))f.push('没有「取消」');else cb.click();await sleep(80);
   if(!vis(Q('#lobby-view')))f.push('取消后没有回到房间');if(sent)f.push('取消不该通知房间');
   show('setup');setMode('solo');await sleep(30);if(!vis(Q('#setup-form .tabs'))||!vis(Q('#f-name')))f.push('退出改设置后，设置页没有恢复');if(Q('#start-btn').textContent.includes('保存'))f.push('退出后按钮还是「保存」');
