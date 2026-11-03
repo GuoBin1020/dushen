@@ -366,6 +366,7 @@ function trackStats(p,type,toCall){
   }
 }
 function proceed(){
+  if(isG(S))return gmProceed();
   if(isM(S))return hzProceed();
   if(isZ(S))return zProceed();
   if(isD(S))return ddProceed();

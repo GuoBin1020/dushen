@@ -1,6 +1,6 @@
 # 赌神智慧树
 
-德州扑克、炸金花和斗地主练习桌：单机对电脑，或互联网 / 局域网联机。只用虚拟筹码，仅供娱乐与学习。
+德州扑克、炸金花、斗地主、红中麻将和五子棋练习桌：单机对电脑，或互联网 / 局域网联机。只用虚拟筹码（五子棋只记胜负），仅供娱乐与学习。
 
 ## 目录
 
@@ -13,7 +13,12 @@ js/games/holdem.js       德州：牌型、胜率、GTO 翻前范围、对手范
 js/games/zjh.js          炸金花：牌型、闷牌/看牌、比牌、电脑、教练、画像
 js/games/doudizhu.js     斗地主：牌型、出牌枚举、拆牌、抢地主、结算、电脑、牌局流程、牌桌和手牌、联机座位交接、赖子模式
 js/games/doudizhu-coach.js 斗地主教练：记牌、出法打分（电脑也用它）、建议、点评、教练面板、提示、结算页
-js/engine.js             三种游戏共用的牌局：座位、筹码、底池、结算、统计、每个座位的视图
+js/games/hongzhong.js    红中麻将：牌、胡牌和向听数、碰杠、算分、抓鸟、电脑、牌局流程、牌桌
+js/games/hongzhong-coach.js 红中麻将教练：出牌建议、听牌、碰杠建议、记牌器
+js/games/gomoku.js       五子棋：胜负、黑棋禁手（连珠规则）、棋局流程、悔棋和认输、电脑调度（Web Worker）、棋盘
+js/games/gomoku-ai.js    五子棋棋力引擎：棋型评分、带预算的搜索、连续冲四、四档难度（教练也用它）
+js/games/gomoku-coach.js 五子棋教练：前 3 个候选点和理由、棋盘标记、教练面板、复盘、结算页
+js/engine.js             各玩法共用的牌局：座位、筹码、底池、结算、统计、每个座位的视图
 js/net-core.js           联机的公共部分：身份 ID、一房间一标签页、房间存档、离开房间
 js/card.js               卡密：验证、本机保存、防止调回时间、解开加密的联机代码、输入卡密的弹窗
 js/net-online.enc.js     联机核心（加密）：PeerJS、局域网连接码、房主和客人
@@ -29,6 +34,7 @@ tools/bundle.py          打包成单个 HTML 文件
 tools/seal.mjs           作者用：把联机核心加密成 js/net-online.enc.js
 tools/card-test.js       卡密测试：node tools/card-test.js
 tools/ddz-test.js        斗地主规则和牌局流程测试：node tools/ddz-test.js
+tools/gm-test.js         五子棋规则、棋力（四档对下）、流程、悔棋、教练测试：node tools/gm-test.js（GM_FAST=1 跳过对下）
 LICENSE                  使用许可：仅限非商业娱乐学习，禁止赌博和收费
 ```
 
