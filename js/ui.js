@@ -12,6 +12,8 @@ const betRadius=narrow=>isZ(V)&&narrow?[19,22]:narrow?[22,28]:isLandPhone()?[27,
 const slotOf=(pid,v=V)=>{const n=v.players.length;return isD(v)||isM(v)?(v.me-pid+n)%n:(pid-v.me+n)%n};
 function seatPoint(pid,kind){
   const tbl=$('#table'),wrap=$('.table-wrap');if(!tbl||!wrap||!V)return null;
+  /* 五子棋 lays its two seats out itself: the seat's own box */
+  if(isG(V)){const el=tbl.querySelector(`.seat[data-pid="${pid}"]`),wr=wrap.getBoundingClientRect();if(!el)return null;const r=el.getBoundingClientRect();return {x:r.left+r.width/2-wr.left,y:r.top+r.height/2-wr.top}}
   const n=V.players.length,slot=slotOf(pid),o=tableOrient();
   const p=kind==='center'?centerXY(o):kind==='bet'?BETPT[pid]||betXY(slot,n,o):seatXY(slot,n,o);
   const tr=tbl.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
@@ -84,7 +86,8 @@ function fxDiff(prev,v){
   const ev=v.ev;
   if(ev&&(!prev||!prev.ev||prev.ev.seq!==ev.seq)){
     const p=v.players[ev.pid],g=p?p.gender:'m',from=seatPoint(ev.pid,'seat'),to=seatPoint(ev.pid,'bet');
-    if(isM(v))hzFx(v,ev);
+    if(isG(v))gmFx(v,ev);
+    else if(isM(v))hzFx(v,ev);
     else if(isD(v))ddFx(v,ev);
     else if(ev.type==='look'){SFX.flip();say('看牌',g)}
     else if(ev.type==='compare'){say('比牌',g);flyChips(from,to,3,0,ev.pid);compareFx(ev)}
@@ -94,7 +97,7 @@ function fxDiff(prev,v){
     else if(ev.type==='check'){SFX.check();say('过牌',g)}
     else if(ev.type==='fold'){SFX.fold();say('弃牌',g)}
   }
-  if(same&&v.phase==='handover'&&prev.phase!=='handover'){
+  if(same&&v.phase==='handover'&&prev.phase!=='handover'&&!isG(v)){
     const ws=v.players.filter(p=>p.won>0);
     ws.forEach((w,i)=>flyChips(seatPoint(w.id,'center'),seatPoint(w.id,'seat'),6,250+i*120,w.id));
     setTimeout(()=>ws.some(w=>w.id===v.me)?SFX.win():SFX.pot(),300);
@@ -178,7 +181,7 @@ function exploitHTML(a){
 }
 function humanAct(type,to){
   /* 红中麻将: a discard on my turn, or an answer to a claim on someone else's */
-  if(isM(V)){if(NET.role==='guest'){NET.host.send({t:'act',type,to,hand:V.handNo});render()}else act(P()[0],type,to);return}
+  if(isM(V)||isG(V)){if(NET.role==='guest'){NET.host.send({t:'act',type,to,hand:V.handNo});render()}else act(P()[0],type,to);return}
   if(!myTurn())return;
   if(isD(V)){ddRecord(type,to);
     /* a play goes out as {cards, as}: the cards, and which 赖子 reading was picked */
@@ -254,6 +257,8 @@ const bubKey=()=>'dushen-bubble-'+(innerWidth>innerHeight?'land':'port');
 function bubDefault(){
   /* at the table: upright, the left edge between the lowest side seat and mine; sideways, the bottom-right corner beside the hand.
      Elsewhere the bottom-right corner. */
+  /* 五子棋: upright beside my seat under the board, sideways at the foot of the left-hand column */
+  if(!$('#game-view').hidden&&V&&isG(V)){const s=document.querySelector('#table .gm-seat.me');if(tableOrient()==='port')return {side:'r',y:s?s.getBoundingClientRect().top+s.offsetHeight/2:innerHeight*0.75};return {side:'l',y:innerHeight-70}}
   if(!$('#game-view').hidden&&tableOrient()==='port')return {side:'l',y:innerHeight*0.6};
   return {side:'r',y:innerHeight-(!$('#game-view').hidden?110:80)};
 }
@@ -367,7 +372,7 @@ function renderCorners(){
   $('#corner-fs').innerHTML=fsCorner();fsTip();
   /* 红中麻将's wall count: sideways in the corner, upright a row under the tile counter (the corner has room for 底分 only, like 斗地主) */
   const port=tableOrient()==='port',wall=isM(V)&&V.hz&&V.phase==='playing'?`剩 ${V.hz.wallLeft} 张`:'';
-  const info=isM(V)?(port?`底分 ${fmt(V.cfg.base)}`:`红中麻将 · 底分 ${fmt(V.cfg.base)}${wall?` · ${wall}`:''}`):isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
+  const info=isG(V)?`五子棋 · 第 ${V.handNo} 盘${V.cfg.gmForbid&&!port?' · 黑棋禁手':''}`:isM(V)?(port?`底分 ${fmt(V.cfg.base)}`:`红中麻将 · 底分 ${fmt(V.cfg.base)}${wall?` · ${wall}`:''}`):isD(V)?`底分 ${fmt(V.cfg.base)}${V.dd?` · ×${V.dd.mult}`:''}`:isZ(V)?`底注 ${fmt(V.cfg.ante)}`:`盲注 ${fmt(V.cfg.sb)}/${fmt(V.cfg.bb)}`;
   /* 红中麻将: the strip only upright (sideways the far seat sits where it would go; 🃏 opens the coach panel's counter) */
   const hzc=isM(V)&&counterOn()&&!!V.hz,cnt=isD(V)&&counterOn()&&!!V.dd||hzc&&port;
   $('#corner-r').innerHTML=`<span class="cinfo">${info}</span>${cnt||hzc?`<button type="button" class="cbtn" data-act="ddcounter" aria-label="记牌器" aria-pressed="${DCOUNT}"><span class="ic" aria-hidden="true">🃏</span><span class="lb">记牌器</span></button>`:''}`;
@@ -378,8 +383,8 @@ function renderCorners(){
   $('#menu').innerHTML=`<h2>菜单</h2>
    <div class="menu-kv">
     <div class="kv"><span class="k">模式</span><span class="v">${esc(tag)}</span></div>
-    <div class="kv"><span class="k">${isD(V)||isM(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
-    <div class="kv"><span class="k">${isM(V)?'红中麻将 · 底分':isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isD(V)||isM(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
+    <div class="kv"><span class="k">${isG(V)?'盘数':isD(V)||isM(V)?'局数':'手数'}</span><span class="v num">${V.handNo}</span></div>
+    <div class="kv"><span class="k">${isG(V)?'五子棋 · 比分':isM(V)?'红中麻将 · 底分':isD(V)?'斗地主 · 底分':isZ(V)?'炸金花 · 底注':'德州 · 盲注'}</span><span class="v num">${isG(V)?`${me().gw||0} 胜 ${me().gl||0} 负 ${me().gd||0} 和`:isD(V)||isM(V)?V.cfg.base:isZ(V)?V.cfg.ante:V.cfg.sb+'/'+V.cfg.bb}</span></div>
     <div class="kv"><span class="k">我的盈亏</span><span class="v num ${pr>0?'pos':pr<0?'neg':''}">${sgn(pr)}</span></div>
    </div>
    <div class="menu-row"><span class="k">声音</span><span class="toggle" role="group" aria-label="声音"><button type="button" data-snd="sfx" aria-pressed="${LOCAL.sfx}">音效</button><button type="button" data-snd="voice" aria-pressed="${LOCAL.voice}">语音</button><button type="button" data-snd="vmsg" aria-pressed="${LOCAL.vmsg}" title="收到语音消息时自动播放">自动播放语音</button></span></div>
@@ -403,7 +408,7 @@ function fsCorner(){const l=fsLabel();return l?`<button type="button" class="cbt
 let FS_TIP_MS=6000;const FS_TIP={shown:false,until:0,timer:0};
 function fsTip(){
   const b=$('#corner-fs .cbtn');let t=$('#fs-tip');
-  if(!FS_TIP.shown&&b&&(isD(V)||isM(V))&&isTouch()&&!fsEl()&&!isStandalone()){
+  if(!FS_TIP.shown&&b&&(isD(V)||isM(V)||isG(V))&&isTouch()&&!fsEl()&&!isStandalone()){
     FS_TIP.shown=true;FS_TIP.until=Date.now()+FS_TIP_MS;b.classList.add('fs-hi');
     clearTimeout(FS_TIP.timer);FS_TIP.timer=setTimeout(fsTipOff,FS_TIP_MS);
   }
@@ -476,6 +481,7 @@ function tableFrame(o,g){const gv=$('#game-view');gv.dataset.orient=o;gv.dataset
 /* --s lets the seat's text grow back what the scale takes away, so far seats stay readable */
 const seatStyle=s=>`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;transform:translate(-50%,-50%) scale(${s.s});--s:${s.s}`;
 function renderTable(){
+  if(isG(V)){BETPT={};return gmRenderTable()}
   if(isM(V)){BETPT={};return hzRenderTable()}
   if(isD(V)){BETPT={};return ddRenderTable()}
   const hand=$('#dd-hand');if(hand)hand.hidden=true;
@@ -596,12 +602,16 @@ function renderActions(){
     const take=isD(V)&&NET.role==='host'?V.players.filter(p=>p.kind==='remote'&&p.stack<=0).map(p=>`<button class="btn b-green" data-act="ddtakeover" data-pid="${p.id}">让电脑顶上 ${esc(p.name)}</button>`).join(''):'';
     el.innerHTML=actWait(esc(V.msg),take);return;
   }
+  if(V.phase==='handover'&&isG(V)){
+    el.innerHTML=actWait(`${gmOverText(V)}${V.cfg.auto?'即将开始下一盘…':isHost?'':'等待房主开始下一盘…'}`,isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一盘 ▶</button>':'');return gmLayout();
+  }
   if(V.phase==='handover'){
     const last=T.hist[T.hist.length-1];const d=last&&last.hand===V.handNo?last.delta:0;
     el.innerHTML=actWait(`这手你 <b class="${d>0?'pos':d<0?'neg':''}">${sgn(d)}</b>。${V.cfg.auto?'即将自动发下一手…':isHost?'':'等待房主发下一手…'}`,
       isHost&&!V.cfg.auto?'<button class="btn b-green" data-act="next">下一手 ▶</button>':'');return;
   }
-  /* 红中麻将 asks for 吃 / 碰 / 杠 / 胡 on other players' turns too */
+  /* 红中麻将 asks for 吃 / 碰 / 杠 / 胡 on other players' turns too; 五子棋 shows 悔棋 / 认输 on both */
+  if(isG(V))return gmRenderActions(el,m);
   if(isM(V))return hzRenderActions(el,m);
   if(!myTurn()&&isD(V)){el.innerHTML=actWait(!m.inHand?'你这局没有入座，下一局开始参与。':ddWaitText());return}
   if(!myTurn()){
@@ -1144,6 +1154,10 @@ document.addEventListener('click',async e=>{
   else if(a==='hzpeng')humanAct('peng');
   else if(a==='hzmgang')humanAct('mgang');
   else if(a==='hzpass')humanAct('pass');
+  else if(a==='gmundo')humanAct('undo');
+  else if(a==='gmyes'||a==='gmno')humanAct(a==='gmyes'?'undoYes':'undoNo');
+  /* 认输 asks once more: a second tap within 3 s */
+  else if(a==='gmresign'){if(GM_RESIGN>Date.now()){GM_RESIGN=0;humanAct('resign')}else{GM_RESIGN=Date.now()+3000;renderActions();setTimeout(()=>{if(V&&isG(V))renderActions()},3100)}}
   else if(a==='hzgang')humanAct(b.dataset.t,+b.dataset.k);
   else if(a==='dddbl')humanAct('double',+b.dataset.v);
   else if(a==='ddplay'){const st=ddPickState();if(st.cls){const r=st.readings[+b.dataset.as||0]||st.cls,ids=[...DSEL];DSEL=new Set();humanAct('play',{cards:ids,as:{type:r.type,main:r.main,len:r.len}})}}
@@ -1176,6 +1190,7 @@ document.addEventListener('click',async e=>{
 });
 /* 红中麻将 hand: a tap picks a tile, a second tap on it discards */
 document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('#dd-hand [data-hz]');if(t&&V&&isM(V))hzTap(+t.dataset.hz)});
+document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('#table [data-gi]');if(t&&V&&isG(V))gmTap(+t.dataset.gi)});
 /* 斗地主 hand: a tap picks or unpicks a card; pressing and sliding across cards sets each one like the first */
 let DDRAG=null;
 document.addEventListener('pointerdown',e=>{

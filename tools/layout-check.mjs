@@ -215,6 +215,55 @@ SCEN.push(
   {name:'coach-rec-zjh',game:'zjh',n:6,extra:COACH_REC,sizes:PH},
   {name:'coach-rec-ddz',game:'ddz',n:3,extra:COACH_REC,sizes:PH}
 );
+/* ---------- 五子棋 board ---------- */
+const GMQ=`const G=()=>S.gm,cell=i=>Q('#table [data-gi="'+i+'"]'),tap=i=>{const c=cell(i);if(c)c.dispatchEvent(new MouseEvent('click',{bubbles:true}))};
+  const ov=(a,b)=>a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5&&a.y<b.y+b.h-0.5&&b.y<a.y+a.h-0.5;`;
+/* gm-board: a square board fully on screen, clear of the corner buttons, the seats, the buttons and the chat button;
+   all 225 points there and at least 18px apart */
+const GM_BOARD=`(async()=>{${PG}${GMQ}
+  const bd=Q('#table .gm-board');if(!vis(bd))return ['没有棋盘'];const a=R(bd);
+  if(Math.abs(a.w-a.h)>1)f.push('棋盘不是正方形 '+a.w.toFixed(0)+'×'+a.h.toFixed(0));
+  if(a.x<-0.5||a.y<-0.5||a.x+a.w>innerWidth+0.5||a.y+a.h>innerHeight+0.5)f.push('棋盘超出屏幕');
+  document.querySelectorAll('.corner > *,#table .seat,#actions .act-bar,#actions .act-hint,#chat-bubble').forEach(e=>{if(vis(e)&&ov(a,R(e)))f.push('棋盘被 '+((e.id||e.className)+'').split(' ')[0]+' 挡住')});
+  if(document.querySelectorAll('#table [data-gi]').length!==225)f.push('交叉点不是 225 个');
+  const p0=R(cell(0)),p1=R(cell(1)),gap=(p1.x+p1.w/2)-(p0.x+p0.w/2);if(gap<18)f.push('交叉点间距只有 '+gap.toFixed(1)+'px');
+  const s=[...document.querySelectorAll('#table .seat')].filter(vis);if(s.length!==2)f.push('应有 2 个座位信息栏');
+  if(s.length===2&&ov(R(s[0]),R(s[1])))f.push('两个信息栏重叠');
+  return f})()`;
+/* gm-preview: the first tap shows a preview and places nothing; the second on the same point places; a tap elsewhere moves it */
+const GM_PREVIEW=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);const n0=G().moves.length;tap(112);await sleep(60);
+  if(!vis(Q('#table .gm-ghost')))f.push('点一次没有预览子');if(G().moves.length!==n0)f.push('点一次就落子了');
+  tap(113);await sleep(60);const gh=Q('#table .gm-ghost');if(!gh||gh.dataset.gi!=='113')f.push('点别处预览没有移动');
+  tap(113);await sleep(80);if(G().moves.length!==n0+1||G().board[113]===0)f.push('再点同一点没有落子');
+  if(vis(Q('#table .gm-ghost')))f.push('落子后预览还在');
+  return f})()`;
+/* gm-win: five in a row: the five are lit and the result is shown */
+const GM_WIN=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);const g=G(),c=gmColor(0);[106,107,108,109].forEach(i=>{g.board[i]=c;g.moves.push(i)});S.toAct=0;sync();await sleep(60);
+  gmAct(P()[0],'place',110);await sleep(120);
+  if(S.phase!=='handover')f.push('成五没有结束');
+  const w=[...document.querySelectorAll('#table .gm-win')].filter(vis);if(w.length!==5)f.push('高亮的连线有 '+w.length+' 个');
+  if(!(Q('#actions')||{textContent:''}).textContent.includes('赢'))f.push('没有显示结果');
+  if(!(Q('#actions')||{textContent:''}).textContent.includes('下一盘'))f.push('没有「下一盘」');
+  return f})()`;
+/* gm-undo-dialog: the other player asks to take back; my dialog is on screen, does not cover their last stone, and 不同意 works */
+const GM_UNDO=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);const g=G();P()[1].kind='remote';P()[1].connected=true;const oc=gmColor(1);g.board[96]=oc;g.moves.push(96);g.last=96;S.toAct=0;
+  g.undo={by:1,until:Date.now()+15000,left:0};sync();await sleep(80);
+  const yes=Q('#actions [data-act="gmyes"]'),no=Q('#actions [data-act="gmno"]');
+  if(!vis(yes)||!vis(no))f.push('没有同意 / 不同意按钮');
+  else{const r=R(yes);if(r.x<0||r.y<0||r.x+r.w>innerWidth+0.5||r.y+r.h>innerHeight+0.5)f.push('按钮超出屏幕');
+    const last=Q('#table .gm-last');if(vis(last))document.querySelectorAll('#actions .act-bar,#actions .act-hint').forEach(e=>{if(vis(e)&&ov(R(e),R(last)))f.push('对话框挡住了最后一步')});
+    if(!(Q('#actions').textContent.includes('悔棋')))f.push('对话框没有说明是悔棋');
+    no.click();await sleep(80);if(G().undo)f.push('点「不同意」没有生效');}
+  P()[1].kind='ai';return f})()`;
+/* gm-forbid-tip: forbidden rule on, black taps a 三三 point twice: a tip names it and nothing is placed */
+const GM_FORBID=`(async()=>{${PG}${GMQ}
+  clearTimeout(timer);S.cfg.gmForbid=true;const g=G();g.black=0;S.toAct=0;[[6,7],[8,7],[7,6],[7,8]].forEach(([x,y])=>{g.board[y*15+x]=1});[16,28,196,208].forEach(i=>{g.board[i]=2});sync();await sleep(60);
+  tap(112);await sleep(40);tap(112);await sleep(150);
+  if(G().board[112])f.push('禁手点被下了');const t=Q('#toast');if(!vis(t)||!t.textContent.includes('禁手'))f.push('没有禁手提示');
+  S.cfg.gmForbid=false;return f})()`;
 /* the 记牌器 switch: its own option for 斗地主 and 红中 (on by default), apart from the coach */
 const COUNTER_CFG=`(async()=>{${PG}
   const cells=()=>[...document.querySelectorAll('#dd-strip .dd-scells,#dd-strip .hz-counter')].filter(vis).length;
@@ -313,6 +362,8 @@ SCEN.push(
   {name:'counter-cfg-ddz',game:'ddz',n:3,extra:COUNTER_CFG,sizes:PH},{name:'counter-cfg-hz',game:'hz',n:4,extra:COUNTER_CFG,sizes:PH},
   {name:'room-edit',game:'holdem',n:6,extra:ROOM_EDIT,sizes:PH},
   {name:'level-setup',game:'holdem',n:6,extra:LEVEL_SETUP,sizes:PH},
+  {name:'gm-board',game:'gm',n:2,extra:GM_BOARD},{name:'gm-preview',game:'gm',n:2,extra:GM_PREVIEW},{name:'gm-win',game:'gm',n:2,extra:GM_WIN},
+  {name:'gm-undo-dialog',game:'gm',n:2,extra:GM_UNDO},{name:'gm-forbid-tip',game:'gm',n:2,extra:GM_FORBID,sizes:PH},{name:'bubble-on-gm',game:'gm',n:2,extra:BUBBLE_ON},
   {name:'bubble-on',game:'holdem',n:6,extra:BUBBLE_ON},{name:'bubble-on-9',game:'holdem',n:9,extra:BUBBLE_ON},{name:'bubble-on-zjh',game:'zjh',n:6,extra:BUBBLE_ON},{name:'bubble-on-ddz',game:'ddz',n:3,extra:BUBBLE_ON},{name:'bubble-on-hz',game:'hz',n:4,extra:BUBBLE_ON},
   {name:'fx-points',game:'holdem',n:6,extra:FX_POINTS,sizes:[...PH,[1280,800,false]]},
   {name:'fx-points-9',game:'holdem',n:9,extra:FX_POINTS,sizes:PH},
@@ -461,7 +512,7 @@ const SHOWDOWN=(all,long)=>`(async()=>{${PG}
 /* a phone starting a 斗地主 / 红中 game: the fullscreen button lights up with a small bubble under it, gone after a while;
    desktop, 德州 and 炸金花 get none */
 const FS_TIP=`(async()=>{${PG}
-  const touch=matchMedia('(pointer:coarse)').matches,want=touch&&(isD(V)||isM(V));FS_TIP_MS=400;
+  const touch=matchMedia('(pointer:coarse)').matches,want=touch&&(isD(V)||isM(V)||isG(V));FS_TIP_MS=400;
   show('setup');show('game');render();await sleep(80);
   const b=Q('#corner-fs .cbtn'),t=Q('#fs-tip');
   if(!want){if(vis(t))f.push('不该出现全屏提示');return f}
@@ -719,7 +770,7 @@ SCEN.push(
   {name:'turn-ring',game:'holdem',n:6,extra:TURN_RING},{name:'turn-ring-9',game:'holdem',n:9,extra:TURN_RING},
   {name:'turn-ring-zjh',game:'zjh',n:6,extra:TURN_RING},{name:'turn-ring-ddz',game:'ddz',n:3,lord20:true,extra:TURN_RING},
   {name:'align',game:'holdem',n:6,extra:ALIGN},{name:'align-9',game:'holdem',n:9,extra:ALIGN},{name:'align-zjh',game:'zjh',n:6,extra:ALIGN},{name:'align-ddz',game:'ddz',n:3,extra:ALIGN},
-  {name:'fs-tip-ddz',game:'ddz',n:3,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-hz',game:'hz',n:4,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-zjh',game:'zjh',n:6,extra:FS_TIP,sizes:PH},
+  {name:'fs-tip-ddz',game:'ddz',n:3,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-hz',game:'hz',n:4,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-gm',game:'gm',n:2,extra:FS_TIP,sizes:[...PH4,[1280,800,false]]},{name:'fs-tip-zjh',game:'zjh',n:6,extra:FS_TIP,sizes:PH},
   {name:'zjh-cmp-tip',game:'zjh',n:6,extra:ZJH_CMP_TIP,sizes:PH4},
   {name:'zjh-pk',game:'zjh',n:6,extra:ZJH_PK,sizes:[...PH4,[1280,800,false]]},{name:'zjh-pk-9',game:'zjh',n:9,extra:ZJH_PK,sizes:PH4},
   {name:'zjh-seat-kbd',game:'zjh',n:6,extra:ZJH_SEAT_KBD},{name:'chips-final-9',game:'holdem',n:9,extra:CHIPS_FINAL,sizes:PH4},{name:'chips-final-6',game:'holdem',n:6,extra:CHIPS_FINAL,sizes:PH4},
@@ -751,7 +802,7 @@ const MEASURE=`(()=>{
   const hand=[...document.querySelectorAll('#dd-hand .card,#dd-hand .hz-row > .mj')].map(R);
   return {sh:se.scrollHeight,sw:se.scrollWidth,ih:innerHeight,iw:innerWidth,
     header:vis(document.querySelector('header.top')),footer:vis(document.querySelector('footer.foot')),
-    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),'hz-river':all('#table .hz-river'),'hz-center':all('#table .hz-center'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
+    seats:all('#table .seat'),others:{board:all('#table .board'),'dd-bottom':all('#table .dd-bottom'),'dd-center':all('#table .dd-center'),'dd-play':all('#table .dd-play'),'hz-river':all('#table .hz-river'),'hz-center':all('#table .hz-center'),'gm-board':all('#table .gm-board'),actions:all('#actions'),'act-hint':all('#actions .act-hint'),'act-pop':all('#actions .act-pop')},
     bets:all('#table .bet'),actions:all('#actions'),btns:[...document.querySelectorAll('#actions button')].filter(vis).map(b=>({t:b.textContent.trim().slice(0,12),h:b.getBoundingClientRect().height})),
     hand,ddStage:document.querySelector('#table .dd-center')?vis(document.querySelector('#table .dd-center .street')):null,
     /* 斗地主 is counter-clockwise: the player after me sits on my right */

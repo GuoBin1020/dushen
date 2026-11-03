@@ -219,3 +219,121 @@ function gmRulesHTML(){
   <ul><li>单机：轮到你时随时可以悔棋，连同电脑的应手一起撤回。</li><li>联机：自己刚下完、对方还没落子时可以申请，对方同意才悔；15 秒不回应算不同意；每人每盘最多 3 次。</li></ul>
   <h3>计分</h3><p>不用筹码，只记每个人赢、输、和了几盘，结算时显示比分。</p>`;
 }
+
+/* =====================================================================
+   The board on this device: a flat wooden square (no 3D table), the two players beside it. Tap a point for a preview
+   stone, tap it again to place (GM_SEL is the preview). gmLayout sizes everything from the room actually left, after
+   the corner buttons and the action bar are drawn.
+   ===================================================================== */
+let GM_SEL=null,GM_RESIGN=0;
+const GM_M=22,GM_C=20,GM_V=GM_M*2+GM_C*14;/* SVG units: margin, cell, whole board */
+const gmXY=i=>[GM_M+(i%15)*GM_C,GM_M+Math.floor(i/15)*GM_C];
+function gmBoardSVG(v){
+  const g=v.gm,win=new Set(g.over?g.over.line:[]),mine=v.toAct===v.me&&v.phase==='playing'&&!g.over&&!g.undo;
+  let s=`<svg viewBox="0 0 ${GM_V} ${GM_V}" role="grid" aria-label="五子棋棋盘">`;
+  for(let k=0;k<15;k++){const p=GM_M+k*GM_C,e=GM_M+14*GM_C;
+    s+=`<line x1="${GM_M}" y1="${p}" x2="${e}" y2="${p}" class="gm-line"/><line x1="${p}" y1="${GM_M}" x2="${p}" y2="${e}" class="gm-line"/>`;
+    s+=`<text x="${p}" y="${GM_M-9}" class="gm-lab">${'ABCDEFGHIJKLMNO'[k]}</text><text x="${GM_M-12}" y="${p+3}" class="gm-lab">${15-k}</text>`}
+  for(const i of [48,56,112,168,176]){const [x,y]=gmXY(i);s+=`<circle cx="${x}" cy="${y}" r="2.6" class="gm-star"/>`}
+  g.board.forEach((c,i)=>{if(!c)return;const [x,y]=gmXY(i);
+    s+=`<circle cx="${x}" cy="${y}" r="8.8" class="gm-stone ${c===1?'b':'w'}${win.has(i)?' gm-win':''}" data-at="${i}"/>`;
+    if(i===g.last&&!win.size)s+=`<circle cx="${x}" cy="${y}" r="2.6" class="gm-last"/>`});
+  if(GM_SEL!=null&&mine&&!g.board[GM_SEL]){const [x,y]=gmXY(GM_SEL);s+=`<circle cx="${x}" cy="${y}" r="8.8" class="gm-ghost ${gmColorV(v,v.me)===1?'b':'w'}" data-gi="${GM_SEL}"/>`}
+  s+=typeof gmCandSVG==='function'?gmCandSVG(v):'';
+  /* the tap targets go last, on top */
+  for(let i=0;i<225;i++){const [x,y]=gmXY(i);s+=`<rect x="${x-GM_C/2}" y="${y-GM_C/2}" width="${GM_C}" height="${GM_C}" class="gm-hit" data-gi="${i}"${mine&&!g.board[i]?'':' aria-disabled="true"'}/>`}
+  return s+'</svg>';
+}
+const gmColorV=(v,pid)=>pid===v.gm.black?1:2;
+function gmSeatHTML(v,p){
+  const g=v.gm,c=g?gmColorV(v,p.id):0,tg=(p.kind==='remote'&&!p.connected)||p.trust;
+  const st=v.phase==='playing'&&g&&!g.over?(g.thinking===p.id?'思考中…':v.toAct===p.id?'轮到落子':''):'';
+  const cls=['seat','gm-seat',p.id===v.me?'me':'',v.toAct===p.id&&v.phase==='playing'?'active':'',g&&g.over&&g.over.winner===p.id?'win':''].join(' ');
+  return `<div class="${cls}${seatCls({x:50,y:50},true,p.id)}" data-pid="${p.id}">
+    <div class="stop">${avatarHTML(p)}<span class="gm-mark ${c===1?'b':'w'}" title="${c===1?'执黑':'执白'}"></span></div>
+    <div class="plate"><div class="pname">${esc(p.name)}${p.id===v.me&&NET.role!=='solo'?'（你）':''}</div>
+      <div class="ptag">${c===1?'执黑':'执白'}${seatTag(p)?' · '+esc(seatTag(p)):''}</div>
+      <div class="pstack">${p.gw||0} 胜 ${p.gl||0} 负${p.gd?` ${p.gd} 和`:''}</div>
+      <div class="pact${tg?' tg':''}">${esc([tg?'托管中':'',st||p.lastAction||''].filter(Boolean).join(' · '))}</div></div></div>`;
+}
+function gmRenderTable(){
+  const v=V,o=tableOrient();tableFrame(o,'gm');
+  const T=$('#table'),hand=$('#dd-hand');if(hand)hand.hidden=true;
+  T.classList.add('gm');T.classList.remove('ddz','hz','zjh');
+  if(!v.gm){T.innerHTML='';return}
+  if(GM_SEL!=null&&(v.toAct!==v.me||v.gm.board[GM_SEL]))GM_SEL=null;
+  /* the other player first (top / left), me second (bottom / right) */
+  const ps=[...v.players].sort((a,b)=>(a.id===v.me)-(b.id===v.me));
+  T.innerHTML=`${ps.map(p=>gmSeatHTML(v,p)).join('')}<div class="gm-board">${gmBoardSVG(v)}</div>`;
+  T.dataset.n='2';
+  gmLayout();
+}
+/* sizes from what is free: upright the board fills the width between the other player (top) and me (bottom, above the
+   buttons); sideways it fills the height, the other player on the left, me and the buttons on the right */
+function gmLayout(){
+  const T=$('#table'),bd=T&&T.querySelector('.gm-board');if(!bd||!V||!isG(V))return;
+  const gv=$('#game-view'),tr=T.getBoundingClientRect(),W=tr.width,H=tr.height,o=tableOrient();
+  const seats=[...T.querySelectorAll('.gm-seat')],opp=seats[0],me=seats[1];if(!opp||!me)return;
+  const corners=[...document.querySelectorAll('.corner > *')].filter(e=>e.offsetWidth).map(e=>{const r=e.getBoundingClientRect();return {x:r.left-tr.left,y:r.top-tr.top,w:r.width,h:r.height}});
+  const ov=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
+  const put=(el,x,y)=>{el.style.left=Math.round(x)+'px';el.style.top=Math.round(y)+'px'};
+  if(o==='port'){
+    gv.style.removeProperty('--gm-side-w');
+    const top0=Math.max(8,...corners.map(c=>c.y+c.h+6)),act=$('#actions'),ar=act&&act.offsetHeight?act.getBoundingClientRect():null;
+    const hint=act&&act.querySelector('.act-hint'),hr=hint&&hint.offsetHeight?hint.getBoundingClientRect():null;
+    const bot0=(hr?Math.min(hr.top,ar.top):ar?ar.top:tr.bottom)-tr.top-6;
+    const oh=opp.offsetHeight,mh=me.offsetHeight,avail=bot0-top0-oh-mh-16,size=Math.max(180,Math.min(W-12,avail));
+    const by=top0+oh+8+Math.max(0,(avail-size)/2);
+    put(opp,(W-opp.offsetWidth)/2,by-oh-8);put(me,(W-me.offsetWidth)/2,by+size+8);
+    bd.style.width=bd.style.height=Math.round(size)+'px';put(bd,(W-size)/2,by);
+  }else{
+    let top0=8,size=Math.min(H-16,W-2*150);
+    for(let k=0;k<2;k++){const box={x:(W-size)/2,y:top0,w:size,h:size};const hit=corners.filter(c=>ov(c,box));if(!hit.length)break;
+      top0=Math.max(...hit.map(c=>c.y+c.h+6));size=Math.min(H-top0-8,W-2*150)}
+    const bx=(W-size)/2,side=Math.max(120,bx-24);
+    gv.style.setProperty('--gm-side-w',Math.round(side)+'px');
+    bd.style.width=bd.style.height=Math.round(size)+'px';put(bd,bx,top0+(H-top0-8-size)/2);
+    put(opp,(bx-opp.offsetWidth)/2,Math.max(top0,H*0.32-opp.offsetHeight/2));
+    put(me,bx+size+(W-bx-size-me.offsetWidth)/2,Math.max(top0,H*0.32-me.offsetHeight/2));
+  }
+  if(typeof placeBubble==='function')placeBubble();
+}
+/* a tap on the board: preview, then place */
+function gmTap(i){
+  const v=V;if(!v||!isG(v)||!v.gm||v.phase!=='playing'||v.toAct!==v.me||v.gm.over||v.gm.undo||v.gm.board[i])return;
+  if(GM_SEL===i){GM_SEL=null;humanAct('place',i);return}
+  GM_SEL=i;gmRenderTable();
+}
+function gmRenderActions(el,m){
+  const v=V,g=v.gm;if(!g)return el.innerHTML=actWait('…');
+  const opp=v.players.find(p=>p.id!==v.me),myC=gmColorV(v,v.me),bot=opp&&opp.kind==='ai';
+  const last=g.moves.length?g.board[g.moves[g.moves.length-1]]:0;
+  const canUndo=bot?v.toAct===v.me&&g.moves.some(i=>g.board[i]===myC):v.toAct===opp.id&&last===myC&&!g.undo&&g.undoLeft[v.me]>0;
+  const resign=`<button class="btn b-gray" data-act="gmresign">${GM_RESIGN>Date.now()?'确认认输？':'认输'}</button>`;
+  const undoBtn=`<button class="btn b-yellow" data-act="gmundo"${canUndo?'':' disabled'}>悔棋${bot?'':`（剩 ${g.undoLeft[v.me]||0} 次）`}</button>`;
+  if(g.undo&&g.undo.by!==v.me){const p=v.players[g.undo.by];
+    el.innerHTML=actHTML(`${esc(p.name)} 想悔棋（撤回刚下的那一步），同意吗？${Math.ceil(g.undo.left/1000)} 秒内不回应算不同意。`,
+      `<button class="btn b-gray" data-act="gmno">不同意</button><button class="btn b-green" data-act="gmyes">同意</button>`);return gmLayout()}
+  if(g.undo){el.innerHTML=actHTML('已申请悔棋，等对方同意……',resign);return gmLayout()}
+  const tip=typeof gmCoachTip==='function'?gmCoachTip(v):'';
+  if(v.toAct===v.me)el.innerHTML=actHTML(tip||(GM_SEL!=null?`再点一次 ${gmPos(GM_SEL)} 落子，点别处换位置`:'点一个空位出现预览，再点一次落子'),`${undoBtn}${resign}`);
+  else{const p=v.players[v.toAct],wait=p&&p.kind==='remote'&&!p.connected?`${esc(p.name)} 掉线了，等他重连…`:p?`等 ${esc(p.name)} 落子…`:'…';
+    el.innerHTML=actHTML('',`<span class="act-wait">${wait}</span>${bot?'':undoBtn}${resign}`)}
+  gmLayout();
+}
+/* the end of a game in the action bar */
+function gmOverText(v){
+  const o=v.gm&&v.gm.over;if(!o)return '';
+  return o.winner<0?'这盘和棋。':o.winner===v.me?`你赢了这一盘${o.why==='resign'?'（对方认输）':''}！`:`这盘你输了${o.why==='resign'?'（认输）':''}。`;
+}
+/* sounds and tips from the host's events */
+function gmFx(v,ev){
+  const p=v.players[ev.pid],g=p?p.gender:'m';
+  if(ev.type==='place')SFX.chips(1);
+  else if(ev.type==='forbid'){if(ev.pid===v.me){SFX.check();toast(`禁手：${ev.forbid}，这一步不能下`,2200)}}
+  else if(ev.type==='win'){if(ev.pid===v.me)SFX.win();else SFX.fold();say(ev.why==='resign'?'认输':'五连',g)}
+  else if(ev.type==='undoAsk'&&ev.pid!==v.me){SFX.ding();toast(`${p?p.name:'对方'} 想悔棋`,2000)}
+  else if(ev.type==='undoNo'&&ev.pid!==v.me&&!ev.auto)toast('对方不同意悔棋',1800);
+  else if(ev.type==='undoNo'&&ev.auto&&ev.pid===v.me)toast('对方托管中或不在线，不能悔棋',2000);
+  else if(ev.type==='undoYes')toast('悔棋了',1400);
+}
