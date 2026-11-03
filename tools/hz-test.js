@@ -90,7 +90,7 @@ const ectx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,
 vm.runInContext(`var TIMERS=[];var setTimeout=(f)=>{TIMERS.push(f);return TIMERS.length};var clearTimeout=()=>{};
   var NET={role:'solo',conns:new Map()};function applyView(){}function hostSave(){}function voiceClear(){}function resetT(){}function onChat(){}var SETTLE_SEEN=null;function onSettle(m){SETTLE_SEEN=m}
   var LOCAL={mode:'live'},T={last:null,decisions:[]};function myTurn(){return false}function coachOn(){return true}`,ectx);
-for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
+for(const f of ['js/common.js','js/games/holdem.js','js/games/zjh.js','js/games/doudizhu.js','js/games/doudizhu-coach.js','js/games/hongzhong.js','js/games/hongzhong-coach.js','js/games/gomoku.js','js/games/gomoku-ai.js','js/engine.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ectx,{filename:f});
 ectx.H=H;
 const E=s=>vm.runInContext(s,ectx);
 const CFG=o=>show(Object.assign({game:'hz',players:4,base:1,stack:2000,speed:'fast',rebuy:true,auto:false,aiFill:true,coach:true,hzDianpao:false,hzRedSelf:true,hzQiangGang:true,hzNoRed:false,hzBirds:2,turnSec:0},o||{}));

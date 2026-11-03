@@ -366,6 +366,7 @@ function trackStats(p,type,toCall){
   }
 }
 function proceed(){
+  if(isG(S))return gmProceed();
   if(isM(S))return hzProceed();
   if(isZ(S))return zProceed();
   if(isD(S))return ddProceed();
@@ -424,6 +425,7 @@ function trackRange(p,type){
   }
 }
 function act(p,type,to){
+  if(isG(S))return gmAct(p,type,to);
   if(isM(S))return hzAct(p,type,to);
   if(isZ(S))return zAct(p,type,to);
   if(isD(S))return ddAct(p,type,to);
