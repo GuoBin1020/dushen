@@ -5,7 +5,7 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const ROOT=path.join(__dirname,'..');
 const ctx=vm.createContext({console,Math,Date,JSON,Set,Map,Object,Array,Number,String,Boolean});
-for(const f of ['js/common.js','js/games/gomoku.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
+for(const f of ['js/common.js','js/games/gomoku.js','js/games/gomoku-ai.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,f),'utf8'),ctx,{filename:f});
 const run=s=>vm.runInContext(s,ctx);
 let passed=0,failed=0;
 const show=x=>JSON.stringify(x);
@@ -52,6 +52,38 @@ eq(fb(fake,5,7),'长连','（假三三的前提）F8 对黑是长连');eq(fb(fak
   ok(!five,'（前提）满盘没有现成的五连');
   eq([fb(b,3,3),fb(b,3,11)],['长连','长连'],'gm-black-stuck：剩下两个空位都是黑棋禁手');
   ctx.STUCK=b;}
+
+/* ---------- Task 2: the engine ---------- */
+run('var AI=gmAiModule()');
+const srch=(b,c,o)=>run(`AI.search(${show(b)},${c},${show(o)})`);
+const lv=['normal','hard','hell'];
+/* make five when it can */
+{const b=mk([[4,5],[5,5],[6,5],[7,5]],[[4,6],[5,6],[6,6]]);for(const L of ['easy',...lv])ok([I(8,5),I(3,5)].includes(srch(b,1,{level:L,forbid:false,maxNodes:3000}).move),L+'：能成五就成五')}
+/* block a 冲四 (white has four, black has nothing big) */
+{const b=mk([[3,3],[10,10],[3,7]],[[4,7],[5,7],[6,7],[7,7]]);for(const L of ['easy',...lv])eq(srch(b,1,{level:L,forbid:false,maxNodes:3000}).move,I(8,7),L+'：必堵冲四');}
+/* block an open three (normal and up) */
+{const b=mk([[3,3],[11,11]],[[6,7],[7,7],[8,7]]);for(const L of lv)ok([I(5,7),I(9,7),I(4,7),I(10,7)].includes(srch(b,1,{level:L,forbid:false,maxNodes:3000}).move),L+'：必堵活三');}
+/* black (5,5)(6,5)(7,5) blocked at (4,5), and (8,6)(8,7)(8,8) blocked at (8,9): (8,5) makes two 冲四 at once (四四), a win */
+{const b=mk([[5,5],[6,5],[7,5],[8,6],[8,7],[8,8],[2,12]],[[4,5],[8,9],[12,2],[13,3],[11,1]]);
+  ok(srch(b,1,{level:'hell',forbid:false,maxNodes:20000}).move===I(8,5),'地狱：找到四四杀 I10');}
+/* black never plays a forbidden point when the rule is on */
+{const b=mk([[6,7],[8,7],[7,6],[7,8]],[[2,2],[12,12],[2,12],[12,2]]);for(const L of ['easy',...lv]){const m=srch(b,1,{level:L,forbid:true,maxNodes:3000}).move;ok(m!==I(7,7)&&!run(`gmForbid(${show(b)},${m})`),L+'：开禁手不下禁手点')}}
+/* explain */
+{const b=mk([[3,3],[11,11]],[[6,7],[7,7],[8,7]]);const e=run(`AI.explain(${show(b)},1,${I(5,7)},false)`);ok(e.block.includes('活三'),'解释：堵住对方的活三 '+show(e));
+  const b2=mk([[3,3],[11,11]],[[6,7],[7,7],[8,7]]);const e2=run(`AI.explain(${show(b2)},1,${I(0,0)},false)`);ok(e2.lose,'解释：不堵活三会输 '+show(e2));
+  ok(run('AI.SCORES["五连"]>AI.SCORES["活四"]&&AI.SCORES["活四"]>AI.SCORES["活三"]'),'评分表从大到小');}
+/* strength: neighbouring levels play 10 games, colours alternating, on fixed node budgets; the stronger one scores 7+ */
+const BUD={easy:{},normal:{},hard:{maxNodes:1500},hell:{maxNodes:12000}};
+run(`function GAME(bl,wl,seed){let s=seed;const rnd=()=>((s=(s*1103515245+12345)%2147483648)/2147483648);const b=new Array(225).fill(0);
+  const open=[112,112+1+15*((rnd()*3|0)-1)];b[open[0]]=1;let c=2;
+  for(let n=1;n<225;n++){const L=c===1?bl:wl,o=Object.assign({level:L,forbid:false,rnd},${show(BUD)}[L]);const m=n===1?open[1]===112?113:open[1]:AI.search(b,c,o).move;
+    if(m==null||b[m])return 0;b[m]=c;if(gmFive(b,m,c).win)return c;c=3-c}return 0}`);
+for(const [lo,hi] of [['easy','normal'],['normal','hard'],['hard','hell']]){
+  let pts=0;const t0=Date.now();for(let g=0;g<10;g++){const hb=g%2===0,w=run(`GAME(${show(hb?hi:lo)},${show(hb?lo:hi)},${7+g*31})`);pts+=w===0?0.5:(w===1)===hb?1:0}
+  console.log(`  ${hi} 对 ${lo}：${pts} / 10（${((Date.now()-t0)/1000).toFixed(0)} 秒）`);ok(pts>=7,hi+' 应稳定赢 '+lo+'，得分 '+pts);}
+/* real time: three mid-game positions stay within the limits */
+{const ps=[mk([[7,7],[8,8],[6,8],[9,6]],[[8,7],[7,8],[6,6],[9,9]]),mk([[7,7],[7,8],[8,9],[6,6],[9,7]],[[8,8],[6,7],[8,6],[5,5],[9,9]]),mk([[5,5],[6,6],[7,7],[5,7],[9,9],[8,5]],[[6,5],[7,6],[8,7],[4,4],[6,8],[10,10]])];
+  for(const [L,ms] of [['hard',1000],['hell',2000]])ps.forEach((b,k)=>{const r=srch(b,1,{level:L,forbid:false,maxMs:ms});ok(r.ms<=ms*1.2,L+' 局面 '+k+' 用时 '+r.ms+'ms')});}
 
 console.log(`gm: ${passed} passed, ${failed} failed`);
 process.exit(failed?1:0);
